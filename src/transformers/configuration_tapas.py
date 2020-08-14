@@ -64,7 +64,7 @@ class TapasConfig(BertConfig):
         select_one_column=True,
         allow_empty_column_selection=False,
         #disable_position_embeddings=False,
-        reset_position_index_per_cell=True
+        reset_position_index_per_cell=False
         **kwargs):
 
         """Constructs TapasConfig.

@@ -66,6 +66,9 @@ class TapasEmbeddings(nn.Module):
 
         seq_length = input_shape[1]
         device = input_ids.device if input_ids is not None else inputs_embeds.device
+        
+        # currently, only absolute position embeddings are implemented
+        # to do: should be updated to account for if config.reset_position_index_per_cell = True
         if position_ids is None:
             position_ids = torch.arange(seq_length, dtype=torch.long, device=device)
             position_ids = position_ids.unsqueeze(0).expand(input_shape)
@@ -74,7 +77,11 @@ class TapasEmbeddings(nn.Module):
 
         if inputs_embeds is None:
             inputs_embeds = self.word_embeddings(input_ids)
+        
+        # currently, only absolute position embeddings are implemented
+        # to do: should be updated to account for if config.reset_position_index_per_cell = True
         position_embeddings = self.position_embeddings(position_ids)
+        
         token_type_embeddings_0 = self.token_type_embeddings_0(token_type_ids[:,:,0])
         token_type_embeddings_1 = self.token_type_embeddings_1(token_type_ids[:,:,1])
         token_type_embeddings_2 = self.token_type_embeddings_2(token_type_ids[:,:,2])
@@ -194,3 +201,74 @@ class TapasLMHead(nn.Module):
         x = self.decoder(x)
 
         return x
+
+
+class TapasForQuestionAnswering(BertPreTrainedModel):
+    def __init__(self, config):
+        super().__init__(config)
+        # hyperparameters
+        self.positive_weights = config.positive_weight
+        self.num_aggregation_labels = config.num_aggregation_labels
+        self.num_classification_labels = config.num_classification_labels
+        self.aggregation_loss_importance = config.aggregation_loss_importance
+        self.use_answer_as_supervision = config.use_answer_as_supervision
+        self.answer_loss_importance = config.answer_loss_importance
+        self.use_normalized_answer_loss = config.use_normalized_answer_loss
+        self.huber_loss_delta = config.huber_loss_delta
+        self.temperature = config.temperature
+        self.agg_temperature = config.agg_temperature
+        self.use_gumbel_for_cells = config.use_gumbel_for_cells
+        self.use_gumbel_for_agg = config.use_gumbel_for_agg
+        self.average_approximation_function = config.average_approximation_function
+        self.cell_select_pref = config.cell_select_pref
+        self.answer_loss_cutoff = config.answer_loss_cutoff
+        self.average_logits_per_cell = config.average_logits_per_cell
+        self.init_cell_selection_weights_to_zero = config.init_cell_selection_weights_to_zero
+        self.select_one_column = config.select_one_column
+        self.allow_empty_column_selection = config.allow_empty_column_selection
+        self.reset_position_index_per_cell = config.reset_position_index_per_cell
+
+        # base model
+        self.tapas = TapasModel(config)
+        # classification heads
+        self.output = nn.Linear(config.hidden_size, config.hidden_size)
+        self.output_cls = nn.Linear(config.hidden_size, config.num_classification_labels)
+        self.output_agg = nn.Linear(config.hidden_size, config.num_aggregation_labels)
+        self.column_output = nn.Linear(config.hidden_size, config.hidden_size)
+
+        self.init_weights()
+
+    def forward(
+        self,
+        input_ids=None,
+        attention_mask=None,
+        token_type_ids=None,
+        position_ids=None,
+        head_mask=None,
+        inputs_embeds=None,
+        start_positions=None,
+        end_positions=None,
+        output_attentions=None,
+        output_hidden_states=None,
+    ):
+
+        outputs = self.tapas(
+            input_ids,
+            attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
+            position_ids=position_ids,
+            head_mask=head_mask,
+            inputs_embeds=inputs_embeds,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+        )
+
+        last_hidden_state = outputs[0] # last_hidden_state has shape (batch_size, seq_length, hidden_size)
+        
+        token_logits = self.output(last_hidden_state) / config.temperature
+
+        logits_aggregation = self.output_agg(last_hidden_state[:,0,:])
+
+        logits_cls = self.output_cls(last_hidden_state[:,0,:])
+
+        return outputs  # (loss), logits, probs, logits_aggregation, logits_cls, span_indexes, span_logits, (hidden_states), (attentions)
