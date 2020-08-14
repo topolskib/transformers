@@ -56,15 +56,17 @@ class TapasConfig(BertConfig):
         cell_select_pref=None,
         answer_loss_cutoff=None,
         grad_clipping=None,
-        #disabled_features=[],
         max_num_rows=64,
         max_num_columns=32,
         average_logits_per_cell=False,
-        init_cell_selection_weights_to_zero=False,
         select_one_column=True,
         allow_empty_column_selection=False,
+        #disabled_features=[],
+        init_cell_selection_weights_to_zero=False,
         #disable_position_embeddings=False,
-        reset_position_index_per_cell=False
+        reset_position_index_per_cell=False,
+        disable_per_token_loss=False,
+        span_prediction="none"
         **kwargs):
 
         """Constructs TapasConfig.
@@ -93,15 +95,17 @@ class TapasConfig(BertConfig):
         self.cell_select_pref=cell_select_pref
         self.answer_loss_cutoff=answer_loss_cutoff
         self.grad_clipping=grad_clipping
-        #self.disabled_features = disabled_features
         self.max_num_rows=max_num_rows
         self.max_num_columns=max_num_columns
         self.average_logits_per_cell=average_logits_per_cell
-        self.init_cell_selection_weights_to_zero= init_cell_selection_weights_to_zero
         self.select_one_column=select_one_column
         self.allow_empty_column_selection=allow_empty_column_selections
+        #self.disabled_features = disabled_features
+        self.init_cell_selection_weights_to_zero= init_cell_selection_weights_to_zero
         #self.disable_position_embeddings = disable_position_embeddings
         self.reset_position_index_per_cell = reset_position_index_per_cell
+        self.disable_per_token_loss = disable_per_token_loss
+        self.span_prediction = span_prediction
 
         if task = "SQA":
             # run_task_main.py hparams

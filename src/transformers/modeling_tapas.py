@@ -42,6 +42,7 @@ class TapasEmbeddings(nn.Module):
 
     def __init__(self, config):
         super().__init__()
+        # currently, config.disabled_features and config.disable_position_embeddings are not included
         self.word_embeddings = nn.Embedding(config.vocab_size, config.hidden_size, padding_idx=config.pad_token_id)
         self.position_embeddings = nn.Embedding(config.max_position_embeddings, config.hidden_size)
         self.token_type_embeddings_0 = nn.Embedding(config.type_vocab_size[0], config.hidden_size)
@@ -206,8 +207,8 @@ class TapasLMHead(nn.Module):
 class TapasForQuestionAnswering(BertPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
-        # hyperparameters
-        self.positive_weights = config.positive_weight
+        # hyperparameters for fine-tuning
+        self.positive_weight = config.positive_weight
         self.num_aggregation_labels = config.num_aggregation_labels
         self.num_classification_labels = config.num_classification_labels
         self.aggregation_loss_importance = config.aggregation_loss_importance
@@ -222,11 +223,15 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         self.average_approximation_function = config.average_approximation_function
         self.cell_select_pref = config.cell_select_pref
         self.answer_loss_cutoff = config.answer_loss_cutoff
+        self.max_num_rows = config.max_num_rows
+        self.max_num_columns = config.max_num_columns
         self.average_logits_per_cell = config.average_logits_per_cell
-        self.init_cell_selection_weights_to_zero = config.init_cell_selection_weights_to_zero
         self.select_one_column = config.select_one_column
-        self.allow_empty_column_selection = config.allow_empty_column_selection
+        self.allow_empty_column_selection = config.allow_empty_column_selections
+        self.init_cell_selection_weights_to_zero = config.init_cell_selection_weights_to_zero
         self.reset_position_index_per_cell = config.reset_position_index_per_cell
+        self.disable_per_token_loss = config.disable_per_token_loss
+        self.span_prediction = config.span_prediction
 
         # base model
         self.tapas = TapasModel(config)
