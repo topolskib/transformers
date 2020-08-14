@@ -12,7 +12,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-""" TAPAS configuration """
+""" TAPAS configuration. Currently only the 4 fine-tuning tasks (SQA, WTQ, WIKISQL and
+    WIKISQL_SUPERVISED) are supported. By default, configuration for SQA. 
+"""
 
 
 import logging
@@ -107,7 +109,7 @@ class TapasConfig(BertConfig):
         self.disable_per_token_loss = disable_per_token_loss
         self.span_prediction = span_prediction
 
-        if task = "SQA":
+        if task == "SQA":
             # run_task_main.py hparams
             self.num_aggregation_labels = 0
             #self.do_model_aggregation = False
@@ -125,7 +127,7 @@ class TapasConfig(BertConfig):
             self.num_train_steps = int(self.num_train_examples / self.train_batch_size)
             self.num_warmup_steps = int(self.num_train_steps * self.warmup_ratio)
 
-        elif task = "WTQ":
+        elif task == "WTQ":
             # run_task_main.py hparams
             self.num_aggregation_labels = 4
             #self.do_model_aggregation = True
