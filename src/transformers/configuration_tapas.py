@@ -72,6 +72,7 @@ class TapasConfig(BertConfig):
         super().__init__(max_position_embeddings=max_position_embeddings, type_vocab_size=type_vocab_size, **kwargs)
         
         # Fine-tuning task arguments
+        self.task=task
         self.learning_rate=learning_rate
         self.num_train_steps=num_train_steps
         self.num_warmup_steps=num_warmup_steps
