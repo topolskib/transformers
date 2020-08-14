@@ -122,6 +122,9 @@ class TapasConfig(BertConfig):
             self.train_batch_size = 128
             self.warmup_ratio = 0.01
 
+            self.num_train_steps = int(self.num_train_examples / self.train_batch_size)
+            self.num_warmup_steps = int(self.num_train_steps * self.warmup_ratio)
+
         elif task = "WTQ":
             # run_task_main.py hparams
             self.num_aggregation_labels = 4
@@ -141,6 +144,9 @@ class TapasConfig(BertConfig):
             self.allow_empty_column_selection = False
             self.temperature = 0.0352513
             self.warmup_ratio = 0.128960
+
+            self.num_train_steps = int(self.num_train_examples / self.train_batch_size)
+            self.num_warmup_steps = int(self.num_train_steps * self.warmup_ratio)
     
         elif task == "WIKISQL":
             # run_task_main.py hparams
@@ -162,6 +168,9 @@ class TapasConfig(BertConfig):
             self.temperature = 0.107515
             self.warmup_ratio = 0.142400
 
+            self.num_train_steps = int(self.num_train_examples / self.train_batch_size)
+            self.num_warmup_steps = int(self.num_train_steps * self.warmup_ratio)
+
         elif task == "WIKISQL_SUPERVISED":
             # run_task_main.py hparams
             self.num_aggregation_labels = 4
@@ -182,5 +191,8 @@ class TapasConfig(BertConfig):
             self.temperature = 0.763141
             self.warmup_ratio = 0.168479
 
+            self.num_train_steps = int(self.num_train_examples / self.train_batch_size)
+            self.num_warmup_steps = int(self.num_train_steps * self.warmup_ratio)
+        
         else:
             raise ValueError(f'Unknown task: {task}')
