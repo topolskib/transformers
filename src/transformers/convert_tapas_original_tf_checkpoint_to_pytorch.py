@@ -30,7 +30,7 @@ def convert_tf_checkpoint_to_pytorch(tf_checkpoint_path, tapas_config_file, pyto
     # Initialise PyTorch model
     config = TapasConfig.from_json_file(tapas_config_file)
     print("Building PyTorch model from configuration: {}".format(str(config)))
-    model = TapasModel(config)
+    model = TapasForMaskedLM(config)
 
     # Load weights from tf checkpoint
     load_tf_weights_in_tapas(model, config, tf_checkpoint_path)

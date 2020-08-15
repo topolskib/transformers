@@ -23,7 +23,7 @@ import torch.nn as nn
 from torch.nn import CrossEntropyLoss, MSELoss
 
 from .configuration_tapas import TapasConfig
-from .modeling_bert import BertLayerNorm, BertModel, BertPreTrainedModel, gelu
+from .modeling_bert import BertLayerNorm, BertModel, BertPreTrainedModel, BertOnlyMLMHead, gelu
 
 
 logger = logging.getLogger(__name__)
@@ -35,7 +35,9 @@ TAPAS_PRETRAINED_MODEL_ARCHIVE_LIST = [
 ]
 
 def load_tf_weights_in_tapas(model, config, tf_checkpoint_path):
-    """ Load tf checkpoints in a pytorch model. 2 lines of code added compared to load_tf_weights_in_tapas (embeddings)
+    """ Load tf checkpoints in a pytorch model. 2 changes compared to "load_tf_weights_in_bert":
+        - skip seq_relationship variables
+        - take into account additional token type embedding layers
     """
     try:
         import re
@@ -64,9 +66,8 @@ def load_tf_weights_in_tapas(model, config, tf_checkpoint_path):
         name = name.split("/")
         # adam_v and adam_m are variables used in AdamWeightDecayOptimizer to calculated m and v
         # which are not required for using pretrained model
-        # we currently ignore pooler and classification heads (MLM + next sentence prediction) 
         if any(
-            n in ["adam_v", "adam_m", "AdamWeightDecayOptimizer", "AdamWeightDecayOptimizer_1", "global_step", "pooler", "cls"]
+            n in ["adam_v", "adam_m", "AdamWeightDecayOptimizer", "AdamWeightDecayOptimizer_1", "global_step", "seq_relationship"]
             for n in name
         ):
             logger.info("Skipping {}".format("/".join(name)))
@@ -203,13 +204,17 @@ class TapasForMaskedLM(BertPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
 
+        assert (
+            not config.is_decoder
+        ), "If you want to use `TapasForMaskedLM` make sure `config.is_decoder=False` for bi-directional self-attention."
+
         self.tapas = TapasModel(config)
-        self.lm_head = TapasLMHead(config)
+        self.cls = BertOnlyMLMHead(config)
 
         self.init_weights()
 
     def get_output_embeddings(self):
-        return self.lm_head.decoder
+        return self.cls.predictions.decoder
 
     def forward(
         self,
@@ -253,31 +258,4 @@ class TapasForMaskedLM(BertPreTrainedModel):
             outputs = (masked_lm_loss,) + outputs
 
         return outputs  # (masked_lm_loss), prediction_scores, (hidden_states), (attentions)
-
-
-
-class TapasLMHead(nn.Module):
-    """Tapas Head for masked language modeling."""
-
-    def __init__(self, config):
-        super().__init__()
-        self.dense = nn.Linear(config.hidden_size, config.hidden_size)
-        self.layer_norm = BertLayerNorm(config.hidden_size, eps=config.layer_norm_eps)
-
-        self.decoder = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
-        self.bias = nn.Parameter(torch.zeros(config.vocab_size))
-
-        # Need a link between the two variables so that the bias is correctly resized with `resize_token_embeddings`
-        self.decoder.bias = self.bias
-
-    def forward(self, features, **kwargs):
-        x = self.dense(features)
-        x = gelu(x)
-        x = self.layer_norm(x)
-
-        # project back to size of vocabulary with bias
-        x = self.decoder(x)
-
-        return x
-
 
