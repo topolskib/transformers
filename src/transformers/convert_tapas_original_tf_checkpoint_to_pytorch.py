@@ -20,7 +20,7 @@ import logging
 
 import torch
 
-from transformers import TapasConfig, TapasModel, load_tf_weights_in_tapas
+from transformers import TapasConfig, TapasForMaskedLM, load_tf_weights_in_tapas
 
 
 logging.basicConfig(level=logging.INFO)
