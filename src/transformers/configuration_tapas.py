@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """ TAPAS configuration. Currently only the 4 fine-tuning tasks (SQA, WTQ, WIKISQL and
-    WIKISQL_SUPERVISED) are supported. By default, configuration for SQA. 
+    WIKISQL_SUPERVISED) are supported. By default, intializes SQA configuration. 
 """
 
 
@@ -68,7 +68,7 @@ class TapasConfig(BertConfig):
         #disable_position_embeddings=False,
         reset_position_index_per_cell=False,
         disable_per_token_loss=False,
-        span_prediction="none"
+        span_prediction="none",
         **kwargs):
 
         """Constructs TapasConfig.
@@ -101,7 +101,7 @@ class TapasConfig(BertConfig):
         self.max_num_columns = max_num_columns
         self.average_logits_per_cell = average_logits_per_cell
         self.select_one_column = select_one_column
-        self.allow_empty_column_selection = allow_empty_column_selections
+        self.allow_empty_column_selection = allow_empty_column_selection
         #self.disabled_features = disabled_features
         self.init_cell_selection_weights_to_zero = init_cell_selection_weights_to_zero
         #self.disable_position_embeddings = disable_position_embeddings

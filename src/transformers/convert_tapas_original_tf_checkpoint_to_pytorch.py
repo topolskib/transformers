@@ -33,7 +33,7 @@ def convert_tf_checkpoint_to_pytorch(tf_checkpoint_path, tapas_config_file, pyto
     model = TapasForMaskedLM(config)
 
     # Load weights from tf checkpoint
-    load_tf_weights_in_tapas(model, config, tf_checkpoint_path)
+    load_tf_weights_in_tapas(model, confg, tf_checkpoint_path)
 
     # Save pytorch-model
     print("Save PyTorch model to {}".format(pytorch_dump_path))

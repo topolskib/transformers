@@ -42,6 +42,7 @@ from .configuration_pegasus import PegasusConfig
 from .configuration_reformer import REFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP, ReformerConfig
 from .configuration_retribert import RETRIBERT_PRETRAINED_CONFIG_ARCHIVE_MAP, RetriBertConfig
 from .configuration_roberta import ROBERTA_PRETRAINED_CONFIG_ARCHIVE_MAP, RobertaConfig
+from .configuration_tapas import TAPAS_PRETRAINED_CONFIG_ARCHIVE_MAP, TapasConfig
 from .configuration_t5 import T5_PRETRAINED_CONFIG_ARCHIVE_MAP, T5Config
 from .configuration_transfo_xl import TRANSFO_XL_PRETRAINED_CONFIG_ARCHIVE_MAP, TransfoXLConfig
 from .configuration_utils import PretrainedConfig
@@ -422,6 +423,13 @@ if is_torch_available():
         RetriBertPreTrainedModel,
         RetriBertModel,
         RETRIBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
+    )
+
+    from .modeling_tapas import (
+        TapasModel,
+        TapasForMaskedLM,
+        load_tf_weights_in_tapas,
+        TAPAS_PRETRAINED_MODEL_ARCHIVE_LIST,
     )
 
     # Optimization
