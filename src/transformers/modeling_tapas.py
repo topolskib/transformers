@@ -17,6 +17,7 @@
 
 import logging
 import warnings
+import os
 
 import torch
 import torch.nn as nn
@@ -35,8 +36,9 @@ TAPAS_PRETRAINED_MODEL_ARCHIVE_LIST = [
 ]
 
 def load_tf_weights_in_tapas(model, config, tf_checkpoint_path):
-    """ Load tf checkpoints in a pytorch model. 2 changes compared to "load_tf_weights_in_bert":
-        - skip seq_relationship variables
+    """ Load tf checkpoints in a pytorch model. 3 changes compared to "load_tf_weights_in_bert":
+        - change start of name of all variables to "tapas" rather than "bert" (except for "cls" layer)
+        - skip seq_relationship variables (as the model is expected to be TapasModel)
         - take into account additional token type embedding layers
     """
     try:
@@ -72,6 +74,9 @@ def load_tf_weights_in_tapas(model, config, tf_checkpoint_path):
         ):
             logger.info("Skipping {}".format("/".join(name)))
             continue
+        # if the variable is not a classification head, change first scope name to "tapas"
+        if name[0] != "cls":
+            name[0] = "tapas"
         pointer = model
         for m_name in name:
             if re.fullmatch(r"[A-Za-z]+_\d+", m_name):
