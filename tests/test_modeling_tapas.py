@@ -25,7 +25,7 @@ from .test_configuration_common import ConfigTester
 from .test_modeling_common import ModelTesterMixin, ids_tensor
 
 def token_type_ids_tensor(shape, type_vocab_size, rng=None, name=None):
-    #  Small change compared to "ids_tensor" function
+    #  Small change compared to "ids_tensor" function (from .test_modeling_common)
     #  Creates a random int32 tensor of the shape, within the type vocab sizes
     if rng is None:
         global_rng = random.Random()
