@@ -73,8 +73,10 @@ def load_tf_weights_in_tapas(model, config, tf_checkpoint_path):
         name = name.split("/")
         # adam_v and adam_m are variables used in AdamWeightDecayOptimizer to calculated m and v
         # which are not required for using pretrained model
+        # currently I also skip the classification heads on top since I first convert only the base model 
         if any(
-            n in ["adam_v", "adam_m", "AdamWeightDecayOptimizer", "AdamWeightDecayOptimizer_1", "global_step", "seq_relationship"]
+            n in ["adam_v", "adam_m", "AdamWeightDecayOptimizer", "AdamWeightDecayOptimizer_1", "global_step", "seq_relationship",
+            "column_output_bias", "column_output_weights", "output_bias", "output_weights"]
             for n in name
         ):
             logger.info("Skipping {}".format("/".join(name)))
