@@ -384,3 +384,37 @@ class TapasForMaskedLM(BertPreTrainedModel):
             attentions=outputs.attentions,
         )
 
+class TapasForQuestionAnswering(BertPreTrainedModel):
+    def __init__(self, config):
+        super().__init__(config)
+
+        # base model
+        self.tapas = TapasModel(config)
+        
+        # cell selection head
+        if config.init_cell_selection_weights_to_zero: 
+            self.output_weights = nn.Parameter(torch.zeros(config.hidden_size)) 
+        else:
+            self.output_weights = nn.Parameter(torch.empty(config.hidden_size))
+            nn.init.normal_(self.output_weights, std=0.02) # here, a truncated normal is used in the original implementation
+        self.output_bias = nn.Parameter(torch.zeros([]))
+
+        self.init_weights()
+
+    def compute_token_logits(self, output_layer, temperature):
+        """Computes logits per token.
+        Args:
+        output_layer: <float>[batch_size, seq_length, hidden_dim] Output of the
+            encoder layer.
+        temperature: float Temperature for the Bernoulli distribution.
+        init_cell_selection_weights_to_zero: Whether the initial weights should be
+            set to 0. This ensures that all tokens have the same prior probability.
+        Returns:
+        <float>[batch_size, seq_length] Logits per token.
+        """
+        
+        logits = (torch.einsum("bsj,j->bs", output_layer, self.output_weights) +
+                self.output_bias) / temperature
+
+        return logits
+

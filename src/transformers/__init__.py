@@ -428,6 +428,7 @@ if is_torch_available():
     from .modeling_tapas import (
         TapasModel,
         TapasForMaskedLM,
+        TapasForQuestionAnswering,
         load_tf_weights_in_tapas,
         TAPAS_PRETRAINED_MODEL_ARCHIVE_LIST,
     )
