@@ -466,7 +466,7 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
             answer: <float32>[batch_size]
             pooled_output: <float32>[batch_size, hidden_size]
             cell_select_pref: Preference for cell selection in ambiguous cases.
-            label_ids: <int32>[batch_size, seq_length]
+            label_ids: torch.LongTensor[batch_size, seq_length]
         Returns:
             aggregate_mask: <float32>[batch_size] A mask set to 1 for examples that
             should use aggregation functions.
@@ -492,3 +492,42 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         aggregate_mask = aggregate_mask.detach()
         
         return aggregate_mask
+
+    def _calculate_aggregation_loss_known(logits_aggregation, aggregate_mask,
+                                      aggregation_function_id):
+        """Calculates aggregation loss when its type is known during training.
+        In the weakly supervised setting, the only known information is that for
+        cell selection examples, "no aggregation" should be predicted. For other
+        examples (those that require aggregation), no loss is accumulated.
+        In the setting where aggregation type is always known, standard cross entropy
+        loss is accumulated for all examples.
+        Args:
+            logits_aggregation: <float32>[batch_size, num_aggregation_labels]
+            aggregate_mask: <float32>[batch_size]
+            aggregation_function_id: torch.LongTensor[batch_size]
+        Returns:
+            aggregation_loss_known: <float32>[batch_size, num_aggregation_labels]
+        """
+        if self.config.use_answer_as_supervision:
+            # Prepare "no aggregation" targets for cell selection examples.
+            target_aggregation = torch.zeros_like(aggregate_mask, dtype=torch.long)
+        else:
+            # Use aggregation supervision as the target.
+            target_aggregation = aggregation_function_id
+
+        batch_size = aggregate_mask.size()[0]
+
+        one_hot_labels = torch.zeros(batch_size, config.num_aggregation_labels, dtype=torch.float32)
+        one_hot_labels[torch.arange(batch_size), target_aggregation] = 1.0
+        
+        log_probs = torch.nn.functional.log_softmax(logits_aggregation, dim=-1)
+        
+        # <float32>[batch_size]
+        per_example_aggregation_intermediate = -torch.sum(
+            one_hot_labels * log_probs, axis=-1)
+        if self.config.use_answer_as_supervision:
+            # Accumulate loss only for examples requiring cell selection
+            # (no aggregation).
+            return per_example_aggregation_intermediate * (1 - aggregate_mask)
+        else:
+            return per_example_aggregation_intermediate
