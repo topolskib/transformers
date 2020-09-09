@@ -444,10 +444,9 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         Args:
             pooled_output: <float>[batch_size, hidden_dim] Output of the pooler (BertPooler) on top of the encoder layer.
         Returns:
-            logits_aggregation: <float32>[batch_size, num_aggregation_labels]
+            logits_aggregation: <float32>[batch_size, config.num_aggregation_labels] Logits per aggregation operation.
         """
-        logits_aggregation = torch.matmul(
-            pooled_output, self.output_weights_agg.T)
+        logits_aggregation = torch.matmul(pooled_output, self.output_weights_agg.T)
         logits_aggregation += self.output_bias_agg
         
         return logits_aggregation
