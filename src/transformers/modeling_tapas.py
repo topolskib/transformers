@@ -422,13 +422,12 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
 
         return logits
 
-    def compute_classification_logits(self, num_classification_labels, output_layer):
+    def compute_classification_logits(self, output_layer):
         """Computes logits for each classification of the sequence.
         Args:
-        num_classification_labels: int Number of class to predict
-        output_layer: <float>[batch_size, hidden_dim] Output of the pooler on top of the encoder layer.
+        output_layer: <float>[batch_size, hidden_dim] Output of the pooler (BertPooler) on top of the encoder layer.
         Returns:
-        <float>[batch_size, num_classification_labels] Logits per class.
+        <float>[batch_size, config.num_classification_labels] Logits per class.
         """
         logits_cls = torch.matmul(output_layer, self.output_weights_cls.T)
         logits_cls += self.output_bias_cls
