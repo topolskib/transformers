@@ -391,9 +391,9 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         # base model
         self.tapas = TapasModel(config)
         
+        # cell selection head
         """init_cell_selection_weights_to_zero: Whether the initial weights should be
         set to 0. This ensures that all tokens have the same prior probability."""
-        # cell selection head
         if config.init_cell_selection_weights_to_zero: 
             self.output_weights = nn.Parameter(torch.zeros(config.hidden_size)) 
         else:
@@ -405,6 +405,11 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         self.output_weights_cls = nn.Parameter(torch.empty([config.num_classification_labels, config.hidden_size]))
         nn.init.normal_(self.output_weights_cls, std=0.02) # here, a truncated normal is used in the original implementation
         self.output_bias_cls = nn.Parameter(torch.zeros([config.num_classification_labels]))
+
+        # aggregation head
+        self.output_weights_agg = nn.Parameter(torch.empty([config.num_aggregation_labels, config.hidden_size]))
+        nn.init.normal_(self.output_weights_agg, std=0.02) # here, a truncated normal is used in the original implementation
+        self.output_bias_agg = nn.Parameter(torch.zeros([config.num_aggregation_labels]))
 
         self.init_weights()
 
@@ -433,4 +438,17 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         logits_cls += self.output_bias_cls
         
         return logits_cls
+
+    def _calculate_aggregation_logits(output_layer_aggregation):
+        """Calculates the aggregation logits.
+        Args:
+            output_layer_aggregation: <float32>[batch_size, hidden_size]
+        Returns:
+            logits_aggregation: <float32>[batch_size, num_aggregation_labels]
+        """
+        logits_aggregation = torch.matmul(
+            output_layer_aggregation, self.output_weights_agg.T)
+        logits_aggregation += self.output_bias_agg
+        
+        return logits_aggregation
 
