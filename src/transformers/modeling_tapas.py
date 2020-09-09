@@ -416,11 +416,11 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
     def compute_token_logits(self, sequence_output, temperature):
         """Computes logits per token.
         Args:
-        sequence_output: <float>[batch_size, seq_length, hidden_dim] Output of the
+            sequence_output: <float>[batch_size, seq_length, hidden_dim] Output of the
             encoder layer.
-        temperature: float Temperature for the Bernoulli distribution.
+            temperature: float Temperature for the Bernoulli distribution.
         Returns:
-        <float>[batch_size, seq_length] Logits per token.
+            logits: <float>[batch_size, seq_length] Logits per token.
         """
         logits = (torch.einsum("bsj,j->bs", sequence_output, self.output_weights) +
                 self.output_bias) / temperature
@@ -432,7 +432,7 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         Args:
             pooled_output: <float>[batch_size, hidden_dim] Output of the pooler (BertPooler) on top of the encoder layer.
         Returns:
-            <float>[batch_size, config.num_classification_labels] Logits per class.
+            logits_cls: <float>[batch_size, config.num_classification_labels] Logits per class.
         """
         logits_cls = torch.matmul(pooled_output, self.output_weights_cls.T)
         logits_cls += self.output_bias_cls
@@ -451,3 +451,44 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         
         return logits_aggregation
 
+    def _calculate_aggregate_mask(self, answer, pooled_output, cell_select_pref, label_ids):
+        """Finds examples where the model should select cells with no aggregation.
+        Returns a mask that determines for which examples should the model select
+        answers directly from the table, without any aggregation function. If the
+        answer is a piece of text the case is unambiguous as aggregation functions
+        only apply to numbers. If the answer is a number but does not appear in the
+        table then we must use some aggregation case. The ambiguous case is when the
+        answer is a number that also appears in the table. In this case we use the
+        aggregation function probabilities predicted by the model to decide whether
+        to select or aggregate. The threshold for this is a hyperparameter
+        `cell_select_pref`.
+        Args:
+            answer: <float32>[batch_size]
+            pooled_output: <float32>[batch_size, hidden_size]
+            cell_select_pref: Preference for cell selection in ambiguous cases.
+            label_ids: <int32>[batch_size, seq_length]
+        Returns:
+            aggregate_mask: <float32>[batch_size] A mask set to 1 for examples that
+            should use aggregation functions.
+        """
+        # <float32>[batch_size]
+        aggregate_mask_init = torch.logical_not(torch.isnan(answer)).type(torch.FloatTensor)
+        logits_aggregation = self._calculate_aggregation_logits(pooled_output)
+        dist_aggregation = torch.distributions.categorical.Categorical(logits=logits_aggregation)
+        aggregation_ops_total_mass = torch.sum(
+                                        dist_aggregation.probs[:, 1:], axis=1)
+
+        # Cell selection examples according to current model.
+        is_pred_cell_selection = aggregation_ops_total_mass <= cell_select_pref
+
+        # Examples with non-empty cell selection supervision.
+        is_cell_supervision_available = torch.sum(label_ids, axis=1) > 0
+
+        aggregate_mask = torch.where(
+                            torch.logical_and(is_pred_cell_selection, is_cell_supervision_available),
+                            torch.zeros_like(aggregate_mask_init, dtype=torch.float32), 
+                            aggregate_mask_init)
+        
+        aggregate_mask = aggregate_mask.detach()
+        
+        return aggregate_mask
