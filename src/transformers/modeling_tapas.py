@@ -531,3 +531,29 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
             return per_example_aggregation_intermediate * (1 - aggregate_mask)
         else:
             return per_example_aggregation_intermediate
+
+    def _calculate_aggregation_loss_unknown(logits_aggregation, aggregate_mask):
+        """Calculates aggregation loss in the case of answer supervision."""
+        
+        dist_aggregation = torch.distributions.categorical.Categorical(logits=logits_aggregation)
+        # Index 0 correponds to "no aggregation".
+        aggregation_ops_total_mass = torch.sum(
+                                        dist_aggregation.probs[:, 1:], dim=1)
+        # Predict some aggregation in case of an answer that needs aggregation.
+        # This increases the probability of all aggregation functions, in a way
+        # similar to MML, but without considering whether the function gives the
+        # correct answer.
+        return -torch.log(aggregation_ops_total_mass) * aggregate_mask
+
+
+    def _calculate_aggregation_loss(logits_aggregation, aggregate_mask,
+                                    aggregation_function_id):
+        """Calculates the aggregation loss per example."""
+        per_example_aggregation_loss = _calculate_aggregation_loss_known(
+            logits_aggregation, aggregate_mask, aggregation_function_id)
+
+        if self.config.use_answer_as_supervision:
+            # Add aggregation loss for numeric answers that need aggregation.
+            per_example_aggregation_loss += _calculate_aggregation_loss_unknown(
+                logits_aggregation, aggregate_mask)
+        return self.config.aggregation_loss_importance * per_example_aggregation_loss
