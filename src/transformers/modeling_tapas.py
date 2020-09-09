@@ -423,7 +423,7 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
 
         return logits
 
-    def compute_classification_logits_torch(self, num_classification_labels, output_layer):
+    def compute_classification_logits(self, num_classification_labels, output_layer):
         """Computes logits for each classification of the sequence.
         Args:
         num_classification_labels: int Number of class to predict
