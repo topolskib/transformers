@@ -475,6 +475,7 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         aggregate_mask_init = torch.logical_not(torch.isnan(answer)).type(torch.FloatTensor)
         logits_aggregation = self._calculate_aggregation_logits(pooled_output)
         dist_aggregation = torch.distributions.categorical.Categorical(logits=logits_aggregation)
+        # Index 0 correponds to "no aggregation".
         aggregation_ops_total_mass = torch.sum(
                                         dist_aggregation.probs[:, 1:], axis=1)
 
