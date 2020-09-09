@@ -413,41 +413,41 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
 
         self.init_weights()
 
-    def compute_token_logits(self, output_layer, temperature):
+    def compute_token_logits(self, sequence_output, temperature):
         """Computes logits per token.
         Args:
-        output_layer: <float>[batch_size, seq_length, hidden_dim] Output of the
+        sequence_output: <float>[batch_size, seq_length, hidden_dim] Output of the
             encoder layer.
         temperature: float Temperature for the Bernoulli distribution.
         Returns:
         <float>[batch_size, seq_length] Logits per token.
         """
-        logits = (torch.einsum("bsj,j->bs", output_layer, self.output_weights) +
+        logits = (torch.einsum("bsj,j->bs", sequence_output, self.output_weights) +
                 self.output_bias) / temperature
 
         return logits
 
-    def compute_classification_logits(self, output_layer):
+    def compute_classification_logits(self, pooled_output):
         """Computes logits for each classification of the sequence.
         Args:
-        output_layer: <float>[batch_size, hidden_dim] Output of the pooler (BertPooler) on top of the encoder layer.
+            pooled_output: <float>[batch_size, hidden_dim] Output of the pooler (BertPooler) on top of the encoder layer.
         Returns:
-        <float>[batch_size, config.num_classification_labels] Logits per class.
+            <float>[batch_size, config.num_classification_labels] Logits per class.
         """
-        logits_cls = torch.matmul(output_layer, self.output_weights_cls.T)
+        logits_cls = torch.matmul(pooled_output, self.output_weights_cls.T)
         logits_cls += self.output_bias_cls
         
         return logits_cls
 
-    def _calculate_aggregation_logits(output_layer_aggregation):
+    def _calculate_aggregation_logits(self, pooled_output):
         """Calculates the aggregation logits.
         Args:
-            output_layer_aggregation: <float32>[batch_size, hidden_size]
+            pooled_output: <float>[batch_size, hidden_dim] Output of the pooler (BertPooler) on top of the encoder layer.
         Returns:
             logits_aggregation: <float32>[batch_size, num_aggregation_labels]
         """
         logits_aggregation = torch.matmul(
-            output_layer_aggregation, self.output_weights_agg.T)
+            pooled_output, self.output_weights_agg.T)
         logits_aggregation += self.output_bias_agg
         
         return logits_aggregation
