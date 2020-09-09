@@ -385,12 +385,14 @@ class TapasForMaskedLM(BertPreTrainedModel):
         )
 
 class TapasForQuestionAnswering(BertPreTrainedModel):
-    def __init__(self, config):
+    def __init__(self, config):   
         super().__init__(config)
 
         # base model
         self.tapas = TapasModel(config)
         
+        """init_cell_selection_weights_to_zero: Whether the initial weights should be
+        set to 0. This ensures that all tokens have the same prior probability."""
         # cell selection head
         if config.init_cell_selection_weights_to_zero: 
             self.output_weights = nn.Parameter(torch.zeros(config.hidden_size)) 
@@ -398,6 +400,11 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
             self.output_weights = nn.Parameter(torch.empty(config.hidden_size))
             nn.init.normal_(self.output_weights, std=0.02) # here, a truncated normal is used in the original implementation
         self.output_bias = nn.Parameter(torch.zeros([]))
+
+        # classification head
+        self.output_weights_cls = nn.Parameter(torch.empty([config.num_classification_labels, config.hidden_size]))
+        nn.init.normal_(self.output_weights_cls, std=0.02) # here, a truncated normal is used in the original implementation
+        self.output_bias_cls = nn.Parameter(torch.zeros([config.num_classification_labels]))
 
         self.init_weights()
 
@@ -407,8 +414,6 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         output_layer: <float>[batch_size, seq_length, hidden_dim] Output of the
             encoder layer.
         temperature: float Temperature for the Bernoulli distribution.
-        init_cell_selection_weights_to_zero: Whether the initial weights should be
-            set to 0. This ensures that all tokens have the same prior probability.
         Returns:
         <float>[batch_size, seq_length] Logits per token.
         """
@@ -417,4 +422,16 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
                 self.output_bias) / temperature
 
         return logits
+
+    def compute_classification_logits_torch(self, num_classification_labels, output_layer):
+        """Computes logits for each classification of the sequence.
+        Args:
+        num_classification_labels: int Number of class to predict
+        output_layer: <float>[batch_size, hidden_dim] Output of the encoder layer.
+        Returns:
+        <float>[batch_size, num_classification_labels] Logits per class.
+        """
+        logits_cls = torch.matmul(output_layer, self.output_weights_cls.T)
+        logits_cls += self.output_bias_cls
+        return logits_cls
 
