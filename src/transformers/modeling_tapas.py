@@ -417,7 +417,6 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         Returns:
         <float>[batch_size, seq_length] Logits per token.
         """
-        
         logits = (torch.einsum("bsj,j->bs", output_layer, self.output_weights) +
                 self.output_bias) / temperature
 
@@ -427,11 +426,12 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         """Computes logits for each classification of the sequence.
         Args:
         num_classification_labels: int Number of class to predict
-        output_layer: <float>[batch_size, hidden_dim] Output of the encoder layer.
+        output_layer: <float>[batch_size, hidden_dim] Output of the pooler on top of the encoder layer.
         Returns:
         <float>[batch_size, num_classification_labels] Logits per class.
         """
         logits_cls = torch.matmul(output_layer, self.output_weights_cls.T)
         logits_cls += self.output_bias_cls
+        
         return logits_cls
 
