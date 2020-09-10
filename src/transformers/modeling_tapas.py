@@ -494,7 +494,7 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         
         return aggregate_mask
 
-    def _calculate_aggregation_loss_known(logits_aggregation, aggregate_mask,
+    def _calculate_aggregation_loss_known(self, logits_aggregation, aggregate_mask,
                                       aggregation_function_id):
         """Calculates aggregation loss when its type is known during training.
         In the weakly supervised setting, the only known information is that for
@@ -533,7 +533,7 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         else:
             return per_example_aggregation_intermediate
 
-    def _calculate_aggregation_loss_unknown(logits_aggregation, aggregate_mask):
+    def _calculate_aggregation_loss_unknown(self, logits_aggregation, aggregate_mask):
         """Calculates aggregation loss in the case of answer supervision."""
         
         dist_aggregation = torch.distributions.categorical.Categorical(logits=logits_aggregation)
@@ -547,14 +547,59 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         return -torch.log(aggregation_ops_total_mass) * aggregate_mask
 
 
-    def _calculate_aggregation_loss(logits_aggregation, aggregate_mask,
+    def _calculate_aggregation_loss(self, logits_aggregation, aggregate_mask,
                                     aggregation_function_id):
         """Calculates the aggregation loss per example."""
-        per_example_aggregation_loss = _calculate_aggregation_loss_known(
+        per_example_aggregation_loss = self._calculate_aggregation_loss_known(
             logits_aggregation, aggregate_mask, aggregation_function_id)
 
         if self.config.use_answer_as_supervision:
             # Add aggregation loss for numeric answers that need aggregation.
-            per_example_aggregation_loss += _calculate_aggregation_loss_unknown(
+            per_example_aggregation_loss += self._calculate_aggregation_loss_unknown(
                 logits_aggregation, aggregate_mask)
         return self.config.aggregation_loss_importance * per_example_aggregation_loss
+
+    def forward(
+        self,
+        input_ids=None,
+        attention_mask=None,
+        token_type_ids=None,
+        position_ids=None,
+        head_mask=None,
+        inputs_embeds=None,
+        start_positions=None,
+        end_positions=None,
+        output_attentions=None,
+        output_hidden_states=None,
+        return_dict=None,
+    ):
+        r"""
+        start_positions (:obj:`torch.LongTensor` of shape :obj:`(batch_size,)`, `optional`):
+            Labels for position (index) of the start of the labelled span for computing the token classification loss.
+            Positions are clamped to the length of the sequence (`sequence_length`).
+            Position outside of the sequence are not taken into account for computing the loss.
+        end_positions (:obj:`torch.LongTensor` of shape :obj:`(batch_size,)`, `optional`):
+            Labels for position (index) of the end of the labelled span for computing the token classification loss.
+            Positions are clamped to the length of the sequence (`sequence_length`).
+            Position outside of the sequence are not taken into account for computing the loss.
+        """
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        outputs = self.tapas(
+            input_ids,
+            attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
+            position_ids=position_ids,
+            head_mask=head_mask,
+            inputs_embeds=inputs_embeds,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+
+        sequence_output = outputs[0]
+        pooled_output = outputs[1]
+
+        agg_logits = self._calculate_aggregation_logits(pooled_output)
+
+        return agg_logits
