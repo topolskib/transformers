@@ -444,9 +444,9 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
     def _calculate_aggregation_logits(self, pooled_output):
         """Calculates the aggregation logits.
         Args:
-            pooled_output: <float>[batch_size, hidden_dim] Output of the pooler (BertPooler) on top of the encoder layer.
+            pooled_output: torch.FloatTensor[batch_size, hidden_dim] Output of the pooler (BertPooler) on top of the encoder layer.
         Returns:
-            logits_aggregation: <float32>[batch_size, config.num_aggregation_labels] Logits per aggregation operation.
+            logits_aggregation: torch.FloatTensor[batch_size, config.num_aggregation_labels] Logits per aggregation operation.
         """
         logits_aggregation = torch.matmul(pooled_output, self.output_weights_agg.T)
         logits_aggregation += self.output_bias_agg
@@ -465,15 +465,15 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         to select or aggregate. The threshold for this is a hyperparameter
         `cell_select_pref`.
         Args:
-            answer: <float32>[batch_size]
-            pooled_output: <float32>[batch_size, hidden_size]
+            answer: torch.FloatTensor[batch_size]
+            pooled_output: torch.FloatTensor[batch_size, hidden_size]
             cell_select_pref: Preference for cell selection in ambiguous cases.
             label_ids: torch.LongTensor[batch_size, seq_length]
         Returns:
-            aggregate_mask: <float32>[batch_size] A mask set to 1 for examples that
+            aggregate_mask: torch.FloatTensor[batch_size] A mask set to 1 for examples that
             should use aggregation functions.
         """
-        # <float32>[batch_size]
+        # torch.FloatTensor[batch_size]
         aggregate_mask_init = torch.logical_not(torch.isnan(answer)).type(torch.FloatTensor)
         logits_aggregation = self._calculate_aggregation_logits(pooled_output)
         dist_aggregation = torch.distributions.categorical.Categorical(logits=logits_aggregation)
@@ -505,11 +505,11 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         In the setting where aggregation type is always known, standard cross entropy
         loss is accumulated for all examples.
         Args:
-            logits_aggregation: <float32>[batch_size, num_aggregation_labels]
-            aggregate_mask: <float32>[batch_size]
+            logits_aggregation: torch.FloatTensor[batch_size, num_aggregation_labels]
+            aggregate_mask: torch.FloatTensor[batch_size]
             aggregation_function_id: torch.LongTensor[batch_size]
         Returns:
-            aggregation_loss_known: <float32>[batch_size, num_aggregation_labels]
+            aggregation_loss_known: torch.FloatTensor[batch_size, num_aggregation_labels]
         """
         if self.config.use_answer_as_supervision:
             # Prepare "no aggregation" targets for cell selection examples.
@@ -520,12 +520,12 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
 
         batch_size = aggregate_mask.size()[0]
 
-        one_hot_labels = torch.zeros(batch_size, config.num_aggregation_labels, dtype=torch.float32)
+        one_hot_labels = torch.zeros(batch_size, self.config.num_aggregation_labels, dtype=torch.float32)
         one_hot_labels[torch.arange(batch_size), target_aggregation] = 1.0
         
         log_probs = torch.nn.functional.log_softmax(logits_aggregation, dim=-1)
         
-        # <float32>[batch_size]
+        # torch.FloatTensor[batch_size]
         per_example_aggregation_intermediate = -torch.sum(
             one_hot_labels * log_probs, dim=-1)
         if self.config.use_answer_as_supervision:
