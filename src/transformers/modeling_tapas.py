@@ -571,6 +571,11 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         inputs_embeds=None,
         table_mask=None, 
         label_ids=None,
+        aggregation_function_id=None,
+        answer=None,
+        numeric_values=None,
+        numeric_values_scale=None,
+        classification_class_index=None,
         output_attentions=None,
         output_hidden_states=None,
         return_dict=None,
@@ -580,6 +585,16 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
             Mask for the table.   
         label_ids (:obj:`torch.LongTensor` of shape :obj:`(batch_size, seq_length)`, `optional`):
             Labels per token.
+        aggregation_function_id (:obj:`torch.LongTensor` of shape :obj:`(batch_size, )`, `optional`):
+            Aggregation function id for every example in the batch. 
+        answer (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, )`, `optional`):
+            Answer for every example in the batch. 
+        numeric_values (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, seq_length)`, `optional`):
+            Numeric values of every token. 
+        numeric_values_scale (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, seq_length)`, `optional`):
+            Scale of the numeric values of every token. 
+        classification_class_index (:obj:`torch.LongTensor` of shape :obj:`(batch_size, )`, `optional`):
+            Classification class index for every example in the batch. 
         """
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
