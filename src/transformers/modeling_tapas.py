@@ -479,13 +479,13 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         dist_aggregation = torch.distributions.categorical.Categorical(logits=logits_aggregation)
         # Index 0 correponds to "no aggregation".
         aggregation_ops_total_mass = torch.sum(
-                                        dist_aggregation.probs[:, 1:], axis=1)
+                                        dist_aggregation.probs[:, 1:], dim=1)
 
         # Cell selection examples according to current model.
         is_pred_cell_selection = aggregation_ops_total_mass <= cell_select_pref
 
         # Examples with non-empty cell selection supervision.
-        is_cell_supervision_available = torch.sum(label_ids, axis=1) > 0
+        is_cell_supervision_available = torch.sum(label_ids, dim=1) > 0
 
         aggregate_mask = torch.where(
                             torch.logical_and(is_pred_cell_selection, is_cell_supervision_available),
@@ -527,7 +527,7 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         
         # <float32>[batch_size]
         per_example_aggregation_intermediate = -torch.sum(
-            one_hot_labels * log_probs, axis=-1)
+            one_hot_labels * log_probs, dim=-1)
         if self.config.use_answer_as_supervision:
             # Accumulate loss only for examples requiring cell selection
             # (no aggregation).
