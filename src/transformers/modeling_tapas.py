@@ -401,15 +401,17 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
             nn.init.normal_(self.output_weights, std=0.02) # here, a truncated normal is used in the original implementation
         self.output_bias = nn.Parameter(torch.zeros([]))
 
-        # classification head
-        self.output_weights_cls = nn.Parameter(torch.empty([config.num_classification_labels, config.hidden_size]))
-        nn.init.normal_(self.output_weights_cls, std=0.02) # here, a truncated normal is used in the original implementation
-        self.output_bias_cls = nn.Parameter(torch.zeros([config.num_classification_labels]))
-
         # aggregation head
-        self.output_weights_agg = nn.Parameter(torch.empty([config.num_aggregation_labels, config.hidden_size]))
-        nn.init.normal_(self.output_weights_agg, std=0.02) # here, a truncated normal is used in the original implementation
-        self.output_bias_agg = nn.Parameter(torch.zeros([config.num_aggregation_labels]))
+        if config.num_aggregation_labels > 0:
+            self.output_weights_agg = nn.Parameter(torch.empty([config.num_aggregation_labels, config.hidden_size]))
+            nn.init.normal_(self.output_weights_agg, std=0.02) # here, a truncated normal is used in the original implementation
+            self.output_bias_agg = nn.Parameter(torch.zeros([config.num_aggregation_labels]))
+
+        # classification head
+        if config.num_classification_labels > 0:
+            self.output_weights_cls = nn.Parameter(torch.empty([config.num_classification_labels, config.hidden_size]))
+            nn.init.normal_(self.output_weights_cls, std=0.02) # here, a truncated normal is used in the original implementation
+            self.output_bias_cls = nn.Parameter(torch.zeros([config.num_classification_labels]))
 
         self.init_weights()
 
@@ -567,21 +569,17 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         position_ids=None,
         head_mask=None,
         inputs_embeds=None,
-        start_positions=None,
-        end_positions=None,
+        table_mask=None, 
+        label_ids=None,
         output_attentions=None,
         output_hidden_states=None,
         return_dict=None,
     ):
         r"""
-        start_positions (:obj:`torch.LongTensor` of shape :obj:`(batch_size,)`, `optional`):
-            Labels for position (index) of the start of the labelled span for computing the token classification loss.
-            Positions are clamped to the length of the sequence (`sequence_length`).
-            Position outside of the sequence are not taken into account for computing the loss.
-        end_positions (:obj:`torch.LongTensor` of shape :obj:`(batch_size,)`, `optional`):
-            Labels for position (index) of the end of the labelled span for computing the token classification loss.
-            Positions are clamped to the length of the sequence (`sequence_length`).
-            Position outside of the sequence are not taken into account for computing the loss.
+        table_mask (:obj: `torch.LongTensor` of shape :obj:`(batch_size, seq_length)`, `optional`): 
+            Mask for the table.   
+        label_ids (:obj:`torch.LongTensor` of shape :obj:`(batch_size, seq_length)`, `optional`):
+            Labels per token.
         """
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
@@ -600,6 +598,13 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         sequence_output = outputs[0]
         pooled_output = outputs[1]
 
-        agg_logits = self._calculate_aggregation_logits(pooled_output)
+        logits_aggregation = None
+        if config.num_aggregation_labels > 0:
+            logits_aggregation = self._calculate_aggregation_logits(pooled_output)
 
-        return agg_logits
+        logits_cls = None
+        if config.num_classification_labels > 0:
+            logits_cls = self.compute_classification_logits(pooled_output)
+
+
+        return logits_aggregation, logits_cls
