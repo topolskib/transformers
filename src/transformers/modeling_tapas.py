@@ -599,11 +599,11 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         pooled_output = outputs[1]
 
         logits_aggregation = None
-        if config.num_aggregation_labels > 0:
+        if self.config.num_aggregation_labels > 0:
             logits_aggregation = self._calculate_aggregation_logits(pooled_output)
 
         logits_cls = None
-        if config.num_classification_labels > 0:
+        if self.config.num_classification_labels > 0:
             logits_cls = self.compute_classification_logits(pooled_output)
 
 
