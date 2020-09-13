@@ -391,15 +391,19 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         # base model
         self.tapas = TapasModel(config)
         
-        # cell selection head
+        # cell selection heads
         """init_cell_selection_weights_to_zero: Whether the initial weights should be
         set to 0. This ensures that all tokens have the same prior probability."""
         if config.init_cell_selection_weights_to_zero: 
             self.output_weights = nn.Parameter(torch.zeros(config.hidden_size)) 
+            self.column_output_weights = nn.Parameter(torch.zeros(config.hidden_size))
         else:
             self.output_weights = nn.Parameter(torch.empty(config.hidden_size))
             nn.init.normal_(self.output_weights, std=0.02) # here, a truncated normal is used in the original implementation
+            self.column_output_weights = nn.Parameter(torch.empty(config.hidden_size))
+            nn.init.normal_(self.column_output_weights, std=0.02) # here, a truncated normal is used in the original implementation
         self.output_bias = nn.Parameter(torch.zeros([]))
+        self.column_output_bias = nn.Parameter(torch.zeros([]))
 
         # aggregation head
         if config.num_aggregation_labels > 0:
