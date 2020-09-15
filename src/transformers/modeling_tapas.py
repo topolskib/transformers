@@ -71,12 +71,11 @@ def load_tf_weights_in_tapas(model, config, tf_checkpoint_path):
 
     for name, array in zip(names, arrays):
         name = name.split("/")
-        # adam_v and adam_m are variables used in AdamWeightDecayOptimizer to calculated m and v
+        # adam_v and adam_m are variables used in AdamWeightDecayOptimizer to calculate m and v
         # which are not required for using pretrained model
-        # currently I also skip the classification heads on top since I first convert only the base model 
         if any(
-            n in ["adam_v", "adam_m", "AdamWeightDecayOptimizer", "AdamWeightDecayOptimizer_1", "global_step", "seq_relationship",
-            "column_output_bias", "column_output_weights", "output_bias", "output_weights"]
+            n in ["adam_v", "adam_m", "AdamWeightDecayOptimizer", "AdamWeightDecayOptimizer_1", "global_step", "seq_relationship"]
+            #"column_output_bias", "column_output_weights", "output_bias", "output_weights"]
             for n in name
         ):
             logger.info("Skipping {}".format("/".join(name)))
@@ -92,10 +91,22 @@ def load_tf_weights_in_tapas(model, config, tf_checkpoint_path):
                 scope_names = [m_name]
             if scope_names[0] == "kernel" or scope_names[0] == "gamma":
                 pointer = getattr(pointer, "weight")
-            elif scope_names[0] == "output_bias" or scope_names[0] == "beta":
+            elif scope_names[0] == "beta":
                 pointer = getattr(pointer, "bias")
+            # cell selection heads
+            elif scope_names[0] == "output_bias":
+                pointer = getattr(pointer, "output_bias")
             elif scope_names[0] == "output_weights":
-                pointer = getattr(pointer, "weight")
+                pointer = getattr(pointer, "output_weights")
+            elif scope_names[0] == "column_output_bias":
+                pointer = getattr(pointer, "column_output_bias")
+            elif scope_names[0] == "column_output_weights":
+                pointer = getattr(pointer, "column_output_weights")
+            # aggregation head
+            elif scope_names[0] == "output_bias_agg":
+                pointer = getattr(pointer, "output_bias_agg")
+            elif scope_names[0] == "output_weights_agg":
+                pointer = getattr(pointer, "output_weights_agg")
             elif scope_names[0] == "squad":
                 pointer = getattr(pointer, "classifier")
             else:
