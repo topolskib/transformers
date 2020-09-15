@@ -80,8 +80,8 @@ def load_tf_weights_in_tapas(model, config, tf_checkpoint_path):
         ):
             logger.info("Skipping {}".format("/".join(name)))
             continue
-        # if the variable is not a classification head, change first scope name to "tapas"
-        if name[0] != "cls":
+        # if first scope name starts with "bert", change it to "tapas"
+        if name[0] == "bert":
             name[0] = "tapas"
         pointer = model
         for m_name in name:
@@ -132,6 +132,9 @@ def load_tf_weights_in_tapas(model, config, tf_checkpoint_path):
             e.args += (pointer.shape, array.shape)
             raise
         logger.info("Initialize PyTorch weight {}".format(name))
+        # added a check whether the array is a scalar (because bias terms are scalar => should first be converted to numpy arrays)
+        if np.isscalar(array):
+            array = np.array(array)
         pointer.data = torch.from_numpy(array)
     return model
 
