@@ -639,5 +639,6 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         if self.config.num_classification_labels > 0:
             logits_cls = self.compute_classification_logits(pooled_output)
 
+        token_logits = compute_token_logits(sequence_output, self.config.temperature)
 
-        return logits_aggregation, logits_cls
+        return logits_aggregation, logits_cls, token_logits

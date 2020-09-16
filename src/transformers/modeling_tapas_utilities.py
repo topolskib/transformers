@@ -18,6 +18,9 @@
 import torch
 from torch_scatter import scatter
 
+EPSILON_ZERO_DIVISION = 1e-10
+CLOSE_ENOUGH_TO_LOG_ZERO = -10000.0
+
 class IndexMap(object):
     """Index grouping entries within a tensor."""
 
@@ -254,6 +257,40 @@ def reduce_max(values, index, name='segmented_reduce_max'):
         IndexMap with shape [B1, B2, ..., Bn, num_segments].
     """
     return _segment_reduce(values, index, "max", name)
+
+def compute_column_logits(sequence_output,
+                          column_output_weights,
+                          column_output_bias,
+                          cell_index,
+                          cell_mask,
+                          allow_empty_column_selection):
+
+    # First, compute the token logits (batch_size, seq_len) - without temperature
+    token_logits = (
+                    torch.einsum("bsj,j->bs", sequence_output, column_output_weights) +
+                    column_output_bias)
+    
+    # Next, average the logits per cell (batch_size, max_num_cols*max_num_rows)
+    cell_logits, cell_logits_index = reduce_mean(
+        token_logits, cell_index)
+    # Finally, average the logits per column (batch_size, max_num_cols)
+    column_index = cell_index.project_inner(cell_logits_index)
+    column_logits, out_index = reduce_sum(
+        cell_logits * cell_mask, column_index)
+    
+    cell_count, _ = reduce_sum(cell_mask, column_index)
+    column_logits /= cell_count + EPSILON_ZERO_DIVISION
+
+    # Mask columns that do not appear in the example.
+    is_padding = torch.logical_and(cell_count < 0.5,
+                                torch.eq(out_index.indices, 0))
+    column_logits += CLOSE_ENOUGH_TO_LOG_ZERO * torch.as_tensor(is_padding, dtype=torch.float32)
+
+    if not allow_empty_column_selection:
+        column_logits += CLOSE_ENOUGH_TO_LOG_ZERO * torch.as_tensor(
+            torch.eq(out_index.indices, 0), dtype=torch.float32)
+
+    return column_logits
 
 
 
