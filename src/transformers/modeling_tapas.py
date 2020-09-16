@@ -23,7 +23,7 @@ import torch
 import torch.nn as nn
 from torch.nn import CrossEntropyLoss
 
-import .modeling_tapas_utilities import as utils
+import .modeling_tapas_utilities as utils
 
 from .configuration_tapas import TapasConfig
 from .modeling_bert import BertLayerNorm, BertPreTrainedModel, BertEncoder, BertPooler, BertOnlyMLMHead
