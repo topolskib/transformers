@@ -23,7 +23,7 @@ import torch
 import torch.nn as nn
 from torch.nn import CrossEntropyLoss
 
-import .modeling_tapas_utilities as utils
+import modeling_tapas_utilities as utils
 
 from .configuration_tapas import TapasConfig
 from .modeling_bert import BertLayerNorm, BertPreTrainedModel, BertEncoder, BertPooler, BertOnlyMLMHead
@@ -641,11 +641,14 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         if self.config.num_classification_labels > 0:
             logits_cls = self.compute_classification_logits(pooled_output)
 
+        if token_type_ids is None:
+            raise ValueError("You have to specify token type ids")
+        
         token_types = ["segment_ids", "column_ids", "row_ids", "prev_label_ids", "column_ranks",
                             "inv_column_ranks", "numeric_relations"]
         
-        row_ids = token_type_ids[:,:,token_types.index("row_ids"))
-        column_ids = token_type_ids[:,:,token_types.index("column_ids"))
+        row_ids = token_type_ids[:,:,token_types.index("row_ids")]
+        column_ids = token_type_ids[:,:,token_types.index("column_ids")]
 
         # Construct indices for the table.
         row_index = utils.IndexMap(
