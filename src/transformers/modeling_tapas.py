@@ -650,16 +650,18 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         row_ids = token_type_ids[:,:,token_types.index("row_ids")]
         column_ids = token_type_ids[:,:,token_types.index("column_ids")]
 
+        print(torch.min(row_ids, torch.as_tensor(self.config.max_num_rows - 1)))
+        
         # Construct indices for the table.
-        row_index = IndexMap(
-            indices=torch.min(row_ids, torch.as_tensor(self.config.max_num_rows - 1)),
-            num_segments=self.config.max_num_rows,
-            batch_dims=1)
-        col_index = IndexMap(
-            indices=torch.min(column_ids, torch.as_tensor(self.config.max_num_columns - 1)),
-            num_segments=self.config.max_num_columns,
-            batch_dims=1)
-        cell_index = ProductIndexMap(row_index, col_index)
+        #row_index = IndexMap(
+        #    indices=torch.min(row_ids, torch.as_tensor(self.config.max_num_rows - 1)),
+        #    num_segments=self.config.max_num_rows,
+        #    batch_dims=1)
+        #col_index = IndexMap(
+        #    indices=torch.min(column_ids, torch.as_tensor(self.config.max_num_columns - 1)),
+        #    num_segments=self.config.max_num_columns,
+        #    batch_dims=1)
+        #cell_index = ProductIndexMap(row_index, col_index)
 
         token_logits = self.compute_token_logits(sequence_output, self.config.temperature)
 
