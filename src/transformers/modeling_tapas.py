@@ -23,6 +23,8 @@ import torch
 import torch.nn as nn
 from torch.nn import CrossEntropyLoss
 
+import .modeling_tapas_utilities import as utils
+
 from .configuration_tapas import TapasConfig
 from .modeling_bert import BertLayerNorm, BertPreTrainedModel, BertEncoder, BertPooler, BertOnlyMLMHead
 from .modeling_outputs import (
@@ -638,6 +640,23 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         logits_cls = None
         if self.config.num_classification_labels > 0:
             logits_cls = self.compute_classification_logits(pooled_output)
+
+        token_types = ["segment_ids", "column_ids", "row_ids", "prev_label_ids", "column_ranks",
+                            "inv_column_ranks", "numeric_relations"]
+        
+        row_ids = token_type_ids[:,:,token_types.index("row_ids"))
+        column_ids = token_type_ids[:,:,token_types.index("column_ids"))
+
+        # Construct indices for the table.
+        row_index = utils.IndexMap(
+            indices=torch.minimum(row_ids, self.config.max_num_rows - 1),
+            num_segments=self.config.max_num_rows,
+            batch_dims=1)
+        col_index = utils.IndexMap(
+            indices=torch.minimum(column_ids, self.config.max_num_columns - 1),
+            num_segments=self.config.max_num_columns,
+            batch_dims=1)
+        cell_index = utils.ProductIndexMap(row_index, col_index)
 
         token_logits = self.compute_token_logits(sequence_output, self.config.temperature)
 
