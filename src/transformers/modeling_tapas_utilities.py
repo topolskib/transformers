@@ -183,7 +183,11 @@ def _segment_reduce(values, index, segment_reduce_fn, name):
     flattened_shape = torch.cat([torch.as_tensor([-1],dtype=torch.int64), torch.as_tensor(vector_shape, dtype=torch.int64)], dim=0)
     flat_values = values.view(flattened_shape.tolist())
 
-    segment_means = scatter(src=flat_values, index=flat_index.indices.type(torch.int64), dim=0, reduce=segment_reduce_fn)
+    segment_means = scatter(src=flat_values, 
+                            index=flat_index.indices.type(torch.int64), 
+                            dim=0, 
+                            dim_size=flat_index.num_segments, 
+                            reduce=segment_reduce_fn)
     
     # Unflatten the values.
     new_shape = torch.cat(
