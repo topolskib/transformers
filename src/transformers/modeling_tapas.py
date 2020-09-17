@@ -676,7 +676,7 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         if table_mask is None:
             table_mask = torch.where(row_ids > 0, torch.ones_like(row_ids),
                                     torch.zeros_like(row_ids))
-        # torch.FloatTensor[batch_size, seq_length]
+        # torch.FloatTensor[batch_size, seq_length] there's probably a more elegant way to do the 4 lines below
         input_mask_float = attention_mask.type(torch.FloatTensor)
         input_mask_float.device = device 
         table_mask_float = table_mask.type(torch.FloatTensor, device=device)
