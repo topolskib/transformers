@@ -23,7 +23,9 @@ import torch
 import torch.nn as nn
 from torch.nn import CrossEntropyLoss
 
-from .modeling_tapas_utilities import *
+#from .modeling_tapas_utilities import *
+#import .modeling_tapas_utilities as utils
+from transformers import modeling_tapas_utilities as utils
 
 from .configuration_tapas import TapasConfig
 from .modeling_bert import BertLayerNorm, BertPreTrainedModel, BertEncoder, BertPooler, BertOnlyMLMHead
@@ -647,19 +649,34 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         token_types = ["segment_ids", "column_ids", "row_ids", "prev_label_ids", "column_ranks",
                             "inv_column_ranks", "numeric_relations"]
         
-        row_ids = token_type_ids[:,:,token_types.index("row_ids")]
-        column_ids = token_type_ids[:,:,token_types.index("column_ids")]
+        row_ids = token_type_ids[:,:,token_types.index("row_ids")].cpu()
+        column_ids = token_type_ids[:,:,token_types.index("column_ids")].cpu()
         
         # Construct indices for the table.
-        row_index = IndexMap(
-            indices=torch.min(row_ids.cpu(), torch.as_tensor(self.config.max_num_rows - 1)),
+        row_index = utils.IndexMap(
+            indices=torch.min(row_ids, torch.as_tensor(self.config.max_num_rows - 1)),
             num_segments=self.config.max_num_rows,
             batch_dims=1)
-        col_index = IndexMap(
-            indices=torch.min(column_ids.cpu(), torch.as_tensor(self.config.max_num_columns - 1)),
+        col_index = utils.IndexMap(
+            indices=torch.min(column_ids, torch.as_tensor(self.config.max_num_columns - 1)),
             num_segments=self.config.max_num_columns,
             batch_dims=1)
-        cell_index = ProductIndexMap(row_index, col_index)
+        cell_index = utils.ProductIndexMap(row_index, col_index)
+
+        # Masks.
+        # Table cells only, without question tokens and table headers.
+        input_shape = input_ids.size() if input_ids is not None else inputs_embeds.size()[:-1]
+        device = input_ids.device if input_ids is not None else inputs_embeds.device
+        if attention_mask is None:
+            attention_mask = torch.ones(input_shape, device=device)
+        if table_mask is None:
+            table_mask = torch.where(row_ids > 0, torch.ones_like(row_ids),
+                                    torch.zeros_like(row_ids))
+        # torch.FloatTensor[batch_size, seq_length]
+        input_mask_float = attention_mask.type(torch.FloatTensor)
+        table_mask_float = table_mask.type(torch.FloatTensor)
+        # Mask for cells that exist in the table (i.e. that are not padding).
+        cell_mask, _ = utils.reduce_mean(input_mask_float, cell_index)
 
         token_logits = self.compute_token_logits(sequence_output, self.config.temperature)
 
