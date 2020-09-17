@@ -37,7 +37,7 @@ class IndexMap(object):
             even if they have the same index.
         """
         self.indices = torch.as_tensor(indices)
-        self.num_segments = torch.as_tensor(num_segments)
+        self.num_segments = torch.as_tensor(num_segments, device=indices.device)
         self.batch_dims = batch_dims
 
     def batch_shape(self):
