@@ -682,7 +682,8 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         # Mask for cells that exist in the table (i.e. that are not padding).
         print(device)
         print(input_mask_float.device)
-        print(table_mask_float.device)
+        print(cell_index.indices.device)
+        print(cell_index.num_segments.device)
         cell_mask, _ = utils.reduce_mean(input_mask_float, cell_index)
 
         token_logits = self.compute_token_logits(sequence_output, self.config.temperature)
