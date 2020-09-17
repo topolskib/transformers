@@ -680,4 +680,15 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
 
         token_logits = self.compute_token_logits(sequence_output, self.config.temperature)
 
-        return logits_aggregation, logits_cls, token_logits
+        # Compute logits per column. These are used to select a column.
+        if self.config.select_one_column:
+            column_logits = utils.compute_column_logits(
+                sequence_output,
+                self.column_output_weights,
+                self.column_output_bias,
+                cell_index,
+                cell_mask,
+                self.config.allow_empty_column_selection
+            )
+
+        return logits_aggregation, logits_cls, token_logits, column_logits
