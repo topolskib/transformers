@@ -680,6 +680,8 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         input_mask_float = attention_mask.type(torch.FloatTensor)
         table_mask_float = table_mask.type(torch.FloatTensor)
         # Mask for cells that exist in the table (i.e. that are not padding).
+        print(input_mask_float.device)
+        print(cell_index.indices.device)
         cell_mask, _ = utils.reduce_mean(input_mask_float, cell_index)
 
         token_logits = self.compute_token_logits(sequence_output, self.config.temperature)
