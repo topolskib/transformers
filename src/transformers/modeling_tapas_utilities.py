@@ -128,7 +128,7 @@ def flatten(index, name='segmented_flatten'):
     batch_size = torch.prod(torch.tensor(list(index.batch_shape()))) 
     # next, create offset as 1-D tensor of length batch_size,
     # and multiply element-wise by num segments (to offset different elements in the batch) e.g. if batch size is 2: [0, 64]
-    offset = torch.arange(start=0, end=batch_size) * index.num_segments  
+    offset = torch.arange(start=0, end=batch_size, device=index.num_segments.device) * index.num_segments  
     offset = offset.view(index.batch_shape()) 
     for _ in range(index.batch_dims, len(index.indices.size())): # typically range(1,2)
         offset = offset.unsqueeze(-1)
