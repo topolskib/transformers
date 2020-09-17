@@ -288,6 +288,7 @@ def compute_column_logits(sequence_output,
     # Mask columns that do not appear in the example.
     is_padding = torch.logical_and(cell_count < 0.5,
                                 torch.eq(out_index.indices, 0))
+    print(is_padding.device)
     column_logits += CLOSE_ENOUGH_TO_LOG_ZERO * torch.as_tensor(is_padding, dtype=torch.float32)
 
     if not allow_empty_column_selection:
