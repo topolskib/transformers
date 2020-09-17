@@ -296,10 +296,3 @@ def compute_column_logits(sequence_output,
             torch.eq(out_index.indices, 0), dtype=torch.float32, device=out_index.indices.device)
 
     return column_logits
-
-
-
-
-
-
-    

@@ -509,8 +509,10 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         # Examples with non-empty cell selection supervision.
         is_cell_supervision_available = torch.sum(label_ids, dim=1) > 0
 
+        # torch.where is not equivalent to tf.where (in tensorflow 1)
+        # hence the added .view on the condition to match the shape of the first tensor
         aggregate_mask = torch.where(
-                            torch.logical_and(is_pred_cell_selection, is_cell_supervision_available),
+                            torch.logical_and(is_pred_cell_selection, is_cell_supervision_available).view(aggregate_mask_init.size()),
                             torch.zeros_like(aggregate_mask_init, dtype=torch.float32), 
                             aggregate_mask_init)
         
