@@ -286,8 +286,9 @@ def compute_column_logits(sequence_output,
     cell_count, _ = reduce_sum(cell_mask, column_index)
     column_logits /= cell_count + EPSILON_ZERO_DIVISION
 
-    print("Cell count:")
-    print(cell_count)
+    # cell count is OK
+    print("Out index indices:")
+    print(out_index.indices)
 
     # Mask columns that do not appear in the example.
     is_padding = torch.logical_and(cell_count < 0.5,
