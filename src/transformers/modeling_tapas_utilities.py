@@ -275,14 +275,16 @@ def compute_column_logits(sequence_output,
                     column_output_bias)
     
     
+    print("Token logits when computing column logits:")
     print(token_logits)
     
     # Next, average the logits per cell (batch_size, max_num_cols*max_num_rows)
     cell_logits, cell_logits_index = reduce_mean(
         token_logits, cell_index)
 
+    print("Cell logits when computing column logits:")
     print(cell_logits)
-    
+
     # Finally, average the logits per column (batch_size, max_num_cols)
     column_index = cell_index.project_inner(cell_logits_index)
     column_logits, out_index = reduce_sum(
