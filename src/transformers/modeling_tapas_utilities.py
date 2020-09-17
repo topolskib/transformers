@@ -297,6 +297,10 @@ def compute_column_logits(sequence_output,
                                 torch.eq(out_index.indices, 0))
     column_logits += CLOSE_ENOUGH_TO_LOG_ZERO * torch.as_tensor(is_padding, dtype=torch.float32, device=is_padding.device)
 
+    print("Is padding:")
+    print(is_padding)
+
+    # padding does not occur correctly
     print("Column logits after padding:")
     print(column_logits)
 
