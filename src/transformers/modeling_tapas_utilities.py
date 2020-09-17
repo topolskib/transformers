@@ -282,15 +282,12 @@ def compute_column_logits(sequence_output,
     column_index = cell_index.project_inner(cell_logits_index)
     column_logits, out_index = reduce_sum(
         cell_logits * cell_mask, column_index)
-
-    print("Column logits after averaging:")
-    print(column_logits)
     
     cell_count, _ = reduce_sum(cell_mask, column_index)
     column_logits /= cell_count + EPSILON_ZERO_DIVISION
 
-    print("Column logits after cell count:")
-    print(column_logits)
+    print("Cell count:")
+    print(cell_count)
 
     # Mask columns that do not appear in the example.
     is_padding = torch.logical_and(cell_count < 0.5,
