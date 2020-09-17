@@ -148,7 +148,7 @@ def range_index_map(batch_shape, num_segments, name='range_index_map'):
     Returns:
         IndexMap of shape batch_shape with elements equal to range(num_segments).
     """
-    batch_shape = torch.as_tensor(batch_shape, dtype=torch.int64) # create a rank 1 tensor vector containing batch_shape (e.g. [2]) 
+    batch_shape = torch.as_tensor(batch_shape, dtype=torch.long) # create a rank 1 tensor vector containing batch_shape (e.g. [2]) 
     assert len(batch_shape.size()) == 1
     num_segments = torch.as_tensor(num_segments) # create a rank 0 tensor (scalar) containing num_segments (e.g. 64)
     assert len(num_segments.size()) == 0
@@ -180,20 +180,20 @@ def _segment_reduce(values, index, segment_reduce_fn, name):
     # unflattened. Segmented ops support vector-valued operations.
     flat_index = flatten(index)
     vector_shape = values.size()[len(index.indices.size()):] # torch.Size object
-    flattened_shape = torch.cat([torch.as_tensor([-1],dtype=torch.int64), torch.as_tensor(vector_shape, dtype=torch.int64)], dim=0)
+    flattened_shape = torch.cat([torch.as_tensor([-1],dtype=torch.long), torch.as_tensor(vector_shape, dtype=torch.long)], dim=0)
     flat_values = values.view(flattened_shape.tolist())
 
     segment_means = scatter(src=flat_values, 
-                            index=flat_index.indices.type(torch.int64), 
+                            index=flat_index.indices.type(torch.long), 
                             dim=0, 
                             dim_size=flat_index.num_segments, 
                             reduce=segment_reduce_fn)
     
     # Unflatten the values.
     new_shape = torch.cat(
-        [torch.as_tensor(index.batch_shape(), dtype=torch.int64), 
-        torch.as_tensor([index.num_segments], dtype=torch.int64),
-        torch.as_tensor(vector_shape, dtype=torch.int64)],
+        [torch.as_tensor(index.batch_shape(), dtype=torch.long), 
+        torch.as_tensor([index.num_segments], dtype=torch.long),
+        torch.as_tensor(vector_shape, dtype=torch.long)],
         dim=0)
     
     output_values = segment_means.view(new_shape.tolist())
