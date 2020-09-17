@@ -153,9 +153,9 @@ def range_index_map(batch_shape, num_segments, name='range_index_map'):
     num_segments = torch.as_tensor(num_segments) # create a rank 0 tensor (scalar) containing num_segments (e.g. 64)
     assert len(num_segments.size()) == 0
 
-    indices = torch.arange(start=0, end=num_segments) # create a rank 1 vector with num_segments elements 
+    indices = torch.arange(start=0, end=num_segments, device=num_segments.device) # create a rank 1 vector with num_segments elements 
     new_tensor = torch.cat([
-        torch.ones_like(batch_shape, dtype=torch.long),
+        torch.ones_like(batch_shape, dtype=torch.long, device=num_segments.device),
         num_segments.unsqueeze(dim=0)
         ],
         dim=0)
