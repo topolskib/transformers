@@ -635,6 +635,8 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         sequence_output = outputs[0]
         pooled_output = outputs[1]
 
+        #################### aggregation and classification logits ###############################
+        
         logits_aggregation = None
         if self.config.num_aggregation_labels > 0:
             logits_aggregation = self._calculate_aggregation_logits(pooled_output)
@@ -643,26 +645,28 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         if self.config.num_classification_labels > 0:
             logits_cls = self.compute_classification_logits(pooled_output)
 
+        ############################### cell selection logits ####################################
+        
         if token_type_ids is None:
             raise ValueError("You have to specify token type ids")
         
         token_types = ["segment_ids", "column_ids", "row_ids", "prev_label_ids", "column_ranks",
                             "inv_column_ranks", "numeric_relations"]
         
-        row_ids = token_type_ids[:,:,token_types.index("row_ids")].cpu()
-        column_ids = token_type_ids[:,:,token_types.index("column_ids")].cpu()
+        row_ids = token_type_ids[:,:,token_types.index("row_ids")]
+        column_ids = token_type_ids[:,:,token_types.index("column_ids")]
         
         # Construct indices for the table.
         row_index = utils.IndexMap(
-            indices=torch.min(row_ids, torch.as_tensor(self.config.max_num_rows - 1)),
+            indices=torch.min(row_ids, torch.as_tensor(self.config.max_num_rows - 1, device=row_ids.device)),
             num_segments=self.config.max_num_rows,
             batch_dims=1)
         col_index = utils.IndexMap(
-            indices=torch.min(column_ids, torch.as_tensor(self.config.max_num_columns - 1)),
+            indices=torch.min(column_ids, torch.as_tensor(self.config.max_num_columns - 1, device=column_ids.device)),
             num_segments=self.config.max_num_columns,
             batch_dims=1)
         cell_index = utils.ProductIndexMap(row_index, col_index)
-
+        
         # Masks.
         input_shape = input_ids.size() if input_ids is not None else inputs_embeds.size()[:-1]
         device = input_ids.device if input_ids is not None else inputs_embeds.device
