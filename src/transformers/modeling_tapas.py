@@ -677,8 +677,8 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
             table_mask = torch.where(row_ids > 0, torch.ones_like(row_ids),
                                     torch.zeros_like(row_ids))
         # torch.FloatTensor[batch_size, seq_length]
-        input_mask_float = attention_mask.type(torch.FloatTensor)
-        table_mask_float = table_mask.type(torch.FloatTensor)
+        input_mask_float = attention_mask.type(torch.FloatTensor, device=attention_mask.device)
+        table_mask_float = table_mask.type(torch.FloatTensor, device=attention_mask.device)
         # Mask for cells that exist in the table (i.e. that are not padding).
         print(input_mask_float.device)
         print(cell_index.indices.device)
