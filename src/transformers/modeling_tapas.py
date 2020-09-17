@@ -664,11 +664,11 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         cell_index = utils.ProductIndexMap(row_index, col_index)
 
         # Masks.
-        # Table cells only, without question tokens and table headers.
         input_shape = input_ids.size() if input_ids is not None else inputs_embeds.size()[:-1]
         device = input_ids.device if input_ids is not None else inputs_embeds.device
         if attention_mask is None:
             attention_mask = torch.ones(input_shape, device=device)
+        # Table cells only, without question tokens and table headers.
         if table_mask is None:
             table_mask = torch.where(row_ids > 0, torch.ones_like(row_ids),
                                     torch.zeros_like(row_ids))
@@ -676,7 +676,8 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         input_mask_float = attention_mask.type(torch.FloatTensor)
         table_mask_float = table_mask.type(torch.FloatTensor)
         # Mask for cells that exist in the table (i.e. that are not padding).
-        cell_mask, _ = utils.reduce_mean(input_mask_float, cell_index)
+        # the code below does not work yet (bug)
+        #cell_mask, _ = utils.reduce_mean(input_mask_float, cell_index)
 
         token_logits = self.compute_token_logits(sequence_output, self.config.temperature)
 
