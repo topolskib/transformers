@@ -582,7 +582,9 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
                 answer,
                 pooled_output,
                 self.config.cell_select_pref,
-                label_ids
+                label_ids,
+                self.output_weights_agg,
+                self.output_bias_agg
             )
             
         print(aggregate_mask)

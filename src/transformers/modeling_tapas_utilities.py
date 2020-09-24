@@ -417,7 +417,7 @@ def _calculate_aggregation_logits(pooled_output, output_weights_agg, output_bias
     return logits_aggregation
 
 
-def _calculate_aggregate_mask(answer, pooled_output, cell_select_pref, label_ids):
+def _calculate_aggregate_mask(answer, pooled_output, cell_select_pref, label_ids, output_weights_agg, output_bias_agg):
     """Finds examples where the model should select cells with no aggregation.
     Returns a mask that determines for which examples should the model select
     answers directly from the table, without any aggregation function. If the
@@ -439,7 +439,7 @@ def _calculate_aggregate_mask(answer, pooled_output, cell_select_pref, label_ids
     """
     # torch.FloatTensor[batch_size]
     aggregate_mask_init = torch.logical_not(torch.isnan(answer)).type(torch.FloatTensor)
-    logits_aggregation = _calculate_aggregation_logits(pooled_output)
+    logits_aggregation = _calculate_aggregation_logits(pooled_output, output_weights_agg, output_bias_agg)
     dist_aggregation = torch.distributions.categorical.Categorical(logits=logits_aggregation)
     # Index 0 correponds to "no aggregation".
     aggregation_ops_total_mass = torch.sum(
@@ -519,7 +519,7 @@ def _calculate_aggregation_loss(logits_aggregation, aggregate_mask,
                             aggregation_function_id, config):
     """Calculates the aggregation loss per example."""
     per_example_aggregation_loss = _calculate_aggregation_loss_known(
-        logits_aggregation, aggregate_mask, aggregation_function_id)
+        logits_aggregation, aggregate_mask, aggregation_function_id, config)
 
     if config.use_answer_as_supervision:
         # Add aggregation loss for numeric answers that need aggregation.
