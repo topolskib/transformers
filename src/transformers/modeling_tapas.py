@@ -593,4 +593,30 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
                 selection_loss_per_example, logits = utils._single_column_cell_selection_loss(token_logits, column_logits, label_ids,
                                                                                             cell_index, col_index, cell_mask)
 
+        # Total loss calculation
+        total_loss = 0.0
+        is_supervised = not self.config.num_aggregation_labels > 0 or not self.config.use_answer_as_supervision
+
+        ### Semi-supervised cell selection in case of no aggregation
+        #############################################################
+
+        # If the answer (the denotation) appears directly in the table we might
+        # select the answer without applying any aggregation function. There are
+        # some ambiguous cases, see _calculate_aggregate_mask for more info.
+        # `aggregate_mask` is 1 for examples where we chose to aggregate and 0
+        #  for examples where we chose to select the answer directly.
+        # `label_ids` encodes the positions of the answer appearing in the table.
+        if is_supervised:
+            aggregate_mask = None
+        else:
+            # <float32>[batch_size]
+            aggregate_mask = utils._calculate_aggregate_mask(
+                answer,
+                pooled_output,
+                self.config.cell_select_pref,
+                label_ids
+            )
+            
+            print(aggregate_mask)
+
         return logits_aggregation, logits_cls, token_logits, column_logits, selection_loss_per_example
