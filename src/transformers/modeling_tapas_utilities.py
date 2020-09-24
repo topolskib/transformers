@@ -356,9 +356,11 @@ def _single_column_cell_selection_loss(token_logits, column_logits, label_ids,
                             torch.argmax(column_logits, dim=-1),
                             dtype=torch.long,
                             device=column_logits.device) # shape (batch_size,)
+  
   selected_column_mask = torch.as_tensor(
                             torch.eq(column_id_for_cells, torch.unsqueeze(selected_column_id, dim=-1)),
-                            dtype=torch.float32) # shape (batch_size, 64*32), equal to 1 if cell belongs to column selected by the model
+                            dtype=torch.float32,
+                            device=selected_column_id.device) # shape (batch_size, 64*32), equal to 1 if cell belongs to column selected by the model
 
   # Never select cells with the special column id 0.
   selected_column_mask = torch.where(
