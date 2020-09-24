@@ -326,7 +326,7 @@ def _single_column_cell_selection_loss(token_logits, column_logits, label_ids,
   # Reduce the labels and logits to per-cell from per-token.
   logits_per_cell, _ = reduce_mean(token_logits, cell_index) # shape (batch_size, max_num_rows*max_num_cols) i.e. (batch_size, 64*32)
   labels_per_cell, labels_index = reduce_max(
-      torch.as_tensor(label_ids, dtype=torch.long), cell_index) # shape (batch_size, 64*32), indicating whether each cell should be selected (1) or not (0)
+      torch.as_tensor(label_ids, dtype=torch.long, device=label_ids.device), cell_index) # shape (batch_size, 64*32), indicating whether each cell should be selected (1) or not (0)
 
   # Mask for the selected column.
   column_id_for_cells = cell_index.project_inner(labels_index).indices # shape (batch_size, 64*32), indicating to which column each
