@@ -338,6 +338,10 @@ def _single_column_cell_selection_loss(token_logits, column_logits, label_ids,
   cell_dist = torch.distributions.Bernoulli(logits=logits_per_cell) # shape (batch_size, 64*32)
   cell_log_prob = cell_dist.log_prob(labels_per_cell.type(torch.float32)) # shape(batch_size, 64*32)
 
+  print(cell_log_prob.device)
+  print(column_mask.device)
+  print(cell_mask.device)
+
   cell_loss = -torch.sum(cell_log_prob * column_mask * cell_mask, dim=1)
 
   # We need to normalize the loss by the number of cells in the column.
