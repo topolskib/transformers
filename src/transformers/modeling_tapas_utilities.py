@@ -348,6 +348,8 @@ def _single_column_cell_selection_loss(token_logits, column_logits, label_ids,
   cell_loss /= torch.sum(
       column_mask * cell_mask, dim=1) + EPSILON_ZERO_DIVISION
 
+  print(cell_loss)
+  
   selection_loss_per_example = column_loss_per_example
   selection_loss_per_example += torch.where(
       no_cell_selected.view(selection_loss_per_example.size()), torch.zeros_like(selection_loss_per_example), cell_loss)
