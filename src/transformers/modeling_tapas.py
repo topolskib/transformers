@@ -488,22 +488,8 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
 
         sequence_output = outputs[0]
         pooled_output = outputs[1]
-
-        #################### aggregation and classification logits ###############################
         
-        logits_aggregation = None
-        if self.config.num_aggregation_labels > 0:
-            logits_aggregation = utils._calculate_aggregation_logits(pooled_output, 
-                                                                     self.output_weights_agg,
-                                                                     self.output_bias_agg)
-        logits_cls = None
-        if self.config.num_classification_labels > 0:
-            logits_cls = utils.compute_classification_logits(pooled_output,
-                                                             self.output_weights_cls,
-                                                             self.output_bias_cls)
-
-        ############################### cell selection logits ####################################
-        
+        # Construct indices for the table.
         if token_type_ids is None:
             raise ValueError("You have to specify token type ids")
         
@@ -513,7 +499,6 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         row_ids = token_type_ids[:,:,token_types.index("row_ids")]
         column_ids = token_type_ids[:,:,token_types.index("column_ids")]
         
-        # Construct indices for the table.
         row_index = utils.IndexMap(
             indices=torch.min(row_ids, torch.as_tensor(self.config.max_num_rows - 1, device=row_ids.device)),
             num_segments=self.config.max_num_rows,
@@ -539,6 +524,7 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         # Mask for cells that exist in the table (i.e. that are not padding).
         cell_mask, _ = utils.reduce_mean(input_mask_float, cell_index)
 
+        # Compute logits per token. These are used to select individual cells.
         token_logits = utils.compute_token_logits(sequence_output, 
                                                   self.config.temperature,
                                                   self.output_weights,
@@ -587,6 +573,31 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
                 self.output_bias_agg
             )
             
-        print(aggregate_mask)
+        ### Cell selection log-likelihood
+        ###################################
+
+        if self.config.average_logits_per_cell:
+            logits_per_cell, _ = utils.reduce_mean(token_logits, cell_index)
+            logits = segmented_tensor.gather(logits_per_cell, cell_index)
+            dist_per_token = tfp.distributions.Bernoulli(logits=logits)
+        
+        ### Logits for the aggregation function
+        #########################################
+        
+        logits_aggregation = None
+        if self.config.num_aggregation_labels > 0:
+            logits_aggregation = utils._calculate_aggregation_logits(pooled_output, 
+                                                                     self.output_weights_agg,
+                                                                     self.output_bias_agg)
+        
+        ### Classification loss
+        ###############################
+        
+        logits_cls = None
+        if self.config.num_classification_labels > 0:
+            logits_cls = utils.compute_classification_logits(pooled_output,
+                                                             self.output_weights_cls,
+                                                             self.output_bias_cls)        
+        
 
         return logits_aggregation, logits_cls, token_logits, column_logits, selection_loss_per_example
