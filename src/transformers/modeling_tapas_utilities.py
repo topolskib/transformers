@@ -379,7 +379,7 @@ def _single_column_cell_selection_loss(token_logits, column_logits, label_ids,
     return selection_loss_per_example, logits
 
 
-def _calculate_aggregate_mask(self, answer, pooled_output, cell_select_pref, label_ids):
+def _calculate_aggregate_mask(answer, pooled_output, cell_select_pref, label_ids):
     """Finds examples where the model should select cells with no aggregation.
     Returns a mask that determines for which examples should the model select
     answers directly from the table, without any aggregation function. If the
@@ -424,7 +424,7 @@ def _calculate_aggregate_mask(self, answer, pooled_output, cell_select_pref, lab
     
     return aggregate_mask
 
-def _calculate_aggregation_loss_known(self, logits_aggregation, aggregate_mask,
+def _calculate_aggregation_loss_known(logits_aggregation, aggregate_mask,
                                 aggregation_function_id):
     """Calculates aggregation loss when its type is known during training.
     In the weakly supervised setting, the only known information is that for
@@ -463,7 +463,7 @@ def _calculate_aggregation_loss_known(self, logits_aggregation, aggregate_mask,
     else:
         return per_example_aggregation_intermediate
 
-def _calculate_aggregation_loss_unknown(self, logits_aggregation, aggregate_mask):
+def _calculate_aggregation_loss_unknown(logits_aggregation, aggregate_mask):
     """Calculates aggregation loss in the case of answer supervision."""
 
     dist_aggregation = torch.distributions.categorical.Categorical(logits=logits_aggregation)
@@ -477,7 +477,7 @@ def _calculate_aggregation_loss_unknown(self, logits_aggregation, aggregate_mask
     return -torch.log(aggregation_ops_total_mass) * aggregate_mask
 
 
-def _calculate_aggregation_loss(self, logits_aggregation, aggregate_mask,
+def _calculate_aggregation_loss(logits_aggregation, aggregate_mask,
                             aggregation_function_id):
     """Calculates the aggregation loss per example."""
     per_example_aggregation_loss = self._calculate_aggregation_loss_known(
