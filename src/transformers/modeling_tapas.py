@@ -532,7 +532,6 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
 
         # Compute logits per column. These are used to select a column.
         column_logits = None
-        selection_loss_per_example = None
         if self.config.select_one_column:
             column_logits = utils.compute_column_logits(
                 sequence_output,
@@ -542,6 +541,20 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
                 cell_mask,
                 self.config.allow_empty_column_selection
             )
+
+        ########## Classification logits ###########
+        logits_cls = None
+        if self.config.num_classification_labels > 0:
+            logits_cls = utils.compute_classification_logits(pooled_output,
+                                                                self.output_weights_cls,
+                                                                self.output_bias_cls) 
+
+        ########## Aggregation logits ##############
+        logits_aggregation = None
+        if self.config.num_aggregation_labels > 0:
+            logits_aggregation = utils._calculate_aggregation_logits(pooled_output, 
+                                                                    self.output_weights_agg,
+                                                                    self.output_bias_agg)
 
         # Total loss calculation
         total_loss = None
@@ -592,26 +605,11 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
             else:
                 selection_loss_per_example, logits = utils._single_column_cell_selection_loss(token_logits, column_logits, label_ids,
                                                                                             cell_index, col_index, cell_mask)
-                dist_per_token = torch.distributions.Bernoulli(logits=logits)
-
-            ### Logits for the aggregation function
-            #########################################
-            
-            logits_aggregation = None
-            if self.config.num_aggregation_labels > 0:
-                logits_aggregation = utils._calculate_aggregation_logits(pooled_output, 
-                                                                        self.output_weights_agg,
-                                                                        self.output_bias_agg)
+                dist_per_token = torch.distributions.Bernoulli(logits=token_logits)
             
             ### Classification loss
             ###############################
-            
-            logits_cls = None
             if self.config.num_classification_labels > 0:
-                logits_cls = utils.compute_classification_logits(pooled_output,
-                                                                self.output_weights_cls,
-                                                                self.output_bias_cls) 
-
                 if classification_class_index is not None:
                     one_hot_labels = torch.nn.functional.one_hot(classification_class_index,
                                                                 num_classes=self.config.num_classification_labels).type(torch.float32)
