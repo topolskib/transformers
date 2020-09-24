@@ -699,7 +699,7 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
                 self.config.allow_empty_column_selection
             )
 
-            if label_ids not None:
+            if label_ids is not None:
                 selection_loss_per_example, logits = utils._single_column_cell_selection_loss(token_logits, column_logits, label_ids,
                                                                                             cell_index, col_index, cell_mask)
 
