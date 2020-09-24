@@ -321,6 +321,9 @@ def _single_column_cell_selection_loss(token_logits, column_logits, label_ids,
   column_dist = torch.distributions.Categorical(logits=column_logits) # shape (batch_size, max_num_cols)
   column_loss_per_example = -column_dist.log_prob(column_label)
 
+  print("Column loss per example:")
+  print(column_loss_per_example)
+
   ## Part 2: cell loss
 
   # Reduce the labels and logits to per-cell from per-token.

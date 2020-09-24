@@ -698,7 +698,7 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
                 cell_mask,
                 self.config.allow_empty_column_selection
             )
-
+            # Compute cell selection loss per example.
             if label_ids is not None:
                 selection_loss_per_example, logits = utils._single_column_cell_selection_loss(token_logits, column_logits, label_ids,
                                                                                             cell_index, col_index, cell_mask)
