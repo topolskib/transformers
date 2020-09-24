@@ -610,7 +610,6 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
             aggregate_mask = None
         else:
             # <float32>[batch_size]
-            print("we are here")
             aggregate_mask = utils._calculate_aggregate_mask(
                 answer,
                 pooled_output,
