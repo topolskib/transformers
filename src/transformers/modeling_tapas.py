@@ -545,7 +545,7 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
 
         # Total loss calculation
         total_loss = None
-        if label_ids is not None:
+        if label_ids is not None and answer is not None:
             is_supervised = not self.config.num_aggregation_labels > 0 or not self.config.use_answer_as_supervision
 
             ### Semi-supervised cell selection in case of no aggregation
@@ -610,7 +610,19 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
             if self.config.num_classification_labels > 0:
                 logits_cls = utils.compute_classification_logits(pooled_output,
                                                                 self.output_weights_cls,
-                                                                self.output_bias_cls)        
+                                                                self.output_bias_cls) 
+
+                if classification_class_index is not None:
+                    one_hot_labels = torch.nn.functional.one_hot(classification_class_index,
+                                                                num_classes=self.config.num_classification_labels).type(torch.float32)
+                    log_probs = torch.nn.functional.log_softmax(logits_cls, dim=-1)
+
+                    per_example_classification_intermediate = -torch.sum(one_hot_labels * log_probs, dim=-1)
+
+                    cls_loss = torch.mean(per_example_classification_intermediate)
+                    total_loss += cls_loss  
+                else:
+                    raise ValueError("You have to specify classification class indices")
         
 
         return logits_aggregation, logits_cls, token_logits, column_logits, selection_loss_per_example
