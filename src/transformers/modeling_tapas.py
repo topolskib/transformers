@@ -525,7 +525,7 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         cell_mask, _ = utils.reduce_mean(input_mask_float, cell_index)
 
         # Compute logits per token. These are used to select individual cells.
-        token_logits = utils.compute_token_logits(sequence_output, 
+        logits = utils.compute_token_logits(sequence_output, 
                                                   self.config.temperature,
                                                   self.output_weights,
                                                   self.output_bias)
@@ -587,9 +587,9 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
             ###################################
 
             if self.config.average_logits_per_cell:
-                logits_per_cell, _ = utils.reduce_mean(token_logits, cell_index)
-                token_logits = utils.gather(logits_per_cell, cell_index)
-            dist_per_token = torch.distributions.Bernoulli(logits=token_logits)
+                logits_per_cell, _ = utils.reduce_mean(logits, cell_index)
+                logits = utils.gather(logits_per_cell, cell_index)
+            dist_per_token = torch.distributions.Bernoulli(logits=logits)
 
             # Compute cell selection loss per example.
             selection_loss_per_example = None
@@ -603,9 +603,9 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
                     torch.sum(selection_loss_per_token * input_mask_float, dim=1) /
                     (torch.sum(input_mask_float, dim=1) + utils.EPSILON_ZERO_DIVISION))
             else:
-                selection_loss_per_example, logits = utils._single_column_cell_selection_loss(token_logits, column_logits, label_ids,
+                selection_loss_per_example, logits = utils._single_column_cell_selection_loss(logits, column_logits, label_ids,
                                                                                             cell_index, col_index, cell_mask)
-                dist_per_token = torch.distributions.Bernoulli(logits=token_logits)
+                dist_per_token = torch.distributions.Bernoulli(logits=logits)
             
             ### Classification loss
             ###############################
@@ -623,4 +623,4 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
                     raise ValueError("You have to specify classification class indices")
         
 
-        return logits_aggregation, logits_cls, token_logits, column_logits, selection_loss_per_example
+        return logits_aggregation, logits_cls, logits, column_logits, selection_loss_per_example
