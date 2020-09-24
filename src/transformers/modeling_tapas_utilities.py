@@ -307,7 +307,7 @@ def _single_column_cell_selection_loss(token_logits, column_logits, label_ids,
   # First find the column we should select. We use the column with maximum
   # number of selected cells.
   labels_per_column, _ = reduce_sum(
-                            torch.as_tensor(label_ids, dtype=torch.float32), col_index) 
+                            torch.as_tensor(label_ids, dtype=torch.float32, device=label_ids.device), col_index) 
   # shape of labels_per_column is (batch_size, max_num_cols). It contains the number of label ids for every column, for every example
   column_label = torch.argmax(labels_per_column, dim=-1) # shape (batch_size,)
   # Check if there are no selected cells in the column. In that case the model
