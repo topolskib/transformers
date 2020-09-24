@@ -688,6 +688,7 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
 
         # Compute logits per column. These are used to select a column.
         column_logits = None
+        selection_loss_per_example = None
         if self.config.select_one_column:
             column_logits = utils.compute_column_logits(
                 sequence_output,
@@ -698,4 +699,8 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
                 self.config.allow_empty_column_selection
             )
 
-        return logits_aggregation, logits_cls, token_logits, column_logits
+            if label_ids not None:
+                selection_loss_per_example, logits = utils._single_column_cell_selection_loss(token_logits, column_logits, label_ids,
+                                                                                            cell_index, col_index, cell_mask)
+
+        return logits_aggregation, logits_cls, token_logits, column_logits, selection_loss_per_example
