@@ -427,7 +427,7 @@ def _calculate_aggregate_mask(answer, pooled_output, cell_select_pref, label_ids
     answer is a number that also appears in the table. In this case we use the
     aggregation function probabilities predicted by the model to decide whether
     to select or aggregate. The threshold for this is a hyperparameter
-    `cell_select_pref`.
+    `cell_select_pref`
     Args:
         answer: torch.FloatTensor[batch_size]
         pooled_output: torch.FloatTensor[batch_size, hidden_size]
@@ -438,7 +438,7 @@ def _calculate_aggregate_mask(answer, pooled_output, cell_select_pref, label_ids
         should use aggregation functions.
     """
     # torch.FloatTensor[batch_size]
-    aggregate_mask_init = torch.logical_not(torch.isnan(answer)).type(torch.FloatTensor)
+    aggregate_mask_init = torch.logical_not(torch.isnan(answer)).type(torch.FloatTensor).to(answer.device)
     logits_aggregation = _calculate_aggregation_logits(pooled_output, output_weights_agg, output_bias_agg)
     dist_aggregation = torch.distributions.categorical.Categorical(logits=logits_aggregation)
     # Index 0 correponds to "no aggregation".
