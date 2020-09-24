@@ -542,62 +542,75 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
                 cell_mask,
                 self.config.allow_empty_column_selection
             )
-            # Compute cell selection loss per example.
-            if label_ids is not None:
-                selection_loss_per_example, logits = utils._single_column_cell_selection_loss(token_logits, column_logits, label_ids,
-                                                                                            cell_index, col_index, cell_mask)
 
         # Total loss calculation
-        total_loss = 0.0
-        is_supervised = not self.config.num_aggregation_labels > 0 or not self.config.use_answer_as_supervision
+        total_loss = None
+        if label_ids is not None:
+            is_supervised = not self.config.num_aggregation_labels > 0 or not self.config.use_answer_as_supervision
 
-        ### Semi-supervised cell selection in case of no aggregation
-        #############################################################
+            ### Semi-supervised cell selection in case of no aggregation
+            #############################################################
 
-        # If the answer (the denotation) appears directly in the table we might
-        # select the answer without applying any aggregation function. There are
-        # some ambiguous cases, see _calculate_aggregate_mask for more info.
-        # `aggregate_mask` is 1 for examples where we chose to aggregate and 0
-        #  for examples where we chose to select the answer directly.
-        # `label_ids` encodes the positions of the answer appearing in the table.
-        if is_supervised:
-            aggregate_mask = None
-        else:
-            # <float32>[batch_size]
-            aggregate_mask = utils._calculate_aggregate_mask(
-                answer,
-                pooled_output,
-                self.config.cell_select_pref,
-                label_ids,
-                self.output_weights_agg,
-                self.output_bias_agg
-            )
+            # If the answer (the denotation) appears directly in the table we might
+            # select the answer without applying any aggregation function. There are
+            # some ambiguous cases, see utils._calculate_aggregate_mask for more info.
+            # `aggregate_mask` is 1 for examples where we chose to aggregate and 0
+            #  for examples where we chose to select the answer directly.
+            # `label_ids` encodes the positions of the answer appearing in the table.
+            if is_supervised:
+                aggregate_mask = None
+            else:
+                # <float32>[batch_size]
+                aggregate_mask = utils._calculate_aggregate_mask(
+                    answer,
+                    pooled_output,
+                    self.config.cell_select_pref,
+                    label_ids,
+                    self.output_weights_agg,
+                    self.output_bias_agg
+                )
+                
+            ### Cell selection log-likelihood
+            ###################################
+
+            if self.config.average_logits_per_cell:
+                logits_per_cell, _ = utils.reduce_mean(token_logits, cell_index)
+                token_logits = utils.gather(logits_per_cell, cell_index)
+            dist_per_token = torch.distributions.Bernoulli(logits=token_logits)
+
+            # Compute cell selection loss per example.
+            selection_loss_per_example = None
+            if not self.config.select_one_column:
+                weight = torch.where(
+                            label_ids == 0, 
+                            torch.ones_like(label_ids, dtype=torch.float32),
+                            self.config.positive_weight * torch.ones_like(label_ids, dtype=torch.float32))
+                selection_loss_per_token = -dist_per_token.log_prob(label_ids) * weight
+                selection_loss_per_example = (
+                    torch.sum(selection_loss_per_token * input_mask_float, dim=1) /
+                    (torch.sum(input_mask_float, dim=1) + utils.EPSILON_ZERO_DIVISION))
+            else:
+                selection_loss_per_example, logits = utils._single_column_cell_selection_loss(token_logits, column_logits, label_ids,
+                                                                                            cell_index, col_index, cell_mask)
+                dist_per_token = torch.distributions.Bernoulli(logits=logits)
+
+            ### Logits for the aggregation function
+            #########################################
             
-        ### Cell selection log-likelihood
-        ###################################
-
-        if self.config.average_logits_per_cell:
-            logits_per_cell, _ = utils.reduce_mean(token_logits, cell_index)
-            logits = segmented_tensor.gather(logits_per_cell, cell_index)
-            dist_per_token = tfp.distributions.Bernoulli(logits=logits)
-        
-        ### Logits for the aggregation function
-        #########################################
-        
-        logits_aggregation = None
-        if self.config.num_aggregation_labels > 0:
-            logits_aggregation = utils._calculate_aggregation_logits(pooled_output, 
-                                                                     self.output_weights_agg,
-                                                                     self.output_bias_agg)
-        
-        ### Classification loss
-        ###############################
-        
-        logits_cls = None
-        if self.config.num_classification_labels > 0:
-            logits_cls = utils.compute_classification_logits(pooled_output,
-                                                             self.output_weights_cls,
-                                                             self.output_bias_cls)        
+            logits_aggregation = None
+            if self.config.num_aggregation_labels > 0:
+                logits_aggregation = utils._calculate_aggregation_logits(pooled_output, 
+                                                                        self.output_weights_agg,
+                                                                        self.output_bias_agg)
+            
+            ### Classification loss
+            ###############################
+            
+            logits_cls = None
+            if self.config.num_classification_labels > 0:
+                logits_cls = utils.compute_classification_logits(pooled_output,
+                                                                self.output_weights_cls,
+                                                                self.output_bias_cls)        
         
 
         return logits_aggregation, logits_cls, token_logits, column_logits, selection_loss_per_example
