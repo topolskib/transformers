@@ -321,22 +321,22 @@ def _single_column_cell_selection_loss(token_logits, column_logits, label_ids,
   column_dist = torch.distributions.Categorical(logits=column_logits) # shape (batch_size, max_num_cols)
   column_loss_per_example = -column_dist.log_prob(column_label)
 
-  print("Column loss per example:")
-  print(column_loss_per_example)
-
   ## Part 2: cell loss
 
   # Reduce the labels and logits to per-cell from per-token.
-  logits_per_cell, _ = reduce_mean(token_logits, cell_index) # shape (batch_size, max_num_rows*max_num_cols) i.e. (batch_size, 64*32)
+  # logits_per_cell: shape (batch_size, max_num_rows*max_num_cols) i.e. (batch_size, 64*32)
+  logits_per_cell, _ = reduce_mean(token_logits, cell_index) 
+  # labels_per_cell: shape (batch_size, 64*32), indicating whether each cell should be selected (1) or not (0)
   labels_per_cell, labels_index = reduce_max(
-      torch.as_tensor(label_ids, dtype=torch.long, device=label_ids.device), cell_index) # shape (batch_size, 64*32), indicating whether each cell should be selected (1) or not (0)
+      torch.as_tensor(label_ids, dtype=torch.long, device=label_ids.device), cell_index) 
 
   # Mask for the selected column.
-  column_id_for_cells = cell_index.project_inner(labels_index).indices # shape (batch_size, 64*32), indicating to which column each
-  # cell belongs
+  # column_id_for_cells: shape (batch_size, 64*32), indicating to which column each cell belongs
+  column_id_for_cells = cell_index.project_inner(labels_index).indices 
+  # column_mask: shape (batch_size, 64*32), equal to 1 if cell belongs to column to be selected
   column_mask = torch.as_tensor(torch.eq(column_id_for_cells, torch.unsqueeze(column_label, dim=-1)), 
                                 dtype=torch.float32,
-                                device=cell_mask.device) # shape (batch_size, 64*32), equal to 1 if cell belongs to column to be selected
+                                device=cell_mask.device) 
   
   # Compute the log-likelihood for cells, but only for the selected column.
   cell_dist = torch.distributions.Bernoulli(logits=logits_per_cell) # shape (batch_size, 64*32)
@@ -347,8 +347,6 @@ def _single_column_cell_selection_loss(token_logits, column_logits, label_ids,
   # We need to normalize the loss by the number of cells in the column.
   cell_loss /= torch.sum(
       column_mask * cell_mask, dim=1) + EPSILON_ZERO_DIVISION
-
-  print(cell_loss)
   
   selection_loss_per_example = column_loss_per_example
   selection_loss_per_example += torch.where(
@@ -362,10 +360,11 @@ def _single_column_cell_selection_loss(token_logits, column_logits, label_ids,
                             dtype=torch.long,
                             device=column_logits.device) # shape (batch_size,)
   
+  # selected_column_mask: shape (batch_size, 64*32), equal to 1 if cell belongs to column selected by the model
   selected_column_mask = torch.as_tensor(
                             torch.eq(column_id_for_cells, torch.unsqueeze(selected_column_id, dim=-1)),
                             dtype=torch.float32,
-                            device=selected_column_id.device) # shape (batch_size, 64*32), equal to 1 if cell belongs to column selected by the model
+                            device=selected_column_id.device) 
 
   # Never select cells with the special column id 0.
   selected_column_mask = torch.where(
