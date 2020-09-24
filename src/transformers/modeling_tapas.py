@@ -437,44 +437,6 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
 
         self.init_weights()
 
-    def compute_token_logits(self, sequence_output, temperature):
-        """Computes logits per token.
-        Args:
-            sequence_output: <float>[batch_size, seq_length, hidden_dim] Output of the
-            encoder layer.
-            temperature: float Temperature for the Bernoulli distribution.
-        Returns:
-            logits: <float>[batch_size, seq_length] Logits per token.
-        """
-        logits = (torch.einsum("bsj,j->bs", sequence_output, self.output_weights) +
-                self.output_bias) / temperature
-
-        return logits
-
-    def compute_classification_logits(self, pooled_output):
-        """Computes logits for each classification of the sequence.
-        Args:
-            pooled_output: <float>[batch_size, hidden_dim] Output of the pooler (BertPooler) on top of the encoder layer.
-        Returns:
-            logits_cls: <float>[batch_size, config.num_classification_labels] Logits per class.
-        """
-        logits_cls = torch.matmul(pooled_output, self.output_weights_cls.T)
-        logits_cls += self.output_bias_cls
-        
-        return logits_cls
-
-    def _calculate_aggregation_logits(self, pooled_output):
-        """Calculates the aggregation logits.
-        Args:
-            pooled_output: torch.FloatTensor[batch_size, hidden_dim] Output of the pooler (BertPooler) on top of the encoder layer.
-        Returns:
-            logits_aggregation: torch.FloatTensor[batch_size, config.num_aggregation_labels] Logits per aggregation operation.
-        """
-        logits_aggregation = torch.matmul(pooled_output, self.output_weights_agg.T)
-        logits_aggregation += self.output_bias_agg
-        
-        return logits_aggregation
-
     def forward(
         self,
         input_ids=None,
@@ -531,11 +493,14 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         
         logits_aggregation = None
         if self.config.num_aggregation_labels > 0:
-            logits_aggregation = self._calculate_aggregation_logits(pooled_output)
-
+            logits_aggregation = utils._calculate_aggregation_logits(pooled_output, 
+                                                                     self.output_weights_agg,
+                                                                     self.output_bias_agg)
         logits_cls = None
         if self.config.num_classification_labels > 0:
-            logits_cls = self.compute_classification_logits(pooled_output)
+            logits_cls = utils.compute_classification_logits(pooled_output,
+                                                             self.output_weights_cls,
+                                                             self.output_bias_cls)
 
         ############################### cell selection logits ####################################
         
@@ -574,7 +539,10 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         # Mask for cells that exist in the table (i.e. that are not padding).
         cell_mask, _ = utils.reduce_mean(input_mask_float, cell_index)
 
-        token_logits = self.compute_token_logits(sequence_output, self.config.temperature)
+        token_logits = utils.compute_token_logits(sequence_output, 
+                                                  self.config.temperature,
+                                                  self.output_weights,
+                                                  self.output_bias)
 
         # Compute logits per column. These are used to select a column.
         column_logits = None

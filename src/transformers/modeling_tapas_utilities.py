@@ -378,6 +378,44 @@ def _single_column_cell_selection_loss(token_logits, column_logits, label_ids,
     
     return selection_loss_per_example, logits
 
+def compute_token_logits(sequence_output, temperature, output_weights, output_bias):
+    """Computes logits per token.
+    Args:
+        sequence_output: <float>[batch_size, seq_length, hidden_dim] Output of the
+        encoder layer.
+        temperature: float Temperature for the Bernoulli distribution.
+    Returns:
+        logits: <float>[batch_size, seq_length] Logits per token.
+    """
+    logits = (torch.einsum("bsj,j->bs", sequence_output, output_weights) +
+            output_bias) / temperature
+
+    return logits
+
+def compute_classification_logits(pooled_output, output_weights_cls, output_bias_cls):
+    """Computes logits for each classification of the sequence.
+    Args:
+        pooled_output: <float>[batch_size, hidden_dim] Output of the pooler (BertPooler) on top of the encoder layer.
+    Returns:
+        logits_cls: <float>[batch_size, config.num_classification_labels] Logits per class.
+    """
+    logits_cls = torch.matmul(pooled_output, output_weights_cls.T)
+    logits_cls += output_bias_cls
+    
+    return logits_cls
+
+def _calculate_aggregation_logits(pooled_output, output_weights_agg, output_bias_agg):
+    """Calculates the aggregation logits.
+    Args:
+        pooled_output: torch.FloatTensor[batch_size, hidden_dim] Output of the pooler (BertPooler) on top of the encoder layer.
+    Returns:
+        logits_aggregation: torch.FloatTensor[batch_size, config.num_aggregation_labels] Logits per aggregation operation.
+    """
+    logits_aggregation = torch.matmul(pooled_output, output_weights_agg.T)
+    logits_aggregation += output_bias_agg
+    
+    return logits_aggregation
+
 
 def _calculate_aggregate_mask(answer, pooled_output, cell_select_pref, label_ids):
     """Finds examples where the model should select cells with no aggregation.
@@ -401,7 +439,7 @@ def _calculate_aggregate_mask(answer, pooled_output, cell_select_pref, label_ids
     """
     # torch.FloatTensor[batch_size]
     aggregate_mask_init = torch.logical_not(torch.isnan(answer)).type(torch.FloatTensor)
-    logits_aggregation = self._calculate_aggregation_logits(pooled_output)
+    logits_aggregation = _calculate_aggregation_logits(pooled_output)
     dist_aggregation = torch.distributions.categorical.Categorical(logits=logits_aggregation)
     # Index 0 correponds to "no aggregation".
     aggregation_ops_total_mass = torch.sum(
@@ -425,7 +463,7 @@ def _calculate_aggregate_mask(answer, pooled_output, cell_select_pref, label_ids
     return aggregate_mask
 
 def _calculate_aggregation_loss_known(logits_aggregation, aggregate_mask,
-                                aggregation_function_id):
+                                aggregation_function_id, config):
     """Calculates aggregation loss when its type is known during training.
     In the weakly supervised setting, the only known information is that for
     cell selection examples, "no aggregation" should be predicted. For other
@@ -439,7 +477,7 @@ def _calculate_aggregation_loss_known(logits_aggregation, aggregate_mask,
     Returns:
         aggregation_loss_known: torch.FloatTensor[batch_size, num_aggregation_labels]
     """
-    if self.config.use_answer_as_supervision:
+    if config.use_answer_as_supervision:
         # Prepare "no aggregation" targets for cell selection examples.
         target_aggregation = torch.zeros_like(aggregate_mask, dtype=torch.long)
     else:
@@ -448,7 +486,7 @@ def _calculate_aggregation_loss_known(logits_aggregation, aggregate_mask,
 
     batch_size = aggregate_mask.size()[0]
 
-    one_hot_labels = torch.zeros(batch_size, self.config.num_aggregation_labels, dtype=torch.float32)
+    one_hot_labels = torch.zeros(batch_size, config.num_aggregation_labels, dtype=torch.float32)
     one_hot_labels[torch.arange(batch_size), target_aggregation] = 1.0
 
     log_probs = torch.nn.functional.log_softmax(logits_aggregation, dim=-1)
@@ -456,7 +494,7 @@ def _calculate_aggregation_loss_known(logits_aggregation, aggregate_mask,
     # torch.FloatTensor[batch_size]
     per_example_aggregation_intermediate = -torch.sum(
         one_hot_labels * log_probs, dim=-1)
-    if self.config.use_answer_as_supervision:
+    if config.use_answer_as_supervision:
         # Accumulate loss only for examples requiring cell selection
         # (no aggregation).
         return per_example_aggregation_intermediate * (1 - aggregate_mask)
@@ -478,13 +516,13 @@ def _calculate_aggregation_loss_unknown(logits_aggregation, aggregate_mask):
 
 
 def _calculate_aggregation_loss(logits_aggregation, aggregate_mask,
-                            aggregation_function_id):
+                            aggregation_function_id, config):
     """Calculates the aggregation loss per example."""
-    per_example_aggregation_loss = self._calculate_aggregation_loss_known(
+    per_example_aggregation_loss = _calculate_aggregation_loss_known(
         logits_aggregation, aggregate_mask, aggregation_function_id)
 
-    if self.config.use_answer_as_supervision:
+    if config.use_answer_as_supervision:
         # Add aggregation loss for numeric answers that need aggregation.
-        per_example_aggregation_loss += self._calculate_aggregation_loss_unknown(
+        per_example_aggregation_loss += _calculate_aggregation_loss_unknown(
             logits_aggregation, aggregate_mask)
-    return self.config.aggregation_loss_importance * per_example_aggregation_loss
+    return config.aggregation_loss_importance * per_example_aggregation_loss
