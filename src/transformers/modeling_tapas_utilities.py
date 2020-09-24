@@ -332,15 +332,12 @@ def _single_column_cell_selection_loss(token_logits, column_logits, label_ids,
   column_id_for_cells = cell_index.project_inner(labels_index).indices # shape (batch_size, 64*32), indicating to which column each
   # cell belongs
   column_mask = torch.as_tensor(torch.eq(column_id_for_cells, torch.unsqueeze(column_label, dim=-1)), 
-                                dtype=torch.float32) # shape (batch_size, 64*32), equal to 1 if cell belongs to column to be selected
+                                dtype=torch.float32,
+                                device=cell_mask.device) # shape (batch_size, 64*32), equal to 1 if cell belongs to column to be selected
   
   # Compute the log-likelihood for cells, but only for the selected column.
   cell_dist = torch.distributions.Bernoulli(logits=logits_per_cell) # shape (batch_size, 64*32)
   cell_log_prob = cell_dist.log_prob(labels_per_cell.type(torch.float32)) # shape(batch_size, 64*32)
-
-  print(cell_log_prob.device)
-  print(column_mask.device)
-  print(cell_mask.device)
 
   cell_loss = -torch.sum(cell_log_prob * column_mask * cell_mask, dim=1)
 
