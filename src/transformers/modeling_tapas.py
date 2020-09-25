@@ -641,8 +641,6 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         
         if not return_dict:
             output = (logits, logits_aggregation, logits_cls) + outputs[2:]
-            print(total_loss)
-            print("we are here")
             return ((total_loss,) + output) if calculate_loss else output
 
         #return logits_aggregation, logits_cls, logits, column_logits, selection_loss_per_example
