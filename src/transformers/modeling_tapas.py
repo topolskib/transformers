@@ -454,7 +454,6 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         classification_class_index=None,
         output_attentions=None,
         output_hidden_states=None,
-        return_dict=None,
     ):
         r"""
         table_mask (:obj: `torch.LongTensor` of shape :obj:`(batch_size, seq_length)`, `optional`): 
@@ -472,8 +471,6 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         classification_class_index (:obj:`torch.LongTensor` of shape :obj:`(batch_size, )`, `optional`):
             Classification class index for every example in the batch. 
         """
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-
         outputs = self.tapas(
             input_ids,
             attention_mask=attention_mask,
@@ -526,9 +523,9 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
 
         # Compute logits per token. These are used to select individual cells.
         logits = utils.compute_token_logits(sequence_output, 
-                                                  self.config.temperature,
-                                                  self.output_weights,
-                                                  self.output_bias)
+                                            self.config.temperature,
+                                            self.output_weights,
+                                            self.output_bias)
 
         # Compute logits per column. These are used to select a column.
         column_logits = None
@@ -622,5 +619,7 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
                 else:
                     raise ValueError("You have to specify classification class indices")
         
-
-        return logits_aggregation, logits_cls, logits, column_logits, selection_loss_per_example
+        output = (logits, logits_aggregation, logits_cls) + outputs[2:]
+        return ((total_loss,) + output) if total_loss is not None else output
+        
+        #return logits_aggregation, logits_cls, logits, column_logits, selection_loss_per_example
