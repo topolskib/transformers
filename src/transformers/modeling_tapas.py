@@ -629,7 +629,7 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
             span_indexes = None
             span_logits = None
             if self.config.span_prediction != "none":
-                raise NotImplementedError
+                raise NotImplementedError("Span prediction is not supported right now.")
             elif self.config.disable_per_token_loss:
                 pass
             elif is_supervised:
@@ -638,6 +638,10 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
                 # For the not supervised case, do not assign loss for cell selection
                 total_loss += torch.mean(selection_loss_per_example *
                                             (1.0 - aggregate_mask))
+            
+            ### Semi-supervised regression loss and supervised loss for aggregations
+            #########################################################################
+            #TO BE IMPLEMENTED
         
         if not return_dict:
             output = (logits, logits_aggregation, logits_cls) + outputs[2:]
