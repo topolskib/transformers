@@ -633,6 +633,8 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
             elif is_supervised:
                 total_loss += torch.mean(selection_loss_per_example)
             else:
+                print(selection_loss_per_example)
+                print(aggregate_mask)
                 # For the not supervised case, do not assign loss for cell selection
                 total_loss += torch.mean(selection_loss_per_example *
                                             (1.0 - aggregate_mask))
