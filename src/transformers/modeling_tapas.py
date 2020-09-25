@@ -454,6 +454,7 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         classification_class_index=None,
         output_attentions=None,
         output_hidden_states=None,
+        return_dict=None,
     ):
         r"""
         table_mask (:obj: `torch.LongTensor` of shape :obj:`(batch_size, seq_length)`, `optional`): 
