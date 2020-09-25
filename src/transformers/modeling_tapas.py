@@ -626,7 +626,7 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
             #############################
             span_indexes = None
             span_logits = None
-            if config.span_prediction != "none":
+            if self.config.span_prediction != "none":
                 raise NotImplementedError
             elif self.config.disable_per_token_loss:
                 pass
