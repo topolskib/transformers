@@ -584,7 +584,7 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
                 )
                 
             ### Cell selection log-likelihood
-            ###################################
+            #################################
 
             if self.config.average_logits_per_cell:
                 logits_per_cell, _ = utils.reduce_mean(logits, cell_index)
@@ -608,7 +608,7 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
                 dist_per_token = torch.distributions.Bernoulli(logits=logits)
             
             ### Classification loss
-            ###############################
+            #######################
             if self.config.num_classification_labels > 0:
                 if classification_class_index is not None:
                     one_hot_labels = torch.nn.functional.one_hot(classification_class_index,
@@ -621,6 +621,21 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
                     total_loss += cls_loss  
                 else:
                     raise ValueError("You have to specify classification class indices")
+            
+            ### Supervised cell selection
+            #############################
+            span_indexes = None
+            span_logits = None
+            if config.span_prediction != "none":
+                raise NotImplementedError
+            elif self.config.disable_per_token_loss:
+                pass
+            elif is_supervised:
+                total_loss += torch.mean(selection_loss_per_example)
+            else:
+                # For the not supervised case, do not assign loss for cell selection
+                total_loss += torch.mean(selection_loss_per_example *
+                                            (1.0 - aggregate_mask))
         
         if not return_dict:
             output = (logits, logits_aggregation, logits_cls) + outputs[2:]
