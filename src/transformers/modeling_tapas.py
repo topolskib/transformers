@@ -557,8 +557,10 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
                                                                     self.output_bias_agg)
 
         # Total loss calculation
-        total_loss = None
+        total_loss = 0.0
+        calculate_loss = False
         if label_ids is not None and answer is not None:
+            calculate_loss = True
             is_supervised = not self.config.num_aggregation_labels > 0 or not self.config.use_answer_as_supervision
 
             ### Semi-supervised cell selection in case of no aggregation
@@ -633,8 +635,6 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
             elif is_supervised:
                 total_loss += torch.mean(selection_loss_per_example)
             else:
-                print(selection_loss_per_example)
-                print(aggregate_mask)
                 # For the not supervised case, do not assign loss for cell selection
                 total_loss += torch.mean(selection_loss_per_example *
                                             (1.0 - aggregate_mask))
@@ -643,6 +643,6 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
             output = (logits, logits_aggregation, logits_cls) + outputs[2:]
             print(total_loss)
             print("we are here")
-            return ((total_loss,) + output) if total_loss is not None else output
+            return ((total_loss,) + output) if calculate_loss else output
 
         #return logits_aggregation, logits_cls, logits, column_logits, selection_loss_per_example
