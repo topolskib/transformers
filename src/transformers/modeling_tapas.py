@@ -472,6 +472,8 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         classification_class_index (:obj:`torch.LongTensor` of shape :obj:`(batch_size, )`, `optional`):
             Classification class index for every example in the batch. 
         """
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        
         outputs = self.tapas(
             input_ids,
             attention_mask=attention_mask,
@@ -620,7 +622,10 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
                 else:
                     raise ValueError("You have to specify classification class indices")
         
-        output = (logits, logits_aggregation, logits_cls) + outputs[2:]
-        return ((total_loss,) + output) if total_loss is not None else output
-        
+        if not return_dict:
+            output = (logits, logits_aggregation, logits_cls) + outputs[2:]
+            print(total_loss)
+            print("we are here")
+            return ((total_loss,) + output) if total_loss is not None else output
+
         #return logits_aggregation, logits_cls, logits, column_logits, selection_loss_per_example
