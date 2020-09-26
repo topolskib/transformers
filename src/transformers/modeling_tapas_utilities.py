@@ -552,7 +552,7 @@ def _calculate_expected_result(dist_per_cell, numeric_values,
                                     numeric_values_scale) * input_mask_float
     count_result = torch.sum(scaled_probability_per_cell, dim=1)
     numeric_values_masked = torch.where(
-        torch.is_nan(numeric_values), 
+        torch.isnan(numeric_values), 
         torch.zeros_like(numeric_values),
         numeric_values)  # Mask non-numeric table values to zero.
     sum_result = torch.sum(
