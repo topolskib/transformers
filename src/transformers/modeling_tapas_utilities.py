@@ -17,9 +17,15 @@
 
 import torch
 from torch_scatter import scatter
+import enum
 
 EPSILON_ZERO_DIVISION = 1e-10
 CLOSE_ENOUGH_TO_LOG_ZERO = -10000.0
+
+class AverageApproximationFunction(str, enum.Enum):
+  RATIO = "ratio"
+  FIRST_ORDER = "first_order"
+  SECOND_ORDER = "second_order"
 
 class IndexMap(object):
     """Index grouping entries within a tensor."""
@@ -525,3 +531,75 @@ def _calculate_aggregation_loss(logits_aggregation, aggregate_mask,
         per_example_aggregation_loss += _calculate_aggregation_loss_unknown(
             logits_aggregation, aggregate_mask)
     return config.aggregation_loss_importance * per_example_aggregation_loss
+
+def _calculate_expected_result(dist_per_cell, numeric_values,
+                               numeric_values_scale, input_mask_float,
+                               logits_aggregation,
+                               config):
+    """Calculate the expected result given cell and aggregation probabilities."""
+    if config.use_gumbel_for_cells:
+        gumbel_dist = torch.distributions.RelaxedBernoulli(
+            # The token logits where already divided by the temperature and used for
+            # computing cell selection errors so we need to multiply it again here
+            temperature=config.temperature,
+            logits=dist_per_cell.logits * config.temperature)
+        scaled_probability_per_cell = gumbel_dist.sample()
+    else:
+        scaled_probability_per_cell = dist_per_cell.probs
+
+    # <float32>[batch_size, seq_length]
+    scaled_probability_per_cell = (scaled_probability_per_cell /
+                                    numeric_values_scale) * input_mask_float
+    count_result = torch.sum(scaled_probability_per_cell, dim=1)
+    numeric_values_masked = torch.where(
+        torch.is_nan(numeric_values), 
+        torch.zeros_like(numeric_values),
+        numeric_values)  # Mask non-numeric table values to zero.
+    sum_result = torch.sum(
+        scaled_probability_per_cell * numeric_values_masked, 
+        dim=1)
+    
+    if avg_approximation == AverageApproximationFunction.RATIO:
+        average_result = sum_result / (count_result + _EPSILON_ZERO_DIVISION)
+    elif avg_approximation == AverageApproximationFunction.FIRST_ORDER:
+        # The sum of all probabilities except that correspond to other cells
+        ex = torch.sum(scaled_probability_per_cell, dim=1, keepdim=True) \
+            - scaled_probability_per_cell + 1
+        average_result = torch.sum(
+            numeric_values_masked * scaled_probability_per_cell / ex, dim=1)
+    elif avg_approximation == AverageApproximationFunction.SECOND_ORDER:
+        # The sum of all probabilities exept that correspond to other cells
+        ex = torch.sum(scaled_probability_per_cell, dim=1, keepdim=True) \
+            - scaled_probability_per_cell + 1
+        pointwise_var = scaled_probability_per_cell * \
+            (1 - scaled_probability_per_cell)
+        var = torch.sum(pointwise_var, dim=1, keepdim=True) - pointwise_var
+        
+        multiplier = (var / torch.square(ex) + 1) / ex
+        average_result = torch.sum(
+            numeric_values_masked * scaled_probability_per_cell * multiplier,
+            dim=1)
+    else:
+        print(f"Invalid average_approximation_function: {config.average_approximation_function}")
+        
+    if config.use_gumbel_for_agg:
+        gumbel_dist = torch.distributions.RelaxedOneHotCategorical(
+            config.agg_temperature, 
+            logits=logits_aggregation[:, 1:])
+        # <float32>[batch_size, num_aggregation_labels - 1]
+        aggregation_op_only_probs = gumbel_dist.sample()
+    else:
+        # <float32>[batch_size, num_aggregation_labels - 1]
+        aggregation_op_only_probs = torch.nn.functional.softmax(
+            logits_aggregation[:, 1:] / config.agg_temperature, dim=-1)
+    
+    all_results = torch.cat([
+        torch.unsqueeze(sum_result, dim=1),
+        torch.unsqueeze(average_result, dim=1),
+        torch.unsqueeze(count_result, dim=1)
+    ],
+                            dim=1)
+    
+    expected_result = torch.sum(
+        all_results * aggregation_op_only_probs, dim=1)
+    return expected_result

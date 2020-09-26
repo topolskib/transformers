@@ -648,6 +648,18 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
                     logits_aggregation, aggregate_mask, aggregation_function_id, self.config)
                 else:
                     raise ValueError("You have to specify aggregation function ids")
+
+                if self.config.use_answer_as_supervision:
+                    if numeric_values is not None and numeric_values_scale is not None:
+                        # <float32>[batch_size]
+                        expected_result = utils._calculate_expected_result(dist_per_token, numeric_values,
+                                               numeric_values_scale,
+                                               input_mask_float,
+                                               logits_aggregation, self.config)
+                        print("Expected result:")
+                        print(expected_result)
+                    else:
+                        raise ValueError("You have to specify numeric values and numeric values scale")
             
             #TO BE IMPLEMENTED
         
