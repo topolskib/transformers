@@ -648,7 +648,7 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
                     logits_aggregation, aggregate_mask, aggregation_function_id, self.config)
                 else:
                     raise ValueError("You have to specify aggregation function ids")
-                print(per_example_aggregation_loss)
+                print(per_example_additional_loss)
             
             #TO BE IMPLEMENTED
         
