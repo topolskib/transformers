@@ -459,6 +459,9 @@ def _calculate_aggregate_mask(answer, pooled_output, cell_select_pref, label_ids
                         aggregate_mask_init)
     
     aggregate_mask = aggregate_mask.detach()
+
+    print("Aggregate mask:")
+    print(aggregate_mask)
     
     return aggregate_mask
 
@@ -496,6 +499,8 @@ def _calculate_aggregation_loss_known(logits_aggregation, aggregate_mask,
     if config.use_answer_as_supervision:
         # Accumulate loss only for examples requiring cell selection
         # (no aggregation).
+        print("Per example aggregation intermediate:")
+        print(per_example_aggregation_intermediate)
         return per_example_aggregation_intermediate * (1 - aggregate_mask)
     else:
         return per_example_aggregation_intermediate
