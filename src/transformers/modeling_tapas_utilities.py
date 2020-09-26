@@ -451,6 +451,9 @@ def _calculate_aggregate_mask(answer, pooled_output, cell_select_pref, label_ids
     # Examples with non-empty cell selection supervision.
     is_cell_supervision_available = torch.sum(label_ids, dim=1) > 0
 
+    print("Aggregate mask init")
+    print(aggregate_mask_init)
+    
     # torch.where is not equivalent to tf.where (in tensorflow 1)
     # hence the added .view on the condition to match the shape of the first tensor
     aggregate_mask = torch.where(
