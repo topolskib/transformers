@@ -631,7 +631,7 @@ def _calculate_regression_loss(answer, aggregate_mask, dist_per_cell,
         examples for which their answer loss is larger than the answer_loss_cutoff.
     """
     # <float32>[batch_size]
-    expected_result = utils._calculate_expected_result(dist_per_cell, numeric_values,
+    expected_result = _calculate_expected_result(dist_per_cell, numeric_values,
                                                 numeric_values_scale,
                                                 input_mask_float,
                                                 logits_aggregation, config)
