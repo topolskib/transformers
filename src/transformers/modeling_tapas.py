@@ -641,6 +641,15 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
             
             ### Semi-supervised regression loss and supervised loss for aggregations
             #########################################################################
+            if self.config.num_aggregation_labels > 0:
+                # Note that `aggregate_mask` is None if the setting is supervised.
+                if aggregation_function_id is not None:
+                    per_example_additional_loss = utils._calculate_aggregation_loss(
+                    logits_aggregation, aggregate_mask, aggregation_function_id, self.config)
+                else:
+                    raise ValueError("You have to specify aggregation function ids")
+                print(per_example_aggregation_loss)
+            
             #TO BE IMPLEMENTED
         
         if not return_dict:

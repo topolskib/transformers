@@ -486,9 +486,8 @@ def _calculate_aggregation_loss_known(logits_aggregation, aggregate_mask,
 
     batch_size = aggregate_mask.size()[0]
 
-    one_hot_labels = torch.zeros(batch_size, config.num_aggregation_labels, dtype=torch.float32)
-    one_hot_labels[torch.arange(batch_size), target_aggregation] = 1.0
-
+    one_hot_labels = torch.nn.functional.one_hot(target_aggregation,
+                                                 num_classes=config.num_aggregation_labels).type(torch.float32)
     log_probs = torch.nn.functional.log_softmax(logits_aggregation, dim=-1)
 
     # torch.FloatTensor[batch_size]
