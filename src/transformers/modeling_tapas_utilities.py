@@ -558,9 +558,9 @@ def _calculate_expected_result(dist_per_cell, numeric_values,
     sum_result = torch.sum(
         scaled_probability_per_cell * numeric_values_masked, 
         dim=1)
-    
+    avg_approximation = config.average_approximation_function
     if avg_approximation == AverageApproximationFunction.RATIO:
-        average_result = sum_result / (count_result + _EPSILON_ZERO_DIVISION)
+        average_result = sum_result / (count_result + EPSILON_ZERO_DIVISION)
     elif avg_approximation == AverageApproximationFunction.FIRST_ORDER:
         # The sum of all probabilities except that correspond to other cells
         ex = torch.sum(scaled_probability_per_cell, dim=1, keepdim=True) \
