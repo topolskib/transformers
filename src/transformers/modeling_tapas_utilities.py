@@ -450,9 +450,6 @@ def _calculate_aggregate_mask(answer, pooled_output, cell_select_pref, label_ids
 
     # Examples with non-empty cell selection supervision.
     is_cell_supervision_available = torch.sum(label_ids, dim=1) > 0
-
-    print("Aggregate mask init")
-    print(aggregate_mask_init)
     
     # torch.where is not equivalent to tf.where (in tensorflow 1)
     # hence the added .view on the condition to match the shape of the first tensor
@@ -462,9 +459,6 @@ def _calculate_aggregate_mask(answer, pooled_output, cell_select_pref, label_ids
                         aggregate_mask_init)
     
     aggregate_mask = aggregate_mask.detach()
-
-    print("Aggregate mask:")
-    print(aggregate_mask)
     
     return aggregate_mask
 
@@ -496,20 +490,12 @@ def _calculate_aggregation_loss_known(logits_aggregation, aggregate_mask,
                                                  num_classes=config.num_aggregation_labels).type(torch.float32)
     log_probs = torch.nn.functional.log_softmax(logits_aggregation, dim=-1)
 
-    print("Log probs:")
-    print(log_probs)
-
-    print(one_hot_labels)
-
     # torch.FloatTensor[batch_size]
     per_example_aggregation_intermediate = -torch.sum(
         one_hot_labels * log_probs, dim=-1)
-    print(per_example_aggregation_intermediate)
     if config.use_answer_as_supervision:
         # Accumulate loss only for examples requiring cell selection
         # (no aggregation).
-        print("Per example aggregation intermediate:")
-        print(per_example_aggregation_intermediate)
         return per_example_aggregation_intermediate * (1 - aggregate_mask)
     else:
         return per_example_aggregation_intermediate
