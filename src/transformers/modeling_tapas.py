@@ -651,17 +651,17 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
 
                 if self.config.use_answer_as_supervision:
                     if numeric_values is not None and numeric_values_scale is not None:
-                        # <float32>[batch_size]
-                        expected_result = utils._calculate_expected_result(dist_per_token, numeric_values,
-                                               numeric_values_scale,
-                                               input_mask_float,
-                                               logits_aggregation, self.config)
-                        print("Expected result:")
-                        print(expected_result)
+                        # Add regression loss for numeric answers which require aggregation.
+                        answer_loss, large_answer_loss_mask = utils._calculate_regression_loss(
+                            answer, aggregate_mask, dist_per_token, numeric_values,
+                            numeric_values_scale, table_mask_float, logits_aggregation, self.config)
+                        per_example_additional_loss += answer_loss
+                        # Zero loss for examples with answer_loss > cutoff.
+                        per_example_additional_loss *= large_answer_loss_mask
                     else:
                         raise ValueError("You have to specify numeric values and numeric values scale")
-            
-            #TO BE IMPLEMENTED
+
+                total_loss += torch.mean(per_example_additional_loss)
         
         if not return_dict:
             output = (logits, logits_aggregation, logits_cls) + outputs[2:]

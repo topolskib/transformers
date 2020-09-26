@@ -580,7 +580,7 @@ def _calculate_expected_result(dist_per_cell, numeric_values,
             numeric_values_masked * scaled_probability_per_cell * multiplier,
             dim=1)
     else:
-        print(f"Invalid average_approximation_function: {config.average_approximation_function}")
+        raise ValueError(f"Invalid average_approximation_function: {config.average_approximation_function}")
         
     if config.use_gumbel_for_agg:
         gumbel_dist = torch.distributions.RelaxedOneHotCategorical(
@@ -603,3 +603,68 @@ def _calculate_expected_result(dist_per_cell, numeric_values,
     expected_result = torch.sum(
         all_results * aggregation_op_only_probs, dim=1)
     return expected_result
+
+  # PyTorch does not currently support Huber loss with custom delta so we define it ourself
+def huber_loss(input, target, delta: float = 1.0):
+    errors = torch.abs(input - target) # shape (batch_size,)
+    return torch.where(errors < delta, 0.5 * errors ** 2, errors * delta - (0.5 * delta ** 2))
+
+def _calculate_regression_loss(answer, aggregate_mask, dist_per_cell,
+                               numeric_values, numeric_values_scale,
+                               input_mask_float, logits_aggregation,
+                               config):
+    """Calculates the regression loss per example.
+    Args:
+        answer: <float32>[batch_size]
+        aggregate_mask: <float32>[batch_size]
+        dist_per_cell: Cell selection distribution for each cell.
+        numeric_values: <float32>[batch_size, seq_length]
+        numeric_values_scale: <float32>[batch_size, seq_length]
+        input_mask_float: <float32>[batch_size, seq_length]
+        logits_aggregation: <float32>[batch_size, num_aggregation_labels]
+        probabilities.
+        config: Configuration for Tapas model.
+    Returns:
+        per_example_answer_loss_scaled: <float32>[batch_size]. Scales answer loss
+        for each example in the batch.
+        large_answer_loss_mask: <float32>[batch_size]. A mask which is 1 for
+        examples for which their answer loss is larger than the answer_loss_cutoff.
+    """
+    # <float32>[batch_size]
+    expected_result = utils._calculate_expected_result(dist_per_cell, numeric_values,
+                                                numeric_values_scale,
+                                                input_mask_float,
+                                                logits_aggregation, config)
+    print("Expected result:")
+    print(expected_result)                                           
+    # <float32>[batch_size]
+    answer_masked = torch.where(torch.isnan(answer), 
+                                torch.zeros_like(answer), 
+                                answer)
+    
+    if config.use_normalized_answer_loss:
+        normalizer = (torch.max(
+                        torch.abs(expected_result), torch.abs(answer_masked)) +
+                    EPSILON_ZERO_DIVISION).detach()
+            
+        normalized_answer_masked = answer_masked / normalizer
+        normalized_expected_result = expected_result / normalizer
+        per_example_answer_loss = huber_loss(normalized_expected_result * aggregate_mask,
+                                            normalized_answer_masked * aggregate_mask)
+    else:   
+        per_example_answer_loss = huber_loss(expected_result * aggregate_mask,
+                                            answer_masked * aggregate_mask,
+                                            delta=config.huber_loss_delta)
+    
+    if config.answer_loss_cutoff is None: 
+        large_answer_loss_mask = torch.ones_like(
+            per_example_answer_loss, dtype=torch.float32)
+    
+    else: 
+        large_answer_loss_mask = torch.where(
+            per_example_answer_loss > config.answer_loss_cutoff,
+            torch.zeros_like(per_example_answer_loss, dtype=torch.float32),
+            torch.ones_like(per_example_answer_loss, dtype=torch.float32))
+    per_example_answer_loss_scaled = config.answer_loss_importance * (
+        per_example_answer_loss * aggregate_mask)
+    return per_example_answer_loss_scaled, large_answer_loss_mask
