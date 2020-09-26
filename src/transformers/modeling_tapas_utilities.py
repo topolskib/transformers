@@ -496,9 +496,12 @@ def _calculate_aggregation_loss_known(logits_aggregation, aggregate_mask,
     print("Log probs:")
     print(log_probs)
 
+    print(one_hot_labels)
+
     # torch.FloatTensor[batch_size]
     per_example_aggregation_intermediate = -torch.sum(
         one_hot_labels * log_probs, dim=-1)
+    print(per_example_aggregation_intermediate)
     if config.use_answer_as_supervision:
         # Accumulate loss only for examples requiring cell selection
         # (no aggregation).
