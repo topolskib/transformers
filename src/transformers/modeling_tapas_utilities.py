@@ -635,8 +635,7 @@ def _calculate_regression_loss(answer, aggregate_mask, dist_per_cell,
                                                 numeric_values_scale,
                                                 input_mask_float,
                                                 logits_aggregation, config)
-    print("Expected result:")
-    print(expected_result)                                           
+                                         
     # <float32>[batch_size]
     answer_masked = torch.where(torch.isnan(answer), 
                                 torch.zeros_like(answer), 

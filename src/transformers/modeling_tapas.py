@@ -663,6 +663,11 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
 
                 total_loss += torch.mean(per_example_additional_loss)
         
+        else:
+            # if no label ids provided, set them to zeros in order to properly compute logits
+            label_ids = torch.zeros_like(logits)
+            _, logits = utils._single_column_cell_selection_loss(logits, column_logits, label_ids,
+                                                                                            cell_index, col_index, cell_mask)
         if not return_dict:
             output = (logits, logits_aggregation, logits_cls) + outputs[2:]
             return ((total_loss,) + output) if calculate_loss else output
