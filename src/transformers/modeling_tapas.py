@@ -665,6 +665,7 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         
         else:
             # if no label ids provided, set them to zeros in order to properly compute logits
+            print("we are here")
             label_ids = torch.zeros_like(logits)
             _, logits = utils._single_column_cell_selection_loss(logits, column_logits, label_ids,
                                                                                             cell_index, col_index, cell_mask)
