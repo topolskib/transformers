@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from typing import Any, Dict, Iterable, List, Mapping, Optional, overload, Text, Tuple, Union
+import collections
 import pandas as pd
 import dataclasses
 
@@ -87,11 +88,17 @@ def _is_inner_wordpiece(token):
     return token.startswith('##')
 
 
+def _get_cell_token_indexes(column_ids, row_ids, column_id, row_id):
+    for index in range(len(column_ids)):
+        if (column_ids[index] - 1 == column_id and row_ids[index] - 1 == row_id):
+            yield index
+
+
 class TapasTokenizer(BertTokenizer):
     r"""
     Construct an TAPAS tokenizer.
 
-    :class:`~transformers.TapasTokenizer` is identical to :class:`~transformers.BertTokenizer` and runs end-to-end
+    :class:`~transformers.TapasTokenizer` inherits from :class:`~transformers.BertTokenizer` and runs end-to-end
     tokenization: punctuation splitting and wordpiece.
 
     Refer to superclass :class:`~transformers.BertTokenizer` for usage examples and documentation concerning
@@ -315,6 +322,65 @@ class TapasTokenizer(BertTokenizer):
             row_ids=row_ids,
         )
         
+    def _add_numeric_column_ranks(self, column_ids, row_ids,
+                                table,
+                                features):
+        """Adds column ranks for all numeric columns."""
+
+        ranks = [0] * len(column_ids)
+        inv_ranks = [0] * len(column_ids)
+
+        # here, some complex code involving functions from number_annotations_utils are used in the original implementation
+        # TO BE ADDED
+
+        features['column_ranks'] = ranks
+        features['inv__column_ranks'] = inv_ranks
+
+        return features
+
+    def _add_numeric_relations(self, question,
+                             column_ids, row_ids,
+                             table,
+                             features):
+        """Adds numeric relation emebeddings to 'features'.
+        Args:
+        question: The question, numeric values are used.
+        column_ids: Maps word piece position to column id.
+        row_ids: Maps word piece position to row id.
+        table: The table containing the numeric cell values.
+        features: Output.
+        """
+
+        numeric_relations = [0] * len(column_ids)
+
+        # TO BE ADDED (see original implementation)
+
+        features['numeric_relations'] = numeric_relations
+
+        return features
+
+    def _add_numeric_values(self, table,
+                          token_ids_dict,
+                          features):
+        """Adds numeric values for computation of answer loss."""
+        # 512 should become self.model_max_length
+        numeric_values = float('nan') * 512
+
+        # TO BE ADDED
+
+        features['numeric_values'] = numeric_values
+
+        return features
+
+    def _add_numeric_values_scale(self, table, token_ids_dict, features):
+        """Adds a scale to each token to down weigh the value of long words."""
+        # 512 should become self.model_max_length
+        numeric_values_scale = [1.0] * 512
+        
+        # TO BE ADDED
+
+        features['numeric_values_scale'] = numeric_values_scale
+    
     def _to_features(self, tokens, token_ids_dict, table, question):
         """Produces a dict of features."""
         tokens = list(tokens)
@@ -327,10 +393,10 @@ class TapasTokenizer(BertTokenizer):
             if len(values) != length:
                 raise ValueError('Inconsistent length')
 
-        input_ids = self.convert_tokens_to_ids(tokens)
-        input_mask = [1] * len(input_ids)
+        # we are not going to create the input ids, mask, padding here (this will be done in prepare_for_model)   
 
-        return NotImplementedError
+        #input_ids = self.convert_tokens_to_ids(tokens)
+        #input_mask = [1] * len(input_ids)
 
         # self._pad_to_seq_length(input_ids)
         # self._pad_to_seq_length(input_mask)
@@ -342,13 +408,30 @@ class TapasTokenizer(BertTokenizer):
         # for values in token_ids_dict.values():
         #     assert len(values) == self._max_seq_length
 
-        # features = collections.OrderedDict()
-        # features['input_ids'] = create_int_feature(input_ids)
-        # features['input_mask'] = create_int_feature(input_mask)
-        # for key, values in sorted(token_ids_dict.items()):
-        #     features[key] = create_int_feature(values)
+        features = {}
+        #features['input_ids'] = create_int_feature(input_ids)
+        #features['input_mask'] = create_int_feature(input_mask)
+        for key, values in sorted(token_ids_dict.items()):
+             features[key] = values
 
-        # return features
+        self._add_numeric_column_ranks(token_ids_dict['column_ids'],
+                                   token_ids_dict['row_ids'], table, features)
+
+        self._add_numeric_relations(question, token_ids_dict['column_ids'],
+                                    token_ids_dict['row_ids'], table, features)
+
+        # the numeric values and numeric values scale are not needed in case no loss calculation
+        # so they should only be created in case answer_coordinates + answer_text are provided
+        self._add_numeric_values(table, token_ids_dict, features)
+
+        self._add_numeric_values_scale(table, token_ids_dict, features)
+
+        # we do not add table id and table id hash
+        #if table:
+        #    features['table_id'] = create_string_feature([table.table_id.encode('utf8')])
+        #    features['table_id_hash'] = create_int_feature([fingerprint(table.table_id) % _MAX_INT])
+        
+        return features
     
     def _to_trimmed_features(
             self,
@@ -360,38 +443,38 @@ class TapasTokenizer(BertTokenizer):
             num_rows,
             drop_rows_to_fit = False,
         ):
-            """Finds optiomal number of table tokens to include and serializes."""
-            init_num_rows = num_rows
-            while True:
-                num_tokens = self._get_max_num_tokens(
-                    question_tokens,
-                    tokenized_table,
-                    num_rows=num_rows,
-                    num_columns=num_columns,
-                )
-                if num_tokens is not None:
-                    # We could fit the table.
-                    break
-                if not drop_rows_to_fit or num_rows == 0:
-                    raise ValueError('Sequence too long')
-                # Try to drop a row to fit the table.
-                num_rows -= 1
-            
-            serialized_example = self._serialize(question_tokens, tokenized_table,
-                                                num_columns, num_rows, num_tokens)
+        """Finds optiomal number of table tokens to include and serializes."""
+        init_num_rows = num_rows
+        while True:
+            num_tokens = self._get_max_num_tokens(
+                question_tokens,
+                tokenized_table,
+                num_rows=num_rows,
+                num_columns=num_columns,
+            )
+            if num_tokens is not None:
+                # We could fit the table.
+                break
+            if not drop_rows_to_fit or num_rows == 0:
+                raise ValueError('Sequence too long')
+            # Try to drop a row to fit the table.
+            num_rows -= 1
+        
+        serialized_example = self._serialize(question_tokens, tokenized_table,
+                                            num_columns, num_rows, num_tokens)
 
-            assert len(serialized_example.tokens) <= self.model_max_length
+        assert len(serialized_example.tokens) <= self.model_max_length
 
-            feature_dict = {
-                'column_ids': serialized_example.column_ids,
-                'row_ids': serialized_example.row_ids,
-                'segment_ids': serialized_example.segment_ids,
-            }
+        feature_dict = {
+            'column_ids': serialized_example.column_ids,
+            'row_ids': serialized_example.row_ids,
+            'segment_ids': serialized_example.segment_ids,
+        }
 
-            return feature_dict
-        # features = self._to_features(
-        #     serialized_example.tokens, feature_dict, table=table, question=question)
-        # return serialized_example, features
+        features = self._to_features(
+                serialized_example.tokens, feature_dict, table=table, question=question)
+        
+        return serialized_example, features
     
     # def _batch_encode_plus(
     #     self,
@@ -421,25 +504,6 @@ class TapasTokenizer(BertTokenizer):
     #     verbose: bool = True,
     #     **kwargs
     # ) -> BatchEncoding:
-    #     def get_input_ids(text):
-    #         if isinstance(text, str):
-    #             tokens = self.tokenize(text, **kwargs)
-    #             return self.convert_tokens_to_ids(tokens)
-    #         elif isinstance(text, (list, tuple)) and len(text) > 0 and isinstance(text[0], str):
-    #             if is_split_into_words:
-    #                 tokens = list(
-    #                     itertools.chain(*(self.tokenize(t, is_split_into_words=True, **kwargs) for t in text))
-    #                 )
-    #                 return self.convert_tokens_to_ids(tokens)
-    #             else:
-    #                 return self.convert_tokens_to_ids(text)
-    #         elif isinstance(text, (list, tuple)) and len(text) > 0 and isinstance(text[0], int):
-    #             return text
-    #         else:
-    #             raise ValueError(
-    #                 "Input is not valid. Should be a string, a list/tuple of strings or a list/tuple of integers."
-    #             )
-
     #     if return_offsets_mapping:
     #         raise NotImplementedError(
     #             "return_offset_mapping is not available when using Python tokenizers."
@@ -452,20 +516,36 @@ class TapasTokenizer(BertTokenizer):
     #             "`is_pretokenized` is deprecated and will be removed in a future version, use `is_split_into_words` instead.",
     #             FutureWarning,
     #         )
-    #         is_split_into_words = kwargs.pop("is_pretokenized")
+        
+    #     if "is_split_into_words" in kwargs:
+    #         raise NotImplementedError("Currently TapasTokenizer only supports questions as strings.")
 
+    #     # First, tokenize the table and get the number of rows and columns
+    #     tokenized_table = self._tokenize_table(table)
+    #     num_rows = self._get_num_rows(table, self.drop_rows_to_fit)
+    #     num_columns = self._get_num_columns(table)
+        
+    #     # Second, create the input ids for every table + query pair (and all the other features). This is a list of lists
     #     input_ids = []
-    #     for ids_or_pair_ids in queries:
-    #         if not isinstance(ids_or_pair_ids, (list, tuple)):
-    #             ids, pair_ids = ids_or_pair_ids, None
-    #         elif is_split_into_words and not isinstance(ids_or_pair_ids[0], (list, tuple)):
-    #             ids, pair_ids = ids_or_pair_ids, None
+    #     for position, query in queries:
+    #         if isinstance(query, str):
+    #             text_tokens = self.tokenize(query)
+    #             serialized_example, feature_dict = self._to_trimmed_features(
+    #                                                             question=query,
+    #                                                             table=table,
+    #                                                             question_tokens=text_tokens,
+    #                                                             tokenized_table=tokenized_table,
+    #                                                             num_columns=num_columns,
+    #                                                             num_rows=num_rows,
+    #                                                             drop_rows_to_fit=self.drop_rows_to_fit)
+    #             input_ids_example = self.convert_tokens_to_ids(serialized_example.tokens)
+    #             input_ids.append(input_ids_example)
     #         else:
-    #             ids, pair_ids = ids_or_pair_ids
+    #             raise ValueError(
+    #                 "Query is not valid. Should be a string."
+    #             )
 
-    #         first_ids = get_input_ids(ids)
-    #         second_ids = get_input_ids(pair_ids) if pair_ids is not None else None
-    #         input_ids.append((first_ids, second_ids))
+    #     raise NotImplementedError
 
     #     batch_outputs = self._batch_prepare_for_model(
     #         input_ids,

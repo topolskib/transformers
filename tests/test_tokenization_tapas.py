@@ -30,15 +30,15 @@ for position, question in enumerate(queries):
     text_tokens = tokenizer.tokenize(question)
     tokenized_table = tokenizer._tokenize_table(table)
 
-    feature_dict = tokenizer._to_trimmed_features(
-            question=question,
-            table=table,
-            question_tokens=text_tokens,
-            tokenized_table=tokenized_table,
-            num_columns=num_columns,
-            num_rows=num_rows,
-            drop_rows_to_fit=tokenizer.drop_rows_to_fit)
+    serialized_example, features = tokenizer._to_trimmed_features(
+                                                question=question,
+                                                table=table,
+                                                question_tokens=text_tokens,
+                                                tokenized_table=tokenized_table,
+                                                num_columns=num_columns,
+                                                num_rows=num_rows,
+                                                drop_rows_to_fit=tokenizer.drop_rows_to_fit)
 
-    print(feature_dict)
+    print(features)
 
 
