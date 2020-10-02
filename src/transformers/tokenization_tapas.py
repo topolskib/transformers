@@ -53,10 +53,13 @@ PRETRAINED_INIT_CONFIGURATION = {
     # to be added
 }
 
-@dataclasses.dataclass(frozen=True)
-class Token:
-  original_text: Text
-  piece: Text
+# @dataclasses.dataclass(frozen=True)
+# class Token:
+#   original_text: Text
+#   piece: Text
+
+# def _get_pieces(tokens):
+#   return (token.piece for token in tokens)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -68,22 +71,20 @@ class TokenCoordinates:
 
 @dataclasses.dataclass
 class TokenizedTable:
-  rows: List[List[List[Token]]]
+  rows: List[List[List[Text]]]
   selected_tokens: List[TokenCoordinates]
+
 
 @dataclasses.dataclass(frozen=True)
 class SerializedExample:
-  tokens: List[Token]
+  tokens: List[Text]
   column_ids: List[int]
   row_ids: List[int]
   segment_ids: List[int]
-
-
-def _get_pieces(tokens):
-  return (token.piece for token in tokens)
+  
 
 def _is_inner_wordpiece(token):
-    return token.piece.startswith('##')
+    return token.startswith('##')
 
 
 class TapasTokenizer(BertTokenizer):
@@ -184,13 +185,12 @@ class TapasTokenizer(BertTokenizer):
                         num_tokens):
         """Iterates over partial table and returns token, col. and row indexes."""
         for tc in table.selected_tokens:
-            print(tc)
             # First row is header row.
             if tc.row_index >= num_rows + 1:
                 continue
             if tc.column_index >= num_columns:
                 continue
-            cell = table.iloc[tc.row_index, tc.column_index]
+            cell = table.rows[tc.row_index][tc.column_index]
             token = cell[tc.token_index]
             word_begin_index = tc.token_index
             # Don't add partial words. Find the starting word piece and check if it
@@ -253,8 +253,7 @@ class TapasTokenizer(BertTokenizer):
             raise ValueError('Too many columns')
         return num_columns
 
-    def _get_num_rows(self, table,
-                        drop_rows_to_fit):
+    def _get_num_rows(self, table, drop_rows_to_fit):
         num_rows = table.shape[0]
         if num_rows >= self.max_row_id:
             if drop_rows_to_fit:
@@ -262,6 +261,94 @@ class TapasTokenizer(BertTokenizer):
             else:
                 raise ValueError('Too many rows')
         return num_rows
+    
+    def _serialize_text(self, question_tokens):
+        """Serialzes texts in index arrays."""
+        tokens = []
+        segment_ids = []
+        column_ids = []
+        row_ids = []
+
+        # add [CLS] token at the beginning
+        tokens.append(self.cls_token)
+        segment_ids.append(0)
+        column_ids.append(0)
+        row_ids.append(0)
+
+        for token in question_tokens:
+            tokens.append(token)
+            segment_ids.append(0)
+            column_ids.append(0)
+            row_ids.append(0)
+
+        return tokens, segment_ids, column_ids, row_ids
+
+    def _serialize(
+        self,
+        question_tokens,
+        table,
+        num_columns,
+        num_rows,
+        num_tokens,
+    ):
+        """Serializes table and text."""
+        tokens, segment_ids, column_ids, row_ids = self._serialize_text(
+            question_tokens)
+
+        # add [SEP] token between question and table tokens
+        tokens.append(self.sep_token)
+        segment_ids.append(0)
+        column_ids.append(0)
+        row_ids.append(0)
+
+        for token, column_id, row_id in self._get_table_values(
+            table, num_columns, num_rows, num_tokens):
+            tokens.append(token)
+            segment_ids.append(1)
+            column_ids.append(column_id)
+            row_ids.append(row_id)
+
+        return SerializedExample(
+            tokens=tokens,
+            segment_ids=segment_ids,
+            column_ids=column_ids,
+            row_ids=row_ids,
+        )
+        
+    def _to_features(self, tokens, token_ids_dict, table, question):
+        """Produces a dict of features."""
+        tokens = list(tokens)
+        token_ids_dict = {
+            key: list(values) for key, values in token_ids_dict.items()
+        }
+
+        length = len(tokens)
+        for values in token_ids_dict.values():
+            if len(values) != length:
+                raise ValueError('Inconsistent length')
+
+        input_ids = self.convert_tokens_to_ids(tokens)
+        input_mask = [1] * len(input_ids)
+
+        return NotImplementedError
+
+        # self._pad_to_seq_length(input_ids)
+        # self._pad_to_seq_length(input_mask)
+        # for values in token_ids_dict.values():
+        #     self._pad_to_seq_length(values)
+
+        # assert len(input_ids) == self._max_seq_length
+        # assert len(input_mask) == self._max_seq_length
+        # for values in token_ids_dict.values():
+        #     assert len(values) == self._max_seq_length
+
+        # features = collections.OrderedDict()
+        # features['input_ids'] = create_int_feature(input_ids)
+        # features['input_mask'] = create_int_feature(input_mask)
+        # for key, values in sorted(token_ids_dict.items()):
+        #     features[key] = create_int_feature(values)
+
+        # return features
     
     def _to_trimmed_features(
             self,
@@ -273,33 +360,35 @@ class TapasTokenizer(BertTokenizer):
             num_rows,
             drop_rows_to_fit = False,
         ):
-        """Finds optiomal number of table tokens to include and serializes."""
-        init_num_rows = num_rows
-        while True:
-            num_tokens = self._get_max_num_tokens(
-                question_tokens,
-                tokenized_table,
-                num_rows=num_rows,
-                num_columns=num_columns,
-            )
-            if num_tokens is not None:
-                # We could fit the table.
-                break
-            if not drop_rows_to_fit or num_rows == 0:
-                raise ValueError('Sequence too long')
-            # Try to drop a row to fit the table.
-            num_rows -= 1
-        return None
-        # serialized_example = self._serialize(question_tokens, tokenized_table,
-        #                                     num_columns, num_rows, num_tokens)
+            """Finds optiomal number of table tokens to include and serializes."""
+            init_num_rows = num_rows
+            while True:
+                num_tokens = self._get_max_num_tokens(
+                    question_tokens,
+                    tokenized_table,
+                    num_rows=num_rows,
+                    num_columns=num_columns,
+                )
+                if num_tokens is not None:
+                    # We could fit the table.
+                    break
+                if not drop_rows_to_fit or num_rows == 0:
+                    raise ValueError('Sequence too long')
+                # Try to drop a row to fit the table.
+                num_rows -= 1
+            
+            serialized_example = self._serialize(question_tokens, tokenized_table,
+                                                num_columns, num_rows, num_tokens)
 
-        # assert len(serialized_example.tokens) <= self.model_max_length
+            assert len(serialized_example.tokens) <= self.model_max_length
 
-        # feature_dict = {
-        #     'column_ids': serialized_example.column_ids,
-        #     'row_ids': serialized_example.row_ids,
-        #     'segment_ids': serialized_example.segment_ids,
-        # }
+            feature_dict = {
+                'column_ids': serialized_example.column_ids,
+                'row_ids': serialized_example.row_ids,
+                'segment_ids': serialized_example.segment_ids,
+            }
+
+            return feature_dict
         # features = self._to_features(
         #     serialized_example.tokens, feature_dict, table=table, question=question)
         # return serialized_example, features
