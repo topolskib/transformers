@@ -10,7 +10,7 @@ SAMPLE_VOCAB = r"C:\Users\niels.rogge\Documents\Python projecten\tapas_tokenizer
 tokenizer = TapasTokenizer(vocab_file=SAMPLE_VOCAB)
 
 data = {'Actors': ["Brad Pitt", "Leonardo Di Caprio", "George Clooney"], 
-        'Age': ["56", "45", "59"],
+        'Age': ["56", "45", "23 september 2010"],
         'Number of movies': ["87", "53", "69"]}
 queries = ["What is the name of the third actor?", "What is his age?", "What's the number of movies Brad Pitt has played in?"]
 table = pd.DataFrame.from_dict(data)

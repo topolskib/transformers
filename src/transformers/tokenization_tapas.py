@@ -36,6 +36,7 @@ from .tokenization_utils_base import (
     TextInputPair,
     TruncationStrategy,
 )
+from transformers import tokenization_tapas_utilities as utils
 
 VOCAB_FILES_NAMES = {"vocab_file": "vocab.txt"}
 
@@ -331,6 +332,18 @@ class TapasTokenizer(BertTokenizer):
         inv_ranks = [0] * len(column_ids)
 
         # here, some complex code involving functions from number_annotations_utils are used in the original implementation
+        if table is not None:
+            for col_index in range(len(table.columns)):
+                table_numeric_values = utils._get_column_values(table, col_index)
+                print(table_numeric_values)
+                if not table_numeric_values:
+                    continue
+
+                # try:
+                #     key_fn = utils.get_numeric_sort_key_fn(
+                #         table_numeric_values.values())
+                # except ValueError:
+                #     continue
         # TO BE ADDED
 
         features['column_ranks'] = ranks
@@ -393,7 +406,7 @@ class TapasTokenizer(BertTokenizer):
             if len(values) != length:
                 raise ValueError('Inconsistent length')
 
-        # we are not going to create the input ids, mask, padding here (this will be done in prepare_for_model)   
+        # we are not going to create the input ids, mask + perform padding here (this will be done in prepare_for_model)   
 
         #input_ids = self.convert_tokens_to_ids(tokens)
         #input_mask = [1] * len(input_ids)
