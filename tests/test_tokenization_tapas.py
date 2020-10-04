@@ -10,8 +10,9 @@ SAMPLE_VOCAB = r"C:\Users\niels.rogge\Documents\Python projecten\tapas_tokenizer
 tokenizer = TapasTokenizer(vocab_file=SAMPLE_VOCAB)
 
 data = {'Actors': ["Brad Pitt", "Leonardo Di Caprio", "George Clooney"], 
-        'Age': ["56", "45", "23 september 2010"],
-        'Number of movies': ["87", "53", "69"]}
+        'Age': ["56", "45", "59"],
+        'Number of movies': ["87", "53", "69"],
+        'Date of birth': ["7 february 1967", "10 june 1996", "28 november 1967"]}
 queries = ["What is the name of the third actor?", "What is his age?", "What's the number of movies Brad Pitt has played in?"]
 table = pd.DataFrame.from_dict(data)
 
@@ -40,5 +41,7 @@ for position, question in enumerate(queries):
                                                 drop_rows_to_fit=tokenizer.drop_rows_to_fit)
 
     print(features)
+    for token, inv_column_rank in zip(serialized_example.tokens, features['inv_column_ranks']):
+            print(token, inv_column_rank)
 
 

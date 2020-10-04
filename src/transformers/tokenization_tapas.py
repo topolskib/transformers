@@ -89,12 +89,6 @@ def _is_inner_wordpiece(token):
     return token.startswith('##')
 
 
-def _get_cell_token_indexes(column_ids, row_ids, column_id, row_id):
-    for index in range(len(column_ids)):
-        if (column_ids[index] - 1 == column_id and row_ids[index] - 1 == row_id):
-            yield index
-
-
 class TapasTokenizer(BertTokenizer):
     r"""
     Construct an TAPAS tokenizer.
@@ -323,6 +317,24 @@ class TapasTokenizer(BertTokenizer):
             row_ids=row_ids,
         )
         
+    def _get_column_values(self, table_numeric_values):
+        """This is an adaptation from _get_column_values in tf_example_utils.py.
+        Given table_numeric_values, a dictionary that maps row indices of a certain column 
+        of a Pandas dataframe to either an empty list (no numeric value) or a list containing 
+        a NumericValue object, it returns the same dictionary, but only for the row indices that 
+        have a corresponding NumericValue object. 
+        """
+        table_numeric_values_without_empty_lists = {}
+        for row_index, value in table_numeric_values.items():
+            if len(value) != 0:
+                table_numeric_values_without_empty_lists[row_index] = value[0]
+        return table_numeric_values_without_empty_lists
+    
+    def _get_cell_token_indexes(self, column_ids, row_ids, column_id, row_id):
+        for index in range(len(column_ids)):
+            if (column_ids[index] - 1 == column_id and row_ids[index] - 1 == row_id):
+                yield index
+    
     def _add_numeric_column_ranks(self, column_ids, row_ids,
                                 table,
                                 features):
@@ -334,20 +346,37 @@ class TapasTokenizer(BertTokenizer):
         # here, some complex code involving functions from number_annotations_utils are used in the original implementation
         if table is not None:
             for col_index in range(len(table.columns)):
-                table_numeric_values = utils._get_column_values(table, col_index)
-                print(table_numeric_values)
+                table_numeric_values = utils._parse_column_values(table, col_index)
+                # we remove row indices for which no numeric value was found
+                table_numeric_values = self._get_column_values(table_numeric_values)
                 if not table_numeric_values:
                     continue
 
-                # try:
-                #     key_fn = utils.get_numeric_sort_key_fn(
-                #         table_numeric_values.values())
-                # except ValueError:
-                #     continue
-        # TO BE ADDED
+                try:
+                    key_fn = utils.get_numeric_sort_key_fn(
+                        table_numeric_values.values())
+                except ValueError:
+                    continue
+
+                table_numeric_values = {
+                    row_index: key_fn(value)
+                    for row_index, value in table_numeric_values.items()
+                }
+
+                table_numeric_values_inv = collections.defaultdict(list)
+                for row_index, value in table_numeric_values.items():
+                    table_numeric_values_inv[value].append(row_index)
+
+                unique_values = sorted(table_numeric_values_inv.keys())
+
+                for rank, value in enumerate(unique_values):
+                    for row_index in table_numeric_values_inv[value]:
+                        for index in self._get_cell_token_indexes(column_ids, row_ids, col_index, row_index):
+                            ranks[index] = rank + 1
+                            inv_ranks[index] = len(unique_values) - rank
 
         features['column_ranks'] = ranks
-        features['inv__column_ranks'] = inv_ranks
+        features['inv_column_ranks'] = inv_ranks
 
         return features
 

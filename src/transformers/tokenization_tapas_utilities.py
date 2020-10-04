@@ -357,7 +357,7 @@ def _get_numeric_values(text):
   return itertools.chain(*(span.values for span in numeric_spans))
 
 
-def _get_column_values(
+def _parse_column_values(
     table,
     col_index):
   """Parses text in column and returns a dict mapping row_index to values.
