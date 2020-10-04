@@ -41,6 +41,7 @@ for position, question in enumerate(queries):
                                                 drop_rows_to_fit=tokenizer.drop_rows_to_fit)
     #print(features)
     for token, rel in zip(serialized_example.tokens, features['numeric_relations']):
-             print(token, rel)
+             if rel != 0:
+                print(token, rel)
 
 

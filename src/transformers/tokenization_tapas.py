@@ -517,11 +517,12 @@ class TapasTokenizer(BertTokenizer):
         features = self._add_numeric_relations(question, token_ids_dict['column_ids'],
                                     token_ids_dict['row_ids'], table, features, columns_to_numeric_values)
 
-        # the numeric values and numeric values scale are not needed in case no loss calculation
+        # TO DO: add numeric values and numeric values scale
+        # these are only needed in case off loss calculation
         # so they should only be created in case answer_coordinates + answer_text are provided
-        self._add_numeric_values(table, token_ids_dict, features)
+        # self._add_numeric_values(table, token_ids_dict, features)
 
-        self._add_numeric_values_scale(table, token_ids_dict, features)
+        # self._add_numeric_values_scale(table, token_ids_dict, features)
 
         # we do not add table id and table id hash
         #if table:
