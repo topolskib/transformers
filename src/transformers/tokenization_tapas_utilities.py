@@ -5,6 +5,18 @@ import itertools
 import collections
 import datetime
 import math
+import enum
+
+class Relation(enum.Enum):
+  HEADER_TO_CELL = 1  # Connects header to cell.
+  CELL_TO_HEADER = 2  # Connects cell to header.
+  QUERY_TO_HEADER = 3  # Connects query to headers.
+  QUERY_TO_CELL = 4  # Connects query to cells.
+  ROW_TO_CELL = 5  # Connects row to cells.
+  CELL_TO_ROW = 6  # Connects cells to row.
+  EQ = 7  # Annotation value is same as cell value
+  LT = 8  # Annotation value is less than cell value
+  GT = 9  # Annotation value is greater than cell value
 
 @dataclass
 class Date():
@@ -370,3 +382,24 @@ def _parse_column_values(
     text = normalize_for_match(row[col_index])
     index_to_values[row_index] = list(_get_numeric_values(text))
   return index_to_values
+
+
+def add_numeric_values_to_question(question):
+  """Adds numeric value spans to a question."""
+  question_original_text = question
+  question = normalize_for_match(question)
+  numeric_spans = parse_text(question) 
+
+  return (question, numeric_spans)
+
+def get_numeric_relation(value, other_value, sort_key_fn):
+    """Compares two values and returns their relation or None."""
+    value = sort_key_fn(value)
+    other_value = sort_key_fn(other_value)
+    if value == other_value:
+      return Relation.EQ
+    if value < other_value:
+      return Relation.LT
+    if value > other_value:
+      return Relation.GT
+    return None

@@ -344,11 +344,14 @@ class TapasTokenizer(BertTokenizer):
         inv_ranks = [0] * len(column_ids)
 
         # here, some complex code involving functions from number_annotations_utils are used in the original implementation
+        columns_to_numeric_values = {}
         if table is not None:
             for col_index in range(len(table.columns)):
                 table_numeric_values = utils._parse_column_values(table, col_index)
                 # we remove row indices for which no numeric value was found
                 table_numeric_values = self._get_column_values(table_numeric_values)
+                # we add the numeric values to a dictionary, to be used in _add_numeric_relations
+                columns_to_numeric_values[col_index] = table_numeric_values
                 if not table_numeric_values:
                     continue
 
@@ -378,25 +381,77 @@ class TapasTokenizer(BertTokenizer):
         features['column_ranks'] = ranks
         features['inv_column_ranks'] = inv_ranks
 
-        return features
+        return features, columns_to_numeric_values
 
+    def _get_numeric_sort_key_fn(self, table_numeric_values, value):
+        """Returns the sort key function for comparing value to table values.
+        The function returned will be a suitable input for the key param of the
+        sort(). See number_annotation_utils._get_numeric_sort_key_fn for details.
+        Args:
+        table_numeric_values: Numeric values of a column
+        value: Numeric value in the question.
+        Returns:
+        A function key function to compare column and question values.
+        """
+        if not table_numeric_values:
+            return None
+        all_values = list(table_numeric_values.values())
+        all_values.append(value)
+        try:
+            return utils.get_numeric_sort_key_fn(all_values)
+        except ValueError:
+            return None
+    
     def _add_numeric_relations(self, question,
                              column_ids, row_ids,
                              table,
-                             features):
-        """Adds numeric relation emebeddings to 'features'.
+                             features,
+                             columns_to_numeric_values):
+        """Adds numeric relation embeddings to 'features'.
         Args:
         question: The question, numeric values are used.
         column_ids: Maps word piece position to column id.
         row_ids: Maps word piece position to row id.
         table: The table containing the numeric cell values.
         features: Output.
+        columns_to_numeric_values: Dictionary that maps column indices to numeric values.
         """
 
         numeric_relations = [0] * len(column_ids)
 
         # TO BE ADDED (see original implementation)
-
+        # first, we add any numeric value spans to the question:
+        # Create a dictionary that maps a table cell to the set of all relations
+        # this cell has with any value in the question.
+        cell_indices_to_relations = collections.defaultdict(set)
+        if question is not None and table is not None:
+            question, numeric_spans = utils.add_numeric_values_to_question(question)
+            print(f"Question: {question}")
+            print(f"Numeric spans: {numeric_spans}")
+            for numeric_value_span in numeric_spans:
+                for value in numeric_value_span.values:
+                    for column_index in range(len(table.columns)):
+                        table_numeric_values = columns_to_numeric_values[column_index]
+                        print(table_numeric_values)
+                        sort_key_fn = self._get_numeric_sort_key_fn(table_numeric_values,
+                                                                value)
+                        if sort_key_fn is None:
+                            continue
+                        for row_index, cell_value in table_numeric_values.items():
+                            relation = utils.get_numeric_relation(value, cell_value, sort_key_fn)
+                            if relation is not None:
+                                cell_indices_to_relations[column_index, row_index].add(relation)
+        
+        # For each cell add a special feature for all its word pieces.
+        for (column_index, row_index), relations in cell_indices_to_relations.items():
+            relation_set_index = 0
+            for relation in relations:
+                assert relation.value >= utils.Relation.EQ.value
+                relation_set_index += 2**(relation.value - utils.Relation.EQ.value)
+            for cell_token_index in self._get_cell_token_indexes(column_ids, row_ids,
+                                                        column_index, row_index):
+                numeric_relations[cell_token_index] = relation_set_index
+        
         features['numeric_relations'] = numeric_relations
 
         return features
@@ -456,11 +511,11 @@ class TapasTokenizer(BertTokenizer):
         for key, values in sorted(token_ids_dict.items()):
              features[key] = values
 
-        self._add_numeric_column_ranks(token_ids_dict['column_ids'],
+        features, columns_to_numeric_values = self._add_numeric_column_ranks(token_ids_dict['column_ids'],
                                    token_ids_dict['row_ids'], table, features)
 
-        self._add_numeric_relations(question, token_ids_dict['column_ids'],
-                                    token_ids_dict['row_ids'], table, features)
+        features = self._add_numeric_relations(question, token_ids_dict['column_ids'],
+                                    token_ids_dict['row_ids'], table, features, columns_to_numeric_values)
 
         # the numeric values and numeric values scale are not needed in case no loss calculation
         # so they should only be created in case answer_coordinates + answer_text are provided
@@ -485,7 +540,7 @@ class TapasTokenizer(BertTokenizer):
             num_rows,
             drop_rows_to_fit = False,
         ):
-        """Finds optiomal number of table tokens to include and serializes."""
+        """Finds optimal number of table tokens to include and serializes."""
         init_num_rows = num_rows
         while True:
             num_tokens = self._get_max_num_tokens(
