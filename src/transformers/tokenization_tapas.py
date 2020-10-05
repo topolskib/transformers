@@ -111,10 +111,10 @@ class TapasTokenizer(BertTokenizer):
                 max_column_id: int = None,
                 max_row_id: int = None,
                 strip_column_names: bool = False,
-                add_aggregation_candidates: bool = False,
-                expand_entity_descriptions: bool = False,
-                entity_descriptions_sentence_limit: int = 5,
-                #use_document_title: bool = False, suggestion: remove this?
+                # add_aggregation_candidates: bool = False, # suggestion, remove this?
+                # expand_entity_descriptions: bool = False, # suggestion, remove this?
+                # entity_descriptions_sentence_limit: int = 5, # suggestion, remove this?
+                #use_document_title: bool = False, # suggestion: remove this?
                 update_answer_coordinates: bool = False, # Re-compute answer coordinates from the answer text.
                 drop_rows_to_fit: bool = False, # Drop last rows if table doesn't fit within max sequence length.
                 **kwargs):
@@ -131,10 +131,10 @@ class TapasTokenizer(BertTokenizer):
         self.max_column_id = max_column_id if max_column_id is not None else self.model_max_length
         self.max_row_id = max_row_id if max_row_id is not None else self.model_max_length
         self.strip_column_names = strip_column_names
-        self.add_aggregation_candidates = add_aggregation_candidates
-        self.expand_entity_descriptions = expand_entity_descriptions
-        self.entity_descriptions_sentence_limit = entity_descriptions_sentence_limit
-        #self.use_document_title = use_document_title
+        # self.add_aggregation_candidates = add_aggregation_candidates, suggestion: remove this?
+        # self.expand_entity_descriptions = expand_entity_descriptions, suggestion: remove this?
+        # self.entity_descriptions_sentence_limit = entity_descriptions_sentence_limit, suggestion: remove this?
+        #self.use_document_title = use_document_title, suggestion: remove this?
         self.update_answer_coordinates = update_answer_coordinates
         self.drop_rows_to_fit = drop_rows_to_fit
     
@@ -183,9 +183,7 @@ class TapasTokenizer(BertTokenizer):
     def _get_token_budget(self, question_tokens):
         return self.model_max_length - self.question_encoding_cost(question_tokens)
     
-    def _get_table_values(self, table, num_columns,
-                        num_rows,
-                        num_tokens):
+    def _get_table_values(self, table, num_columns, num_rows, num_tokens):
         """Iterates over partial table and returns token, col. and row indexes."""
         for tc in table.selected_tokens:
             # First row is header row.
@@ -205,8 +203,7 @@ class TapasTokenizer(BertTokenizer):
                 continue
             yield token, tc.column_index + 1, tc.row_index
     
-    def _get_table_boundaries(self,
-                            table):
+    def _get_table_boundaries(self, table):
         """Return maximal number of rows, columns and tokens."""
         max_num_tokens = 0
         max_num_columns = 0
@@ -494,8 +491,8 @@ class TapasTokenizer(BertTokenizer):
         
         numeric_values_scale = [1.0] * self.model_max_length
         
-        # if table is None:
-        #     return numeric_values_scale
+        if table is None:
+            return numeric_values_scale
         
         num_rows = table.shape[0]
         num_columns = table.shape[1]
@@ -522,7 +519,7 @@ class TapasTokenizer(BertTokenizer):
         while len(inputs) < self.model_max_length:
             inputs.append(0)
     
-    def _to_features(self, tokens, token_ids_dict, table, question):
+    def _to_features(self, tokens, token_ids_dict, table, question, add_loss_variables):
         """Produces a dict of features. This function creates input ids, attention mask, token type ids
         (except the prev label ids), as well as numeric value and numeric value scale. 
         """
@@ -565,13 +562,14 @@ class TapasTokenizer(BertTokenizer):
         features = self._add_numeric_relations(question, token_ids_dict['column_ids'],
                                     token_ids_dict['row_ids'], table, features, columns_to_numeric_values)
 
-        # TO DO: add numeric values and numeric values scale
+        # TO DO: finally, add numeric values and numeric values scale
         # these are only needed in case off loss calculation
         # so they should only be created in case answer_coordinates + answer_text are provided
         
-        features = self._add_numeric_values(table, token_ids_dict, features, columns_to_numeric_values)
+        if add_loss_variables:
+            features = self._add_numeric_values(table, token_ids_dict, features, columns_to_numeric_values)
 
-        features = self._add_numeric_values_scale(table, token_ids_dict, features)
+            features = self._add_numeric_values_scale(table, token_ids_dict, features)
 
         # we do not add table id and table id hash
         #if table:
@@ -589,6 +587,7 @@ class TapasTokenizer(BertTokenizer):
             num_columns,
             num_rows,
             drop_rows_to_fit = False,
+            add_loss_variables = False,
         ):
         """Finds optimal number of table tokens to include and serializes."""
         init_num_rows = num_rows
@@ -619,7 +618,8 @@ class TapasTokenizer(BertTokenizer):
         }
 
         features = self._to_features(
-                serialized_example.tokens, feature_dict, table=table, question=question)
+                serialized_example.tokens, feature_dict, table=table, question=question,
+                add_loss_variables=add_loss_variables)
         
         return serialized_example, features
     
@@ -630,7 +630,7 @@ class TapasTokenizer(BertTokenizer):
             List[PreTokenizedInput],
             List[EncodedInput],
         ],
-        answer: Optional[List[Tuple]] = None,
+        answer_coordinates: Optional[List[Tuple]] = None,
         answer_text: Optional[List[TextInput]] = None,
         add_special_tokens: bool = True,
         padding_strategy: PaddingStrategy = PaddingStrategy.DO_NOT_PAD,
@@ -672,7 +672,7 @@ class TapasTokenizer(BertTokenizer):
         return self._batch_encode_plus(
             table=table,
             queries=queries,
-            answer=answer,
+            answer_coordinates=answer_coordinates,
             answer_text=answer_text,
             add_special_tokens=add_special_tokens,
             padding_strategy=padding_strategy,
@@ -700,7 +700,7 @@ class TapasTokenizer(BertTokenizer):
             List[PreTokenizedInput],
             List[EncodedInput],
         ],
-        answer: Optional[List[Tuple]] = None,
+        answer_coordinates: Optional[List[Tuple]] = None,
         answer_text: Optional[List[TextInput]] = None,
         add_special_tokens: bool = True,
         padding_strategy: PaddingStrategy = PaddingStrategy.DO_NOT_PAD,
@@ -739,7 +739,7 @@ class TapasTokenizer(BertTokenizer):
         batch_outputs = self._batch_prepare_for_model(
             table=table,
             queries=queries,
-            answer=answer,
+            answer_coordinates=answer_coordinates,
             answer_text=answer_text,
             add_special_tokens=add_special_tokens,
             padding_strategy=padding_strategy,
@@ -766,7 +766,7 @@ class TapasTokenizer(BertTokenizer):
             List[PreTokenizedInput],
             List[EncodedInput],
         ],
-        answer: Optional[List[Tuple]] = None,
+        answer_coordinates: Optional[List[Tuple]] = None,
         answer_text: Optional[List[TextInput]] = None,
         add_special_tokens: bool = True,
         padding_strategy: PaddingStrategy = PaddingStrategy.DO_NOT_PAD,
@@ -826,6 +826,14 @@ class TapasTokenizer(BertTokenizer):
 
         if return_overflowing_tokens:
             raise ValueError("Overflowing tokens is currently not supported")
+
+        if (answer_coordinates and not answer_text) or (not answer_coordinates and answer_text):
+            raise ValueError("In case you provide answers, both answer_coordinates and answer_text should be provided") 
+
+        add_loss_variables = None
+        if answer_coordinates is not None and answer_text is not None:
+            assert len(answer_coordinates) == len(answer_text)
+            add_loss_variables = True
         
         # First, tokenize the table and get the number of rows and columns
         tokenized_table = self._tokenize_table(table)
@@ -845,7 +853,8 @@ class TapasTokenizer(BertTokenizer):
                                                                 tokenized_table=tokenized_table,
                                                                 num_columns=num_columns,
                                                                 num_rows=num_rows,
-                                                                drop_rows_to_fit=self.drop_rows_to_fit)
+                                                                drop_rows_to_fit=self.drop_rows_to_fit,
+                                                                add_loss_variables=add_loss_variables)
                 # TO DO: add prev label ids logic (see line 1118 in tf_example_utils.py)
                 features['prev_label_ids'] = [0] * len(features["input_ids"])
                 features_examples[position] = features
