@@ -820,11 +820,13 @@ class TapasTokenizer(BertTokenizer):
         token_type_ids = []
         for position in range(len(queries)):
             token_type_ids_example = []
-            for type in token_types:
-                token_type_ids_example.append(features_examples[position][type])
+            for token_idx in range(self.model_max_length):
+                token_ids = []
+                for type in token_types:
+                    token_ids.append(features_examples[position][type][token_idx])
+                token_type_ids_example.append(token_ids)
+            # token_type_ids_example is a list of seq_length elements, each element being a list of 7 elements
             token_type_ids.append(token_type_ids_example)
-
-        # token_type_ids = [features_examples[position][type] for type in token_types for position in range(len(queries))]
 
         if return_token_type_ids:
             encoded_inputs["token_type_ids"] = token_type_ids

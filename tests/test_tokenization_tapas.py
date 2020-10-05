@@ -16,6 +16,7 @@ data = {'Actors': ["Brad Pitt", "Leonardo Di Caprio", "George Clooney"],
 queries = ["What is the name of the third actor?", "What is his age?", "Which actor is 45 years old?"]
 table = pd.DataFrame.from_dict(data)
 
+print("Model max length:")
 print(tokenizer.model_max_length)
 
 print("Tokenized table:")
@@ -47,7 +48,8 @@ for position, question in enumerate(queries):
 #                 print(token, rel)
 
 
-encoded_inputs = tokenizer.batch_encode_plus(table=table, queries=queries)
-print(encoded_inputs)
+encoded_inputs = tokenizer.batch_encode_plus(table=table, queries=queries, return_tensors="pt")
+print(encoded_inputs["token_type_ids"][0].size())
+print(encoded_inputs["token_type_ids"][0])
 
 
