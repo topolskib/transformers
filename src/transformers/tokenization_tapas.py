@@ -643,7 +643,6 @@ class TapasTokenizer(BertTokenizer):
                 found_answers.add((column_index, row_index))
                 answer_ids[index] = 1
 
-        print(answer_ids)
         missing_count = len(all_answers) - len(found_answers)
         return answer_ids, missing_count
 
@@ -658,8 +657,7 @@ class TapasTokenizer(BertTokenizer):
 
         def _to_coordinates(
             question, answer_coordinates_question):
-            print(question)
-            print(answer_coordinates_question)
+            # here we swap column and row coordinates (in TSV format, the coordinates are given as row, column. Here we swap them to column, row)
             return [(coords[1], coords[0])
                     for coords in answer_coordinates_question]
 
@@ -981,6 +979,7 @@ class TapasTokenizer(BertTokenizer):
         
         # Second, create the input ids for every table + query pair (and all the other features). This is a list of lists
         features_examples = {}
+        position_to_label_ids = {}
         for position, query in enumerate(queries):
             if isinstance(query, str):
                 text_tokens = self.tokenize(query)
@@ -998,14 +997,14 @@ class TapasTokenizer(BertTokenizer):
                     prev_label_ids = [0] * len(features["input_ids"])
                 else:
                     # TO DO: add prev label ids logic (see line 1118 in tf_example_utils.py)
-                    prev_label_ids = [0] * len(features["input_ids"])
+                    prev_label_ids = position_to_label_ids[position - 1]
                 self._pad_to_seq_length(prev_label_ids)
                 features["prev_label_ids"] = prev_label_ids
 
                 if add_loss_variables:
                     column_ids = serialized_example.column_ids
                     row_ids = serialized_example.row_ids
-                    
+
                     label_ids = self.get_answer_ids(column_ids, 
                                                      row_ids, 
                                                      tokenized_table, 
@@ -1014,6 +1013,7 @@ class TapasTokenizer(BertTokenizer):
                                                      answer_coordinates[position],
                                                      )
                     self._pad_to_seq_length(label_ids)
+                    position_to_label_ids[position] = label_ids
                     features['label_ids'] = label_ids
 
                 features_examples[position] = features

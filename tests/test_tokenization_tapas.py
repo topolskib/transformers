@@ -7,7 +7,7 @@ from transformers.tokenization_tapas import TapasTokenizer
 
 SAMPLE_VOCAB = r"C:\Users\niels.rogge\Documents\Python projecten\tapas_tokenizer\vocab.txt"
 
-tokenizer = TapasTokenizer(vocab_file=SAMPLE_VOCAB, model_max_length=512)
+tokenizer = TapasTokenizer(vocab_file=SAMPLE_VOCAB, model_max_length=100)
 
 data = {'Actors': ["Brad Pitt", "Leonardo Di Caprio", "George Clooney"], 
         'Age': ["56", "45", "59"],
@@ -51,8 +51,10 @@ print(f"Number of columns: {num_columns}")
 
 
 encoded_inputs = tokenizer.batch_encode_plus(table=table, queries=queries, answer_coordinates=answer_coordinates, answer_texts=answer_texts, return_tensors="pt")
+print(encoded_inputs)
 
-for id, label_id in zip(encoded_inputs["input_ids"][2], encoded_inputs["label_ids"][2]):
-        print(tokenizer.decode([id]), label_id.item())
+
+# for id, label_id in zip(encoded_inputs["input_ids"][2], encoded_inputs["label_ids"][2]):
+#         print(tokenizer.decode([id]), label_id.item())
 
 
