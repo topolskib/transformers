@@ -519,7 +519,7 @@ class TapasTokenizer(BertTokenizer):
         while len(inputs) < self.model_max_length:
             inputs.append(0)
     
-    def _to_features(self, tokens, token_ids_dict, table, question, add_loss_variables):
+    def _to_features(self, tokens, token_ids_dict, table, question):
         """Produces a dict of features. This function creates input ids, attention mask, token type ids
         (except the prev label ids), as well as numeric value and numeric value scale. 
         """
@@ -566,10 +566,9 @@ class TapasTokenizer(BertTokenizer):
         # these are only needed in case off loss calculation
         # so they should only be created in case answer_coordinates + answer_text are provided
         
-        if add_loss_variables:
-            features = self._add_numeric_values(table, token_ids_dict, features, columns_to_numeric_values)
+        features = self._add_numeric_values(table, token_ids_dict, features, columns_to_numeric_values)
 
-            features = self._add_numeric_values_scale(table, token_ids_dict, features)
+        features = self._add_numeric_values_scale(table, token_ids_dict, features)
 
         # we do not add table id and table id hash
         #if table:
@@ -587,7 +586,6 @@ class TapasTokenizer(BertTokenizer):
             num_columns,
             num_rows,
             drop_rows_to_fit = False,
-            add_loss_variables = False,
         ):
         """Finds optimal number of table tokens to include and serializes."""
         init_num_rows = num_rows
@@ -618,9 +616,8 @@ class TapasTokenizer(BertTokenizer):
         }
 
         features = self._to_features(
-                serialized_example.tokens, feature_dict, table=table, question=question,
-                add_loss_variables=add_loss_variables)
-        
+                serialized_example.tokens, feature_dict, table=table, question=question)
+
         return serialized_example, features
 
     #### Everything related to label ids calculation ####
@@ -991,8 +988,7 @@ class TapasTokenizer(BertTokenizer):
                                                                 tokenized_table=tokenized_table,
                                                                 num_columns=num_columns,
                                                                 num_rows=num_rows,
-                                                                drop_rows_to_fit=self.drop_rows_to_fit,
-                                                                add_loss_variables=add_loss_variables)
+                                                                drop_rows_to_fit=self.drop_rows_to_fit)
                 if position == 0:
                     prev_label_ids = [0] * len(features["input_ids"])
                 else:
@@ -1041,6 +1037,8 @@ class TapasTokenizer(BertTokenizer):
 
         if add_loss_variables:
             encoded_inputs["label_ids"] = [features_examples[position]["label_ids"] for position in range(len(queries))]
+            encoded_inputs["numeric_values"] = [features_examples[position]["numeric_values"] for position in range(len(queries))]
+            encoded_inputs["numeric_values_scale"] = [features_examples[position]["numeric_values_scale"] for position in range(len(queries))]
         
         if return_token_type_ids:
             encoded_inputs["token_type_ids"] = token_type_ids
