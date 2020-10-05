@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2020 The Google AI Team, Stanford University and The HuggingFace Inc. team.
+# Copyright 2020 (...) and The HuggingFace Inc. team.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -93,8 +93,9 @@ class TapasTokenizer(BertTokenizer):
     r"""
     Construct an TAPAS tokenizer.
 
-    :class:`~transformers.TapasTokenizer` inherits from :class:`~transformers.BertTokenizer` and runs end-to-end
-    tokenization: punctuation splitting and wordpiece.
+    :class:`~transformers.TapasTokenizer` inherits from :class:`~transformers.BertTokenizer` since it uses the same
+    vocabulary. However, it adds several token type ids to encode tabular structure. It runs end-to-end
+    tokenization on a table and associated queries: punctuation splitting and wordpiece.
 
     Refer to superclass :class:`~transformers.BertTokenizer` for usage examples and documentation concerning
     parameters.
@@ -453,14 +454,36 @@ class TapasTokenizer(BertTokenizer):
 
         return features
 
-    def _add_numeric_values(self, table,
+    def _add_numeric_values(self, 
+                          table,
                           token_ids_dict,
-                          features):
+                          features,
+                          columns_to_numeric_values):
         """Adds numeric values for computation of answer loss."""
         
-        numeric_values = float('nan') * self.model_max_length
+        numeric_values = [float('nan')] * self.model_max_length
 
-        # TO BE ADDED
+        if table is not None:
+            num_rows = table.shape[0] 
+            num_columns = table.shape[1]
+
+            for col_index in range(num_columns):
+                if not columns_to_numeric_values[col_index]:
+                    continue
+                else:
+                    for row_index in range(num_rows):
+                        numeric_value = columns_to_numeric_values[col_index][row_index]
+                        if numeric_value.float_value is None:
+                            continue
+
+                        float_value = numeric_value.float_value
+                        if float_value == float('inf'):
+                            continue
+
+                        for index in self._get_cell_token_indexes(token_ids_dict['column_ids'],
+                                                            token_ids_dict['row_ids'],
+                                                            col_index, row_index):
+                            numeric_values[index] = float_value
 
         features['numeric_values'] = numeric_values
 
@@ -471,9 +494,27 @@ class TapasTokenizer(BertTokenizer):
         
         numeric_values_scale = [1.0] * self.model_max_length
         
-        # TO BE ADDED
+        # if table is None:
+        #     return numeric_values_scale
+        
+        num_rows = table.shape[0]
+        num_columns = table.shape[1]
+        
+        for col_index in range(num_columns):
+            for row_index in range(num_rows):
+                indices = [
+                    index for index in self._get_cell_token_indexes(
+                        token_ids_dict['column_ids'], token_ids_dict['row_ids'],
+                        col_index, row_index)
+                ]
+                num_indices = len(indices)
+                if num_indices > 1:
+                    for index in indices:
+                        numeric_values_scale[index] = float(num_indices)
 
         features['numeric_values_scale'] = numeric_values_scale
+
+        return features
     
     def _pad_to_seq_length(self, inputs):
         while len(inputs) > self.model_max_length:
@@ -482,7 +523,9 @@ class TapasTokenizer(BertTokenizer):
             inputs.append(0)
     
     def _to_features(self, tokens, token_ids_dict, table, question):
-        """Produces a dict of features."""
+        """Produces a dict of features. This function creates input ids, attention mask, token type ids
+        (except the prev label ids), as well as numeric value and numeric value scale. 
+        """
         tokens = list(tokens)
         token_ids_dict = {
             key: list(values) for key, values in token_ids_dict.items()
@@ -494,7 +537,7 @@ class TapasTokenizer(BertTokenizer):
                 raise ValueError('Inconsistent length')
 
         # currently the input ids, mask and token type ids are created here 
-        # also, padding up to max length is done here
+        # also, padding and truncation up to max length is done here (see function _pad_to_seq_length)
         # (later, this will be done in prepare_for_model)   
 
         input_ids = self.convert_tokens_to_ids(tokens)
@@ -526,9 +569,9 @@ class TapasTokenizer(BertTokenizer):
         # these are only needed in case off loss calculation
         # so they should only be created in case answer_coordinates + answer_text are provided
         
-        # self._add_numeric_values(table, token_ids_dict, features)
+        features = self._add_numeric_values(table, token_ids_dict, features, columns_to_numeric_values)
 
-        # self._add_numeric_values_scale(table, token_ids_dict, features)
+        features = self._add_numeric_values_scale(table, token_ids_dict, features)
 
         # we do not add table id and table id hash
         #if table:

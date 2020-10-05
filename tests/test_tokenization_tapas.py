@@ -42,14 +42,14 @@ for position, question in enumerate(queries):
                                                 num_columns=num_columns,
                                                 num_rows=num_rows,
                                                 drop_rows_to_fit=tokenizer.drop_rows_to_fit)
-    #print(features)
+    print(features)
 #     for token, rel in zip(serialized_example.tokens, features['numeric_relations']):
 #              if rel != 0:
 #                 print(token, rel)
 
 
-encoded_inputs = tokenizer.batch_encode_plus(table=table, queries=queries, return_tensors="pt")
-print(encoded_inputs["token_type_ids"][0].size())
-print(encoded_inputs["token_type_ids"][0])
+# encoded_inputs = tokenizer.batch_encode_plus(table=table, queries=queries, return_tensors="pt")
+# print(encoded_inputs)
+# print(encoded_inputs["numeric_values_scale"][0].sum())
 
 
