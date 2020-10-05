@@ -7,7 +7,7 @@ from transformers.tokenization_tapas import TapasTokenizer
 
 SAMPLE_VOCAB = r"C:\Users\niels.rogge\Documents\Python projecten\tapas_tokenizer\vocab.txt"
 
-tokenizer = TapasTokenizer(vocab_file=SAMPLE_VOCAB)
+tokenizer = TapasTokenizer(vocab_file=SAMPLE_VOCAB, model_max_length=40)
 
 data = {'Actors': ["Brad Pitt", "Leonardo Di Caprio", "George Clooney"], 
         'Age': ["56", "45", "59"],
@@ -15,6 +15,8 @@ data = {'Actors': ["Brad Pitt", "Leonardo Di Caprio", "George Clooney"],
         'Date of birth': ["7 february 1967", "10 june 1996", "28 november 1967"]}
 queries = ["What is the name of the third actor?", "What is his age?", "Which actor is 45 years old?"]
 table = pd.DataFrame.from_dict(data)
+
+print(tokenizer.model_max_length)
 
 print("Tokenized table:")
 print(tokenizer._tokenize_table(table))
@@ -40,8 +42,12 @@ for position, question in enumerate(queries):
                                                 num_rows=num_rows,
                                                 drop_rows_to_fit=tokenizer.drop_rows_to_fit)
     #print(features)
-    for token, rel in zip(serialized_example.tokens, features['numeric_relations']):
-             if rel != 0:
-                print(token, rel)
+#     for token, rel in zip(serialized_example.tokens, features['numeric_relations']):
+#              if rel != 0:
+#                 print(token, rel)
+
+
+encoded_inputs = tokenizer.batch_encode_plus(table=table, queries=queries)
+print(encoded_inputs)
 
 

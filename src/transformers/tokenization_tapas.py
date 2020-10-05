@@ -242,7 +242,7 @@ class TapasTokenizer(BertTokenizer):
             if cost > token_budget:
                 break
         if num_tokens < max_num_tokens:
-            if self._cell_trim_length >= 0:
+            if self.cell_trim_length >= 0:
                 # We don't allow dynamic trimming if a cell_trim_length is set.
                 return None
             if num_tokens == 0:
@@ -426,13 +426,10 @@ class TapasTokenizer(BertTokenizer):
         cell_indices_to_relations = collections.defaultdict(set)
         if question is not None and table is not None:
             question, numeric_spans = utils.add_numeric_values_to_question(question)
-            print(f"Question: {question}")
-            print(f"Numeric spans: {numeric_spans}")
             for numeric_value_span in numeric_spans:
                 for value in numeric_value_span.values:
                     for column_index in range(len(table.columns)):
                         table_numeric_values = columns_to_numeric_values[column_index]
-                        print(table_numeric_values)
                         sort_key_fn = self._get_numeric_sort_key_fn(table_numeric_values,
                                                                 value)
                         if sort_key_fn is None:
@@ -460,8 +457,8 @@ class TapasTokenizer(BertTokenizer):
                           token_ids_dict,
                           features):
         """Adds numeric values for computation of answer loss."""
-        # 512 should become self.model_max_length
-        numeric_values = float('nan') * 512
+        
+        numeric_values = float('nan') * self.model_max_length
 
         # TO BE ADDED
 
@@ -471,12 +468,18 @@ class TapasTokenizer(BertTokenizer):
 
     def _add_numeric_values_scale(self, table, token_ids_dict, features):
         """Adds a scale to each token to down weigh the value of long words."""
-        # 512 should become self.model_max_length
-        numeric_values_scale = [1.0] * 512
+        
+        numeric_values_scale = [1.0] * self.model_max_length
         
         # TO BE ADDED
 
         features['numeric_values_scale'] = numeric_values_scale
+    
+    def _pad_to_seq_length(self, inputs):
+        while len(inputs) > self.model_max_length:
+            inputs.pop()
+        while len(inputs) < self.model_max_length:
+            inputs.append(0)
     
     def _to_features(self, tokens, token_ids_dict, table, question):
         """Produces a dict of features."""
@@ -490,24 +493,26 @@ class TapasTokenizer(BertTokenizer):
             if len(values) != length:
                 raise ValueError('Inconsistent length')
 
-        # we are not going to create the input ids, mask + perform padding here (this will be done in prepare_for_model)   
+        # currently the input ids, mask and token type ids are created here 
+        # also, padding up to max length is done here
+        # (later, this will be done in prepare_for_model)   
 
-        #input_ids = self.convert_tokens_to_ids(tokens)
-        #input_mask = [1] * len(input_ids)
+        input_ids = self.convert_tokens_to_ids(tokens)
+        attention_mask = [1] * len(input_ids)
 
-        # self._pad_to_seq_length(input_ids)
-        # self._pad_to_seq_length(input_mask)
-        # for values in token_ids_dict.values():
-        #     self._pad_to_seq_length(values)
+        self._pad_to_seq_length(input_ids)
+        self._pad_to_seq_length(attention_mask)
+        for values in token_ids_dict.values():
+            self._pad_to_seq_length(values)
 
-        # assert len(input_ids) == self._max_seq_length
-        # assert len(input_mask) == self._max_seq_length
-        # for values in token_ids_dict.values():
-        #     assert len(values) == self._max_seq_length
+        assert len(input_ids) == self.model_max_length
+        assert len(attention_mask) == self.model_max_length
+        for values in token_ids_dict.values():
+            assert len(values) == self.model_max_length
 
         features = {}
-        #features['input_ids'] = create_int_feature(input_ids)
-        #features['input_mask'] = create_int_feature(input_mask)
+        features['input_ids'] = input_ids
+        features['attention_mask'] = attention_mask
         for key, values in sorted(token_ids_dict.items()):
              features[key] = values
 
@@ -520,6 +525,7 @@ class TapasTokenizer(BertTokenizer):
         # TO DO: add numeric values and numeric values scale
         # these are only needed in case off loss calculation
         # so they should only be created in case answer_coordinates + answer_text are provided
+        
         # self._add_numeric_values(table, token_ids_dict, features)
 
         # self._add_numeric_values_scale(table, token_ids_dict, features)
@@ -574,157 +580,261 @@ class TapasTokenizer(BertTokenizer):
         
         return serialized_example, features
     
-    # def _batch_encode_plus(
-    #     self,
-    #     table: pd.DataFrame = None,
-    #     queries: Union[
-    #         List[TextInput],
-    #         List[TextInputPair],
-    #         List[PreTokenizedInput],
-    #         List[PreTokenizedInputPair],
-    #         List[EncodedInput],
-    #         List[EncodedInputPair],
-    #     ],
-    #     add_special_tokens: bool = True,
-    #     padding_strategy: PaddingStrategy = PaddingStrategy.DO_NOT_PAD,
-    #     truncation_strategy: TruncationStrategy = TruncationStrategy.DO_NOT_TRUNCATE,
-    #     max_length: Optional[int] = None,
-    #     stride: int = 0,
-    #     is_split_into_words: bool = False,
-    #     pad_to_multiple_of: Optional[int] = None,
-    #     return_tensors: Optional[Union[str, TensorType]] = None,
-    #     return_token_type_ids: Optional[bool] = None,
-    #     return_attention_mask: Optional[bool] = None,
-    #     return_overflowing_tokens: bool = False,
-    #     return_special_tokens_mask: bool = False,
-    #     return_offsets_mapping: bool = False,
-    #     return_length: bool = False,
-    #     verbose: bool = True,
-    #     **kwargs
-    # ) -> BatchEncoding:
-    #     if return_offsets_mapping:
-    #         raise NotImplementedError(
-    #             "return_offset_mapping is not available when using Python tokenizers."
-    #             "To use this feature, change your tokenizer to one deriving from "
-    #             "transformers.PreTrainedTokenizerFast."
-    #         )
+    def batch_encode_plus(self,
+        table: pd.DataFrame,
+        queries: Union[
+            List[TextInput],
+            List[PreTokenizedInput],
+            List[EncodedInput],
+        ],
+        answer: Optional[List[Tuple]] = None,
+        answer_text: Optional[List[TextInput]] = None,
+        add_special_tokens: bool = True,
+        padding_strategy: PaddingStrategy = PaddingStrategy.DO_NOT_PAD,
+        truncation_strategy: TruncationStrategy = TruncationStrategy.DO_NOT_TRUNCATE,
+        max_length: Optional[int] = None,
+        stride: int = 0,
+        is_split_into_words: bool = False,
+        pad_to_multiple_of: Optional[int] = None,
+        return_tensors: Optional[Union[str, TensorType]] = None,
+        return_token_type_ids: Optional[bool] = True,
+        return_attention_mask: Optional[bool] = None,
+        return_overflowing_tokens: bool = False,
+        return_special_tokens_mask: bool = False,
+        return_offsets_mapping: bool = False,
+        return_length: bool = False,
+        verbose: bool = True,
+        **kwargs
+    ) -> BatchEncoding:
+        """
+        Tokenize and prepare for the model a list of one or more sequences related to a table.
+        .. warning::
+            This method is deprecated, ``__call__`` should be used instead.
+        Args:
+            queries (:obj:`List[str]`):
+                Batch of sequences (queries) related to a table to be encoded.
+                This is a list of string-sequences (see details in ``encode_plus``).
+        """
 
-    #     if "is_pretokenized" in kwargs:
-    #         warnings.warn(
-    #             "`is_pretokenized` is deprecated and will be removed in a future version, use `is_split_into_words` instead.",
-    #             FutureWarning,
-    #         )
+        # Backward compatibility for 'truncation_strategy', 'pad_to_max_length'
+        # padding_strategy, truncation_strategy, max_length, kwargs = self._get_padding_truncation_strategies(
+        #     padding=padding,
+        #     truncation=truncation,
+        #     max_length=max_length,
+        #     pad_to_multiple_of=pad_to_multiple_of,
+        #     verbose=verbose,
+        #     **kwargs,
+        # )
+
+        return self._batch_encode_plus(
+            table=table,
+            queries=queries,
+            answer=answer,
+            answer_text=answer_text,
+            add_special_tokens=add_special_tokens,
+            padding_strategy=padding_strategy,
+            truncation_strategy=truncation_strategy,
+            max_length=max_length,
+            stride=stride,
+            is_split_into_words=is_split_into_words,
+            pad_to_multiple_of=pad_to_multiple_of,
+            return_tensors=return_tensors,
+            return_token_type_ids=return_token_type_ids,
+            return_attention_mask=return_attention_mask,
+            return_overflowing_tokens=return_overflowing_tokens,
+            return_special_tokens_mask=return_special_tokens_mask,
+            return_offsets_mapping=return_offsets_mapping,
+            return_length=return_length,
+            verbose=verbose,
+            **kwargs,
+        )
+
+    def _batch_encode_plus(
+        self,
+        table: pd.DataFrame,
+        queries: Union[
+            List[TextInput],
+            List[PreTokenizedInput],
+            List[EncodedInput],
+        ],
+        answer: Optional[List[Tuple]] = None,
+        answer_text: Optional[List[TextInput]] = None,
+        add_special_tokens: bool = True,
+        padding_strategy: PaddingStrategy = PaddingStrategy.DO_NOT_PAD,
+        truncation_strategy: TruncationStrategy = TruncationStrategy.DO_NOT_TRUNCATE,
+        max_length: Optional[int] = None,
+        stride: int = 0,
+        is_split_into_words: bool = False,
+        pad_to_multiple_of: Optional[int] = None,
+        return_tensors: Optional[Union[str, TensorType]] = None,
+        return_token_type_ids: Optional[bool] = True,
+        return_attention_mask: Optional[bool] = None,
+        return_overflowing_tokens: bool = False,
+        return_special_tokens_mask: bool = False,
+        return_offsets_mapping: bool = False,
+        return_length: bool = False,
+        verbose: bool = True,
+        **kwargs
+    ) -> BatchEncoding:
+
+        if return_offsets_mapping:
+            raise NotImplementedError(
+                "return_offset_mapping is not available when using Python tokenizers."
+                "To use this feature, change your tokenizer to one deriving from "
+                "transformers.PreTrainedTokenizerFast."
+            )
+
+        if "is_pretokenized" in kwargs:
+            warnings.warn(
+                "`is_pretokenized` is deprecated and will be removed in a future version, use `is_split_into_words` instead.",
+                FutureWarning,
+            )
         
-    #     if "is_split_into_words" in kwargs:
-    #         raise NotImplementedError("Currently TapasTokenizer only supports questions as strings.")
+        if "is_split_into_words" in kwargs:
+            raise NotImplementedError("Currently TapasTokenizer only supports questions as strings.")
 
-    #     # First, tokenize the table and get the number of rows and columns
-    #     tokenized_table = self._tokenize_table(table)
-    #     num_rows = self._get_num_rows(table, self.drop_rows_to_fit)
-    #     num_columns = self._get_num_columns(table)
+        batch_outputs = self._batch_prepare_for_model(
+            table=table,
+            queries=queries,
+            answer=answer,
+            answer_text=answer_text,
+            add_special_tokens=add_special_tokens,
+            padding_strategy=padding_strategy,
+            truncation_strategy=truncation_strategy,
+            max_length=max_length,
+            stride=stride,
+            pad_to_multiple_of=pad_to_multiple_of,
+            return_attention_mask=return_attention_mask,
+            return_token_type_ids=return_token_type_ids,
+            return_overflowing_tokens=return_overflowing_tokens,
+            return_special_tokens_mask=return_special_tokens_mask,
+            return_length=return_length,
+            return_tensors=return_tensors,
+            verbose=verbose,
+        )
+
+        return BatchEncoding(batch_outputs)
+    
+    def _batch_prepare_for_model(
+        self,
+        table: pd.DataFrame,
+        queries: Union[
+            List[TextInput],
+            List[PreTokenizedInput],
+            List[EncodedInput],
+        ],
+        answer: Optional[List[Tuple]] = None,
+        answer_text: Optional[List[TextInput]] = None,
+        add_special_tokens: bool = True,
+        padding_strategy: PaddingStrategy = PaddingStrategy.DO_NOT_PAD,
+        truncation_strategy: TruncationStrategy = TruncationStrategy.DO_NOT_TRUNCATE,
+        max_length: Optional[int] = None,
+        stride: int = 0,
+        pad_to_multiple_of: Optional[int] = None,
+        return_tensors: Optional[str] = None,
+        return_token_type_ids: Optional[bool] = True,
+        return_attention_mask: Optional[bool] = None,
+        return_overflowing_tokens: bool = False,
+        return_special_tokens_mask: bool = False,
+        return_length: bool = False,
+        verbose: bool = True,
+        **kwargs
+    ) -> BatchEncoding:
+        """
+        Prepares a sequence of strings (queries) related to a table so that it can be used by the model.
+        It creates input ids, adds special tokens, truncates the table if overflowing (if the drop_rows_to_fit
+        parameter is set to True) while taking into account the special tokens and manages a moving window 
+        (with user defined stride) for overflowing tokens
+
+        This function is based on prepare_for_model (but in Tapas, training examples depend on each other,
+        so we defined it at a batch level)
+
+        Args:
+            table: Pandas dataframe
+            queries: List of Strings, containing questions related to the table
+        """
+
+        if "return_lengths" in kwargs:
+            if verbose:
+                warnings.warn(
+                    "The PreTrainedTokenizerBase.prepare_for_model `return_lengths` parameter is deprecated. "
+                    "Please use `return_length` instead.",
+                    FutureWarning,
+                )
+            return_length = kwargs["return_lengths"]
+
+        # Backward compatibility for 'truncation_strategy', 'pad_to_max_length'
+        # padding_strategy, truncation_strategy, max_length, kwargs = self._get_padding_truncation_strategies(
+        #     padding=padding,
+        #     truncation=truncation,
+        #     max_length=max_length,
+        #     pad_to_multiple_of=pad_to_multiple_of,
+        #     verbose=verbose,
+        #     **kwargs,
+        # )
+
+        # Load from model defaults
+        if return_token_type_ids is None:
+            return_token_type_ids = "token_type_ids" in self.model_input_names
+        if return_attention_mask is None:
+            return_attention_mask = "attention_mask" in self.model_input_names
         
-    #     # Second, create the input ids for every table + query pair (and all the other features). This is a list of lists
-    #     input_ids = []
-    #     for position, query in queries:
-    #         if isinstance(query, str):
-    #             text_tokens = self.tokenize(query)
-    #             serialized_example, feature_dict = self._to_trimmed_features(
-    #                                                             question=query,
-    #                                                             table=table,
-    #                                                             question_tokens=text_tokens,
-    #                                                             tokenized_table=tokenized_table,
-    #                                                             num_columns=num_columns,
-    #                                                             num_rows=num_rows,
-    #                                                             drop_rows_to_fit=self.drop_rows_to_fit)
-    #             input_ids_example = self.convert_tokens_to_ids(serialized_example.tokens)
-    #             input_ids.append(input_ids_example)
-    #         else:
-    #             raise ValueError(
-    #                 "Query is not valid. Should be a string."
-    #             )
+        encoded_inputs = {}
 
-    #     raise NotImplementedError
+        if return_overflowing_tokens:
+            raise ValueError("Overflowing tokens is currently not supported")
+        
+        # First, tokenize the table and get the number of rows and columns
+        tokenized_table = self._tokenize_table(table)
+        num_rows = self._get_num_rows(table, self.drop_rows_to_fit)
+        num_columns = self._get_num_columns(table)
+        
+        # Second, create the input ids for every table + query pair (and all the other features). This is a list of lists
+        features_examples = {}
+        for position, query in enumerate(queries):
+            if isinstance(query, str):
+                text_tokens = self.tokenize(query)
+                # currently, padding is done within the _to_trimmed_features function 
+                serialized_example, features = self._to_trimmed_features(
+                                                                question=query,
+                                                                table=table,
+                                                                question_tokens=text_tokens,
+                                                                tokenized_table=tokenized_table,
+                                                                num_columns=num_columns,
+                                                                num_rows=num_rows,
+                                                                drop_rows_to_fit=self.drop_rows_to_fit)
+                # TO DO: add prev label ids logic (see line 1118 in tf_example_utils.py)
+                features['prev_label_ids'] = [0] * len(features["input_ids"])
+                features_examples[position] = features
+            else:
+                raise ValueError(
+                    "Query is not valid. Should be a string."
+                )
 
-    #     batch_outputs = self._batch_prepare_for_model(
-    #         input_ids,
-    #         add_special_tokens=add_special_tokens,
-    #         padding_strategy=padding_strategy,
-    #         truncation_strategy=truncation_strategy,
-    #         max_length=max_length,
-    #         stride=stride,
-    #         pad_to_multiple_of=pad_to_multiple_of,
-    #         return_attention_mask=return_attention_mask,
-    #         return_token_type_ids=return_token_type_ids,
-    #         return_overflowing_tokens=return_overflowing_tokens,
-    #         return_special_tokens_mask=return_special_tokens_mask,
-    #         return_length=return_length,
-    #         return_tensors=return_tensors,
-    #         verbose=verbose,
-    #     )
+        # Build output dictionnary
+        encoded_inputs["input_ids"] = [features_examples[position]["input_ids"] for position in range(len(queries))]
+        encoded_inputs["attention_mask"] = [features_examples[position]["attention_mask"] for position in range(len(queries))]
+        
+        token_types = ["segment_ids", "column_ids", "row_ids", "prev_label_ids", "column_ranks",
+                            "inv_column_ranks", "numeric_relations"]
+        token_type_ids = []
+        for position in range(len(queries)):
+            token_type_ids_example = []
+            for type in token_types:
+                token_type_ids_example.append(features_examples[position][type])
+            token_type_ids.append(token_type_ids_example)
 
-    #     return BatchEncoding(batch_outputs)
-    
-    
-    # @add_end_docstrings(ENCODE_KWARGS_DOCSTRING, ENCODE_PLUS_ADDITIONAL_KWARGS_DOCSTRING)
-    # def _batch_prepare_for_model(
-    #     self,
-    #     batch_ids_pairs: List[Union[PreTokenizedInputPair, Tuple[List[int], None]]],
-    #     add_special_tokens: bool = True,
-    #     padding_strategy: PaddingStrategy = PaddingStrategy.DO_NOT_PAD,
-    #     truncation_strategy: TruncationStrategy = TruncationStrategy.DO_NOT_TRUNCATE,
-    #     max_length: Optional[int] = None,
-    #     stride: int = 0,
-    #     pad_to_multiple_of: Optional[int] = None,
-    #     return_tensors: Optional[str] = None,
-    #     return_token_type_ids: Optional[bool] = None,
-    #     return_attention_mask: Optional[bool] = None,
-    #     return_overflowing_tokens: bool = False,
-    #     return_special_tokens_mask: bool = False,
-    #     return_length: bool = False,
-    #     verbose: bool = True,
-    # ) -> BatchEncoding:
-    #     """
-    #     Prepares a sequence of input id, or a pair of sequences of inputs ids so that it can be used by the model.
-    #     It adds special tokens, truncates sequences if overflowing while taking into account the special tokens and
-    #     manages a moving window (with user defined stride) for overflowing tokens
-    #     Args:
-    #         batch_ids_pairs: list of tokenized input ids or input ids pairs
-    #     """
+        # token_type_ids = [features_examples[position][type] for type in token_types for position in range(len(queries))]
 
-    #     batch_outputs = {}
-    #     for first_ids, second_ids in batch_ids_pairs:
-    #         outputs = self.prepare_for_model(
-    #             first_ids,
-    #             second_ids,
-    #             add_special_tokens=add_special_tokens,
-    #             padding=PaddingStrategy.DO_NOT_PAD.value,  # we pad in batch afterward
-    #             truncation=truncation_strategy.value,
-    #             max_length=max_length,
-    #             stride=stride,
-    #             pad_to_multiple_of=None,  # we pad in batch afterward
-    #             return_attention_mask=False,  # we pad in batch afterward
-    #             return_token_type_ids=return_token_type_ids,
-    #             return_overflowing_tokens=return_overflowing_tokens,
-    #             return_special_tokens_mask=return_special_tokens_mask,
-    #             return_length=return_length,
-    #             return_tensors=None,  # We convert the whole batch to tensors at the end
-    #             prepend_batch_axis=False,
-    #             verbose=verbose,
-    #         )
+        if return_token_type_ids:
+            encoded_inputs["token_type_ids"] = token_type_ids
 
-    #         for key, value in outputs.items():
-    #             if key not in batch_outputs:
-    #                 batch_outputs[key] = []
-    #             batch_outputs[key].append(value)
+        if return_special_tokens_mask:
+            raise ValueError("Special tokens mask is currently not supported")
 
-    #     batch_outputs = self.pad(
-    #         batch_outputs,
-    #         padding=padding_strategy.value,
-    #         max_length=max_length,
-    #         pad_to_multiple_of=pad_to_multiple_of,
-    #         return_attention_mask=return_attention_mask,
-    #     )
+        if return_length:
+            encoded_inputs["length"] = len(encoded_inputs["input_ids"])
+        
+        batch_outputs = BatchEncoding(encoded_inputs, tensor_type=return_tensors)
 
-    #     batch_outputs = BatchEncoding(batch_outputs, tensor_type=return_tensors)
-
-    #     return batch_outputs
+        return batch_outputs
