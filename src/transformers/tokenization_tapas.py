@@ -622,7 +622,146 @@ class TapasTokenizer(BertTokenizer):
                 add_loss_variables=add_loss_variables)
         
         return serialized_example, features
-    
+
+    #### Everything related to label ids calculation ####
+
+    def _get_all_answer_ids_from_coordinates(
+            self,
+            column_ids,
+            row_ids,
+            answers_list,
+        ):
+        """Maps lists of answer coordinates to token indexes."""
+        answer_ids = [0] * len(column_ids)
+        found_answers = set()
+        all_answers = set()
+        for answers in answers_list:
+            column_index, row_index = answers
+            all_answers.add((column_index, row_index))
+            for index in self._get_cell_token_indexes(column_ids, row_ids, column_index,
+                                                row_index):
+                found_answers.add((column_index, row_index))
+                answer_ids[index] = 1
+
+        print(answer_ids)
+        missing_count = len(all_answers) - len(found_answers)
+        return answer_ids, missing_count
+
+    def _get_all_answer_ids(
+        self,
+        column_ids,
+        row_ids,
+        question,
+        answer_coordinates
+        ):
+        """Maps lists of questions with answer coordinates to token indexes."""
+
+        def _to_coordinates(
+            question, answer_coordinates_question):
+            print(question)
+            print(answer_coordinates_question)
+            return [(coords[1], coords[0])
+                    for coords in answer_coordinates_question]
+
+        return self._get_all_answer_ids_from_coordinates(
+            column_ids,
+            row_ids,
+            answers_list=(_to_coordinates(question, answer_coordinates))
+        )
+
+    def _find_tokens(self, text, segment):
+        """Return start index of segment in text or None."""
+        logging.info('text: %s %s', text, segment)
+        for index in range(1 + len(text) - len(segment)):
+            for seg_index, seg_token in enumerate(segment):
+                if text[index + seg_index].piece != seg_token.piece:
+                    break
+            else:
+                return index
+        return None
+
+    def _find_answer_coordinates_from_answer_text(
+        self,
+        tokenized_table,
+        answer_text,
+    ):
+        """Returns all occurrences of answer_text in the table."""
+        logging.info('answer text: %s', answer_text)
+        for row_index, row in enumerate(tokenized_table.rows):
+            if row_index == 0:
+                # We don't search for answers in the header.
+                continue
+            for col_index, cell in enumerate(row):
+                token_index = self._find_tokens(cell, answer_text)
+                if token_index is not None:
+                    yield TokenCoordinates(
+                        row_index=row_index,
+                        column_index=col_index,
+                        token_index=token_index,
+                    )
+
+    def _find_answer_ids_from_answer_texts(
+        self,
+        column_ids,
+        row_ids,
+        tokenized_table,
+        answer_texts,
+    ):
+        """Maps question with answer texts to the first matching token indexes."""
+        answer_ids = [0] * len(column_ids)
+        for answer_text in answer_texts:
+            for coordinates in self._find_answer_coordinates_from_answer_text(
+                tokenized_table,
+                answer_text,
+            ):
+                # Maps answer coordinates to indexes this can fail if tokens / rows have
+                # been pruned.
+                indexes = list(
+                    self._get_cell_token_indexes(
+                        column_ids,
+                        row_ids,
+                        column_id=coordinates.column_index,
+                        row_id=coordinates.row_index - 1,
+                    ))
+                indexes.sort()
+                coordinate_answer_ids = []
+                if indexes:
+                    begin_index = coordinates.token_index + indexes[0]
+                    end_index = begin_index + len(answer_text)
+                    for index in indexes:
+                        if index >= begin_index and index < end_index:
+                            coordinate_answer_ids.append(index)
+                if len(coordinate_answer_ids) == len(answer_text):
+                    for index in coordinate_answer_ids:
+                        answer_ids[index] = 1
+                    break
+        return answer_ids
+
+    def _get_answer_ids(self, column_ids, row_ids, question, answer_coordinates):
+        """Maps answer coordinates to token indexes."""
+        answer_ids, missing_count = self._get_all_answer_ids(column_ids, row_ids,
+                                                        [question],
+                                                        answer_coordinates)
+
+        if missing_count:
+            raise ValueError("Couldn't find all answers")
+        return answer_ids
+
+    def get_answer_ids(self, column_ids, row_ids, tokenized_table, question, answer_texts_question, answer_coordinates_question):
+        if self.update_answer_coordinates:
+            return self._find_answer_ids_from_answer_texts(
+                column_ids,
+                row_ids,
+                tokenized_table,
+                answer_texts=[
+                    self.tokenize(at)
+                    for at in answer_texts_question
+                ],
+            )
+        return self._get_answer_ids(column_ids, row_ids, question, answer_coordinates_question)
+
+    #### Ending of everything related to label ids calculation ####
+
     def batch_encode_plus(self,
         table: pd.DataFrame,
         queries: Union[
@@ -631,7 +770,7 @@ class TapasTokenizer(BertTokenizer):
             List[EncodedInput],
         ],
         answer_coordinates: Optional[List[Tuple]] = None,
-        answer_text: Optional[List[TextInput]] = None,
+        answer_texts: Optional[List[TextInput]] = None,
         add_special_tokens: bool = True,
         padding_strategy: PaddingStrategy = PaddingStrategy.DO_NOT_PAD,
         truncation_strategy: TruncationStrategy = TruncationStrategy.DO_NOT_TRUNCATE,
@@ -673,7 +812,7 @@ class TapasTokenizer(BertTokenizer):
             table=table,
             queries=queries,
             answer_coordinates=answer_coordinates,
-            answer_text=answer_text,
+            answer_texts=answer_texts,
             add_special_tokens=add_special_tokens,
             padding_strategy=padding_strategy,
             truncation_strategy=truncation_strategy,
@@ -701,7 +840,7 @@ class TapasTokenizer(BertTokenizer):
             List[EncodedInput],
         ],
         answer_coordinates: Optional[List[Tuple]] = None,
-        answer_text: Optional[List[TextInput]] = None,
+        answer_texts: Optional[List[TextInput]] = None,
         add_special_tokens: bool = True,
         padding_strategy: PaddingStrategy = PaddingStrategy.DO_NOT_PAD,
         truncation_strategy: TruncationStrategy = TruncationStrategy.DO_NOT_TRUNCATE,
@@ -740,7 +879,7 @@ class TapasTokenizer(BertTokenizer):
             table=table,
             queries=queries,
             answer_coordinates=answer_coordinates,
-            answer_text=answer_text,
+            answer_texts=answer_texts,
             add_special_tokens=add_special_tokens,
             padding_strategy=padding_strategy,
             truncation_strategy=truncation_strategy,
@@ -767,7 +906,7 @@ class TapasTokenizer(BertTokenizer):
             List[EncodedInput],
         ],
         answer_coordinates: Optional[List[Tuple]] = None,
-        answer_text: Optional[List[TextInput]] = None,
+        answer_texts: Optional[List[TextInput]] = None,
         add_special_tokens: bool = True,
         padding_strategy: PaddingStrategy = PaddingStrategy.DO_NOT_PAD,
         truncation_strategy: TruncationStrategy = TruncationStrategy.DO_NOT_TRUNCATE,
@@ -827,12 +966,12 @@ class TapasTokenizer(BertTokenizer):
         if return_overflowing_tokens:
             raise ValueError("Overflowing tokens is currently not supported")
 
-        if (answer_coordinates and not answer_text) or (not answer_coordinates and answer_text):
+        if (answer_coordinates and not answer_texts) or (not answer_coordinates and answer_texts):
             raise ValueError("In case you provide answers, both answer_coordinates and answer_text should be provided") 
 
         add_loss_variables = None
-        if answer_coordinates is not None and answer_text is not None:
-            assert len(answer_coordinates) == len(answer_text)
+        if answer_coordinates is not None and answer_texts is not None:
+            assert len(answer_coordinates) == len(answer_texts)
             add_loss_variables = True
         
         # First, tokenize the table and get the number of rows and columns
@@ -855,8 +994,28 @@ class TapasTokenizer(BertTokenizer):
                                                                 num_rows=num_rows,
                                                                 drop_rows_to_fit=self.drop_rows_to_fit,
                                                                 add_loss_variables=add_loss_variables)
-                # TO DO: add prev label ids logic (see line 1118 in tf_example_utils.py)
-                features['prev_label_ids'] = [0] * len(features["input_ids"])
+                if position == 0:
+                    prev_label_ids = [0] * len(features["input_ids"])
+                else:
+                    # TO DO: add prev label ids logic (see line 1118 in tf_example_utils.py)
+                    prev_label_ids = [0] * len(features["input_ids"])
+                self._pad_to_seq_length(prev_label_ids)
+                features["prev_label_ids"] = prev_label_ids
+
+                if add_loss_variables:
+                    column_ids = serialized_example.column_ids
+                    row_ids = serialized_example.row_ids
+                    
+                    label_ids = self.get_answer_ids(column_ids, 
+                                                     row_ids, 
+                                                     tokenized_table, 
+                                                     query, 
+                                                     answer_texts[position],
+                                                     answer_coordinates[position],
+                                                     )
+                    self._pad_to_seq_length(label_ids)
+                    features['label_ids'] = label_ids
+
                 features_examples[position] = features
             else:
                 raise ValueError(
@@ -880,6 +1039,9 @@ class TapasTokenizer(BertTokenizer):
             # token_type_ids_example is a list of seq_length elements, each element being a list of 7 elements
             token_type_ids.append(token_type_ids_example)
 
+        if add_loss_variables:
+            encoded_inputs["label_ids"] = [features_examples[position]["label_ids"] for position in range(len(queries))]
+        
         if return_token_type_ids:
             encoded_inputs["token_type_ids"] = token_type_ids
 
