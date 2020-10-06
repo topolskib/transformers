@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """ TAPAS configuration. Currently only the 4 fine-tuning tasks (SQA, WTQ, WIKISQL and
-    WIKISQL_SUPERVISED) are supported. By default, intializes SQA configuration. 
+    WIKISQL_SUPERVISED) are supported. By default, intializes to SQA configuration. 
 """
 
 
@@ -25,11 +25,19 @@ from .configuration_bert import BertConfig
 logger = logging.getLogger(__name__)
 
 TAPAS_PRETRAINED_CONFIG_ARCHIVE_MAP = {
-    "tapas-base": "",
-    "tapas-large": ""
+    "tapas-base": "", # to be added
+    "tapas-large": "" # to be added
 }
 
 class TapasConfig(BertConfig):
+    r"""
+    This is the configuration class to store the configuration of a :class:`~transformers.TapasModel. 
+    It is used to instantiate a TAPAS model according to the specified arguments, defining the model 
+    architecture. Instantiating a configuration with the defaults will yield a similar configuration 
+    to that of the TAPAS `tapas-base-finetuned-sqa (URL to be added) architecture. Configuration objects 
+    inherit from :class:`~transformers.PreTrainedConfig` and can be used to control the model outputs. 
+    Read the documentation from :class:`~transformers.PretrainedConfig` for more information.
+    """
     
     model_type = "tapas"
 
@@ -71,8 +79,6 @@ class TapasConfig(BertConfig):
         span_prediction="none",
         **kwargs):
 
-        """Constructs TapasConfig.
-        """
         super().__init__(max_position_embeddings=max_position_embeddings, type_vocab_size=type_vocab_size, **kwargs)
         
         # Fine-tuning task arguments

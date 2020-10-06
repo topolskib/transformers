@@ -1,3 +1,4 @@
+import enum
 from dataclasses import dataclass
 from typing import Text, Union, Tuple, Iterable, List, Any, Dict, Callable, Optional, Set
 import re
@@ -5,7 +6,7 @@ import itertools
 import collections
 import datetime
 import math
-import enum
+
 
 class Relation(enum.Enum):
   HEADER_TO_CELL = 1  # Connects header to cell.
@@ -391,6 +392,7 @@ def add_numeric_values_to_question(question):
   numeric_spans = parse_text(question) 
 
   return (question, numeric_spans)
+
 
 def get_numeric_relation(value, other_value, sort_key_fn):
     """Compares two values and returns their relation or None."""

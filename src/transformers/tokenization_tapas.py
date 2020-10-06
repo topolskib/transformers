@@ -585,7 +585,7 @@ class TapasTokenizer(BertTokenizer):
             num_columns,
             num_rows,
             drop_rows_to_fit = False,
-        ):
+    ):
         """Finds optimal number of table tokens to include and serializes."""
         init_num_rows = num_rows
         while True:
@@ -626,7 +626,7 @@ class TapasTokenizer(BertTokenizer):
             column_ids,
             row_ids,
             answers_list,
-        ):
+    ):
         """Maps lists of answer coordinates to token indexes."""
         answer_ids = [0] * len(column_ids)
         found_answers = set()
@@ -648,7 +648,7 @@ class TapasTokenizer(BertTokenizer):
         row_ids,
         question,
         answer_coordinates
-        ):
+    ):
         """Maps lists of questions with answer coordinates to token indexes.
         Here, we swap column and row coordinates. In the TSV format, the coordinates
         are given as (row, column) tuples. Here, we swap them to (column, row) format.
