@@ -650,11 +650,13 @@ class TapasTokenizer(BertTokenizer):
         question,
         answer_coordinates
         ):
-        """Maps lists of questions with answer coordinates to token indexes."""
+        """Maps lists of questions with answer coordinates to token indexes.
+        Here, we swap column and row coordinates. In the TSV format, the coordinates
+        are given as (row, column) tuples. Here, we swap them to (column, row) format.
+        """
 
         def _to_coordinates(
             question, answer_coordinates_question):
-            # here we swap column and row coordinates (in TSV format, the coordinates are given as row, column. Here we swap them to column, row)
             return [(coords[1], coords[0])
                     for coords in answer_coordinates_question]
 
@@ -989,14 +991,7 @@ class TapasTokenizer(BertTokenizer):
                                                                 num_columns=num_columns,
                                                                 num_rows=num_rows,
                                                                 drop_rows_to_fit=self.drop_rows_to_fit)
-                if position == 0:
-                    prev_label_ids = [0] * len(features["input_ids"])
-                else:
-                    # TO DO: add prev label ids logic (see line 1118 in tf_example_utils.py)
-                    prev_label_ids = position_to_label_ids[position - 1]
-                self._pad_to_seq_length(prev_label_ids)
-                features["prev_label_ids"] = prev_label_ids
-
+                
                 if add_loss_variables:
                     column_ids = serialized_example.column_ids
                     row_ids = serialized_example.row_ids
@@ -1011,6 +1006,19 @@ class TapasTokenizer(BertTokenizer):
                     self._pad_to_seq_length(label_ids)
                     position_to_label_ids[position] = label_ids
                     features['label_ids'] = label_ids
+
+                    if position == 0:
+                        prev_label_ids = [0] * len(features["input_ids"])
+                    else:
+                        # TO DO: add prev label ids logic (see line 1118 in tf_example_utils.py)
+                        prev_label_ids = position_to_label_ids[position - 1]
+                    self._pad_to_seq_length(prev_label_ids)
+                    features["prev_label_ids"] = prev_label_ids
+
+                else:
+                    prev_label_ids = [0] * len(features["input_ids"])
+                    self._pad_to_seq_length(prev_label_ids)
+                    features["prev_label_ids"] = prev_label_ids
 
                 features_examples[position] = features
             else:
