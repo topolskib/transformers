@@ -13,9 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pandas as pd
 from typing import Any, Dict, Iterable, List, Mapping, Optional, overload, Text, Tuple, Union
 import collections
-import pandas as pd
 import dataclasses
 
 from .tokenization_bert import BertTokenizer, BertTokenizerFast
@@ -562,9 +562,8 @@ class TapasTokenizer(BertTokenizer):
         features = self._add_numeric_relations(question, token_ids_dict['column_ids'],
                                     token_ids_dict['row_ids'], table, features, columns_to_numeric_values)
 
-        # TO DO: finally, add numeric values and numeric values scale
-        # these are only needed in case off loss calculation
-        # so they should only be created in case answer_coordinates + answer_text are provided
+        # finally, add numeric values and numeric values scale (only needed in case of loss calculation)
+        # so they should only be returned in case answer_coordinates + answer_texts are provided
         
         features = self._add_numeric_values(table, token_ids_dict, features, columns_to_numeric_values)
 
@@ -757,7 +756,7 @@ class TapasTokenizer(BertTokenizer):
             )
         return self._get_answer_ids(column_ids, row_ids, question, answer_coordinates_question)
 
-    #### Ending of everything related to label ids calculation ####
+    #### End of everything related to label ids calculation ####
 
     def batch_encode_plus(self,
         table: pd.DataFrame,
@@ -996,13 +995,14 @@ class TapasTokenizer(BertTokenizer):
                     column_ids = serialized_example.column_ids
                     row_ids = serialized_example.row_ids
 
+                    # create label ids from answer texts and coordinates
                     label_ids = self.get_answer_ids(column_ids, 
-                                                     row_ids, 
-                                                     tokenized_table, 
-                                                     query, 
-                                                     answer_texts[position],
-                                                     answer_coordinates[position],
-                                                     )
+                                                    row_ids, 
+                                                    tokenized_table, 
+                                                    query, 
+                                                    answer_texts[position],
+                                                    answer_coordinates[position],
+                                                    )
                     self._pad_to_seq_length(label_ids)
                     position_to_label_ids[position] = label_ids
                     features['label_ids'] = label_ids
@@ -1043,14 +1043,15 @@ class TapasTokenizer(BertTokenizer):
             # token_type_ids_example is a list of seq_length elements, each element being a list of 7 elements
             token_type_ids.append(token_type_ids_example)
 
+        if return_token_type_ids:
+            encoded_inputs["token_type_ids"] = token_type_ids
+        
         if add_loss_variables:
             encoded_inputs["label_ids"] = [features_examples[position]["label_ids"] for position in range(len(queries))]
             encoded_inputs["numeric_values"] = [features_examples[position]["numeric_values"] for position in range(len(queries))]
             encoded_inputs["numeric_values_scale"] = [features_examples[position]["numeric_values_scale"] for position in range(len(queries))]
+            # to do: add aggregation function id, classification class index and answer
         
-        if return_token_type_ids:
-            encoded_inputs["token_type_ids"] = token_type_ids
-
         if return_special_tokens_mask:
             raise ValueError("Special tokens mask is currently not supported")
 
