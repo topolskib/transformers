@@ -346,6 +346,9 @@ class TapasTokenizer(BertTokenizer):
         if table is not None:
             for col_index in range(len(table.columns)):
                 table_numeric_values = utils._parse_column_values(table, col_index)
+                print(f"Column {col_index}")
+                print("Numeric values:")
+                print(table_numeric_values)
                 # we remove row indices for which no numeric value was found
                 table_numeric_values = self._get_column_values(table_numeric_values)
                 # we add the numeric values to a dictionary, to be used in _add_numeric_relations
