@@ -1072,7 +1072,7 @@ class TapasTokenizer(BertTokenizer):
             col = column_ids[i] - 1
             row = row_ids[i] - 1
             if col >= 0 and row >= 0 and segment_id == 1:
-            yield i, p
+                yield i, p
 
     def _get_mean_cell_probs(self, probabilities, segment_ids, row_ids, column_ids):
         """Computes average probability per cell, aggregating over tokens."""
@@ -1082,7 +1082,6 @@ class TapasTokenizer(BertTokenizer):
             row = row_ids[i] - 1
             coords_to_probs[(col, row)].append(prob)
         return {
-            #coords: np.array(cell_probs).mean()
             coords: torch.as_tensor(cell_probs).mean()
             for coords, cell_probs in coords_to_probs.items()
         }
@@ -1130,11 +1129,11 @@ class TapasTokenizer(BertTokenizer):
             # Select the answers above the classification threshold.
             answer_coordinates = []
             for col in range(max_width):
-            for row in range(max_height):
-                cell_prob = cell_coords_to_prob.get((col, row), None)
-                if cell_prob is not None:
-                if cell_prob > cell_classification_threshold:
-                    answer_coordinates.append(str((row, col)))
+                for row in range(max_height):
+                    cell_prob = cell_coords_to_prob.get((col, row), None)
+                    if cell_prob is not None:
+                        if cell_prob > cell_classification_threshold:
+                            answer_coordinates.append(str((row, col)))
             answer_coordinates = sorted(self.parse_coordinates(answer_coordinates))
             answer_coordinates_batch.append(answer_coordinates)
 
