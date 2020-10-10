@@ -459,9 +459,6 @@ def _calculate_aggregate_mask(answer, pooled_output, cell_select_pref, label_ids
     
     # torch.where is not equivalent to tf.where (in tensorflow 1)
     # hence the added .view on the condition to match the shape of the first tensor
-    print(is_pred_cell_selection)
-    print(is_cell_supervision_available)
-    print(aggregate_mask_init)
     aggregate_mask = torch.where(
                         torch.logical_and(is_pred_cell_selection, is_cell_supervision_available).view(aggregate_mask_init.size()),
                         torch.zeros_like(aggregate_mask_init, dtype=torch.float32), 
