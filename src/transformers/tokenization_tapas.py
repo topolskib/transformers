@@ -1135,7 +1135,7 @@ class TapasTokenizer(BertTokenizer):
                     if cell_prob is not None:
                         if cell_prob > cell_classification_threshold:
                             answer_coordinates.append(str((row, col)))
-            answer_coordinates = sorted(self.parse_coordinates(answer_coordinates))
+            answer_coordinates = sorted(self._parse_coordinates(answer_coordinates))
             answer_coordinates_batch.append(answer_coordinates)
 
         output = answer_coordinates_batch
