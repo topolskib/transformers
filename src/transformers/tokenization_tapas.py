@@ -13,10 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pandas as pd
-from typing import Any, Dict, Iterable, List, Mapping, Optional, overload, Text, Tuple, Union
 import collections
+import ast
+from typing import Any, Dict, Iterable, List, Mapping, Optional, overload, Text, Tuple, Union
 import dataclasses
+
+import pandas as pd
 
 from .tokenization_bert import BertTokenizer, BertTokenizerFast
 from .tokenization_utils_base import (
@@ -1050,7 +1052,7 @@ class TapasTokenizer(BertTokenizer):
             encoded_inputs["label_ids"] = [features_examples[position]["label_ids"] for position in range(len(queries))]
             encoded_inputs["numeric_values"] = [features_examples[position]["numeric_values"] for position in range(len(queries))]
             encoded_inputs["numeric_values_scale"] = [features_examples[position]["numeric_values_scale"] for position in range(len(queries))]
-            # to do: add aggregation function id, classification class index and answer
+            # to do: add aggregation function id, classification class index and answer (or should people prepare this themselves?)
         
         if return_special_tokens_mask:
             raise ValueError("Special tokens mask is currently not supported")
@@ -1061,3 +1063,93 @@ class TapasTokenizer(BertTokenizer):
         batch_outputs = BatchEncoding(encoded_inputs, tensor_type=return_tensors)
 
         return batch_outputs
+
+    #### Everything related to converting logits to answers ####
+
+    def _get_cell_token_probs(self, probabilities, segment_ids, row_ids, column_ids):
+        for i, p in enumerate(probabilities):
+            segment_id = segment_ids[i]
+            col = column_ids[i] - 1
+            row = row_ids[i] - 1
+            if col >= 0 and row >= 0 and segment_id == 1:
+            yield i, p
+
+    def _get_mean_cell_probs(self, probabilities, segment_ids, row_ids, column_ids):
+        """Computes average probability per cell, aggregating over tokens."""
+        coords_to_probs = collections.defaultdict(list)  
+        for i, prob in self._get_cell_token_probs(probabilities, segment_ids, row_ids, column_ids):
+            col = column_ids[i] - 1
+            row = row_ids[i] - 1
+            coords_to_probs[(col, row)].append(prob)
+        return {
+            #coords: np.array(cell_probs).mean()
+            coords: torch.as_tensor(cell_probs).mean()
+            for coords, cell_probs in coords_to_probs.items()
+        }
+
+    def _parse_coordinates(self, raw_coordinates):
+        """Parses cell coordinates from text."""
+        return [ast.literal_eval(x) for x in raw_coordinates]
+
+    def convert_logits_to_answers(self, data, logits, logits_agg=None, logits_cls=None, cell_classification_threshold=0.5):
+        # compute probabilities from token logits
+        dist_per_token = torch.distributions.Bernoulli(logits=logits)
+        probabilities = dist_per_token.probs * data["attention_mask"].type(torch.float32).to(dist_per_token.probs.device)
+        
+        token_types = ["segment_ids", "column_ids", "row_ids", "prev_label_ids", "column_ranks",
+                                    "inv_column_ranks", "numeric_relations"] 
+        
+        # collect input_ids, segment ids, row ids and column ids of batch. Shape (batch_size, seq_len)
+        input_ids = data["input_ids"]
+        segment_ids = data["token_type_ids"][:,:,token_types.index("segment_ids")]
+        row_ids = data["token_type_ids"][:,:,token_types.index("row_ids")]
+        column_ids = data["token_type_ids"][:,:,token_types.index("column_ids")]
+
+        # next, get answer coordinates for every example in the batch
+        num_batch = input_ids.shape[0]
+        answers_batch = []
+        answer_coordinates_batch = []
+        for i in range(num_batch):
+            probabilities_example = probabilities[i].tolist()
+            input_ids_example = input_ids[i].tolist()
+            segment_ids_example = segment_ids[i]
+            row_ids_example = row_ids[i]
+            column_ids_example = column_ids[i]
+
+            max_width = column_ids_example.max()
+            max_height = row_ids_example.max()
+
+            if (max_width == 0 and max_height == 0):
+                continue
+            
+            cell_coords_to_prob = self._get_mean_cell_probs(probabilities_example, 
+                                                    segment_ids_example.tolist(), 
+                                                    row_ids_example.tolist(), 
+                                                    column_ids_example.tolist())
+        
+            # Select the answers above the classification threshold.
+            answer_coordinates = []
+            for col in range(max_width):
+            for row in range(max_height):
+                cell_prob = cell_coords_to_prob.get((col, row), None)
+                if cell_prob is not None:
+                if cell_prob > cell_classification_threshold:
+                    answer_coordinates.append(str((row, col)))
+            answer_coordinates = sorted(self.parse_coordinates(answer_coordinates))
+            answer_coordinates_batch.append(answer_coordinates)
+
+        output = answer_coordinates_batch
+        
+        if logits_agg is not None:
+            aggregation_predictions = logits_agg.argmax(dim=-1)
+            output = (output, aggregation_predictions.tolist())
+
+        if logits_cls is not None:
+            classification_predictions = logits_cls.argmax(dim=-1)
+            output = output + (classification_predictions.tolist())
+        
+        return output
+
+        #### End of everything related to converting logits to answers ####
+
+            
