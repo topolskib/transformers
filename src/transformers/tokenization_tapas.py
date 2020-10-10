@@ -19,6 +19,7 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, overload, Text,
 import dataclasses
 
 import pandas as pd
+import torch
 
 from .tokenization_bert import BertTokenizer, BertTokenizerFast
 from .tokenization_utils_base import (
