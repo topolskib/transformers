@@ -561,6 +561,7 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         calculate_loss = False
         if label_ids is not None and answer is not None:
             calculate_loss = True
+            assert label_ids.shape[0] == answer.shape[0]
             is_supervised = not self.config.num_aggregation_labels > 0 or not self.config.use_answer_as_supervision
 
             ### Semi-supervised cell selection in case of no aggregation
@@ -613,6 +614,7 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
             #######################
             if self.config.num_classification_labels > 0:
                 if classification_class_index is not None:
+                    assert label_ids.shape[0] == classification_class_index.shape[0]
                     one_hot_labels = torch.nn.functional.one_hot(classification_class_index,
                                                                 num_classes=self.config.num_classification_labels).type(torch.float32)
                     log_probs = torch.nn.functional.log_softmax(logits_cls, dim=-1)
@@ -644,6 +646,7 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
             if self.config.num_aggregation_labels > 0:
                 # Note that `aggregate_mask` is None if the setting is supervised.
                 if aggregation_function_id is not None:
+                    assert label_ids.shape[0] == aggregation_function_id.shape[0]
                     per_example_additional_loss = utils._calculate_aggregation_loss(
                     logits_aggregation, aggregate_mask, aggregation_function_id, self.config)
                 else:
