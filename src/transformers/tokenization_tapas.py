@@ -18,7 +18,6 @@ import ast
 from typing import Any, Dict, Iterable, List, Mapping, Optional, overload, Text, Tuple, Union
 import dataclasses
 
-import pandas as pd
 import torch
 
 from .tokenization_bert import BertTokenizer, BertTokenizerFast
@@ -143,7 +142,7 @@ class TapasTokenizer(BertTokenizer):
     
     def _tokenize_table(
         self,
-        table: pd.DataFrame = None,
+        table = None,
         ):
         """Runs tokenizer over columns and table cell texts."""
         tokenized_rows = []
@@ -762,7 +761,7 @@ class TapasTokenizer(BertTokenizer):
     #### End of everything related to label ids calculation ####
 
     def batch_encode_plus(self,
-        table: pd.DataFrame,
+        table,
         queries: Union[
             List[TextInput],
             List[PreTokenizedInput],
@@ -832,7 +831,7 @@ class TapasTokenizer(BertTokenizer):
 
     def _batch_encode_plus(
         self,
-        table: pd.DataFrame,
+        table,
         queries: Union[
             List[TextInput],
             List[PreTokenizedInput],
@@ -898,7 +897,7 @@ class TapasTokenizer(BertTokenizer):
     
     def _batch_prepare_for_model(
         self,
-        table: pd.DataFrame,
+        table,
         queries: Union[
             List[TextInput],
             List[PreTokenizedInput],
