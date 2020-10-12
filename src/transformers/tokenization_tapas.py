@@ -97,7 +97,7 @@ class TapasTokenizer(BertTokenizer):
 
     :class:`~transformers.TapasTokenizer` inherits from :class:`~transformers.BertTokenizer` since it uses the same
     vocabulary. However, it adds several token type ids to encode tabular structure. It runs end-to-end
-    tokenization on a table and associated text: punctuation splitting and wordpiece.
+    tokenization on a table and associated queries: punctuation splitting and wordpiece.
 
     Refer to superclass :class:`~transformers.BertTokenizer` for usage examples and documentation concerning
     parameters.
@@ -762,7 +762,7 @@ class TapasTokenizer(BertTokenizer):
 
     def batch_encode_plus(self,
         table,
-        text: Union[
+        queries: Union[
             List[TextInput],
             List[PreTokenizedInput],
             List[EncodedInput],
@@ -791,8 +791,8 @@ class TapasTokenizer(BertTokenizer):
         .. warning::
             This method is deprecated, ``__call__`` should be used instead.
         Args:
-            text (:obj:`List[str]`):
-                Batch of sequences (text) related to a table to be encoded.
+            queries (:obj:`List[str]`):
+                Batch of sequences (queries) related to a table to be encoded.
                 This is a list of string-sequences (see details in ``encode_plus``).
         """
 
@@ -808,7 +808,7 @@ class TapasTokenizer(BertTokenizer):
 
         return self._batch_encode_plus(
             table=table,
-            text=text,
+            queries=queries,
             answer_coordinates=answer_coordinates,
             answer_texts=answer_texts,
             add_special_tokens=add_special_tokens,
@@ -832,7 +832,7 @@ class TapasTokenizer(BertTokenizer):
     def _batch_encode_plus(
         self,
         table,
-        text: Union[
+        queries: Union[
             List[TextInput],
             List[PreTokenizedInput],
             List[EncodedInput],
@@ -875,7 +875,7 @@ class TapasTokenizer(BertTokenizer):
 
         batch_outputs = self._batch_prepare_for_model(
             table=table,
-            text=text,
+            queries=queries,
             answer_coordinates=answer_coordinates,
             answer_texts=answer_texts,
             add_special_tokens=add_special_tokens,
@@ -898,7 +898,7 @@ class TapasTokenizer(BertTokenizer):
     def _batch_prepare_for_model(
         self,
         table,
-        text: Union[
+        queries: Union[
             List[TextInput],
             List[PreTokenizedInput],
             List[EncodedInput],
@@ -921,7 +921,7 @@ class TapasTokenizer(BertTokenizer):
         **kwargs
     ) -> BatchEncoding:
         """
-        Prepares a sequence of strings (text) related to a table so that it can be used by the model.
+        Prepares a sequence of strings (queries) related to a table so that it can be used by the model.
         It creates input ids, adds special tokens, truncates the table if overflowing (if the drop_rows_to_fit
         parameter is set to True) while taking into account the special tokens and manages a moving window 
         (with user defined stride) for overflowing tokens
@@ -931,7 +931,7 @@ class TapasTokenizer(BertTokenizer):
 
         Args:
             table: Pandas dataframe
-            text: List of Strings, containing questions related to the table
+            queries: List of Strings, containing questions related to the table
         """
 
         if "return_lengths" in kwargs:
@@ -980,7 +980,7 @@ class TapasTokenizer(BertTokenizer):
         # Second, create the input ids for every table + query pair (and all the other features). This is a list of lists
         features_examples = {}
         position_to_label_ids = {}
-        for position, query in enumerate(text):
+        for position, query in enumerate(queries):
             if isinstance(query, str):
                 text_tokens = self.tokenize(query)
                 # currently, padding is done within the _to_trimmed_features function 
@@ -1029,13 +1029,13 @@ class TapasTokenizer(BertTokenizer):
                 )
 
         # Build output dictionnary
-        encoded_inputs["input_ids"] = [features_examples[position]["input_ids"] for position in range(len(text))]
-        encoded_inputs["attention_mask"] = [features_examples[position]["attention_mask"] for position in range(len(text))]
+        encoded_inputs["input_ids"] = [features_examples[position]["input_ids"] for position in range(len(queries))]
+        encoded_inputs["attention_mask"] = [features_examples[position]["attention_mask"] for position in range(len(queries))]
         
         token_types = ["segment_ids", "column_ids", "row_ids", "prev_label_ids", "column_ranks",
                             "inv_column_ranks", "numeric_relations"]
         token_type_ids = []
-        for position in range(len(text)):
+        for position in range(len(queries)):
             token_type_ids_example = []
             for token_idx in range(self.model_max_length):
                 token_ids = []
@@ -1049,9 +1049,9 @@ class TapasTokenizer(BertTokenizer):
             encoded_inputs["token_type_ids"] = token_type_ids
         
         if add_loss_variables:
-            encoded_inputs["label_ids"] = [features_examples[position]["label_ids"] for position in range(len(text))]
-            encoded_inputs["numeric_values"] = [features_examples[position]["numeric_values"] for position in range(len(text))]
-            encoded_inputs["numeric_values_scale"] = [features_examples[position]["numeric_values_scale"] for position in range(len(text))]
+            encoded_inputs["label_ids"] = [features_examples[position]["label_ids"] for position in range(len(queries))]
+            encoded_inputs["numeric_values"] = [features_examples[position]["numeric_values"] for position in range(len(queries))]
+            encoded_inputs["numeric_values_scale"] = [features_examples[position]["numeric_values_scale"] for position in range(len(queries))]
             # to do: add aggregation function id, classification class index and answer (or should people prepare this themselves?)
         
         if return_special_tokens_mask:
