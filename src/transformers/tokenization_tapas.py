@@ -79,7 +79,7 @@ class SerializedExample:
   segment_ids: List[int]
   
 
-def _is_inner_wordpiece(token):
+def _is_inner_wordpiece(token: Text):
     return token.startswith('##')
 
 
@@ -88,8 +88,21 @@ class TapasTokenizer(BertTokenizer):
     Construct a TAPAS tokenizer.
 
     :class:`~transformers.TapasTokenizer` inherits from :class:`~transformers.BertTokenizer` since it uses the same
-    vocabulary. However, it adds several token type ids to encode tabular structure. It runs end-to-end
-    tokenization on a table and associated queries: punctuation splitting and wordpiece.
+    vocabulary. However, it adds several token type ids to encode tabular structure. To be more precise, it adds 7 token 
+    type ids, in the following order: "segment_ids", "column_ids", "row_ids", "prev_label_ids", "column_ranks",
+    "inv_column_ranks" and "numeric_relations". Here I explain each of them:
+
+    - segment_ids: indicate whether a token belongs to the question (0) or the table (1). 0 for special tokens and padding.
+    - column_ids: indicate to which column of the table a token belongs (starting from 1). Is 0 for all question tokens, special tokens and padding.
+    - row_ids: indicate to which row of the table a token belongs (starting from 1). Is 0 for all question tokens, special tokens and padding. Tokens of column headers are also 0.
+    - prev_label_ids: indicate whether a token was (part of) an answer to the previous question (1) or not (0). Useful in a conversational setup (such as SQA).
+    - column_ranks: indicate the rank of a table token relative to a column, if applicable. For example, if you have a column "number of movies" with values 87,
+    53 and 69, then the column ranks of these tokens are 3, 1 and 2 respectively. 0 for all question tokens, special tokens and padding.
+    - inv_column_ranks: indicate the inverse rank of a table token relative to a column, if applicable. For example, if you have a column "number of movies" with values 87,
+    53 and 69, then the column ranks of these tokens are 1, 3 and 2 respectively. 0 for all question tokens, special tokens and padding.
+    - numeric_relations: indicate numeric relations between the question and the tokens of the table. 0 for all question tokens, special tokens and padding.
+
+    It runs end-to-end tokenization on a table and associated queries: punctuation splitting and wordpiece.
 
     Refer to superclass :class:`~transformers.BertTokenizer` for usage examples and documentation concerning
     parameters.
@@ -387,10 +400,10 @@ class TapasTokenizer(BertTokenizer):
         The function returned will be a suitable input for the key param of the
         sort(). See number_annotation_utils._get_numeric_sort_key_fn for details.
         Args:
-        table_numeric_values: Numeric values of a column
-        value: Numeric value in the question.
+            table_numeric_values: Numeric values of a column
+            value: Numeric value in the question.
         Returns:
-        A function key function to compare column and question values.
+            A function key function to compare column and question values.
         """
         if not table_numeric_values:
             return None
@@ -408,17 +421,16 @@ class TapasTokenizer(BertTokenizer):
                              columns_to_numeric_values):
         """Adds numeric relation embeddings to 'features'.
         Args:
-        question: The question, numeric values are used.
-        column_ids: Maps word piece position to column id.
-        row_ids: Maps word piece position to row id.
-        table: The table containing the numeric cell values.
-        features: Output.
-        columns_to_numeric_values: Dictionary that maps column indices to numeric values.
+            question: The question, numeric values are used.
+            column_ids: Maps word piece position to column id.
+            row_ids: Maps word piece position to row id.
+            table: The table containing the numeric cell values.
+            features: Output.
+            columns_to_numeric_values: Dictionary that maps column indices to numeric values.
         """
 
         numeric_relations = [0] * len(column_ids)
 
-        # TO BE ADDED (see original implementation)
         # first, we add any numeric value spans to the question:
         # Create a dictionary that maps a table cell to the set of all relations
         # this cell has with any value in the question.
