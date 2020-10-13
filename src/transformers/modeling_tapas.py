@@ -19,6 +19,8 @@ import logging
 import warnings
 import os
 from dataclasses import dataclass
+from typing import Optional
+
 
 import torch
 import torch.nn as nn
