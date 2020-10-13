@@ -19,7 +19,7 @@ import logging
 import warnings
 import os
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Tuple
 
 
 import torch
