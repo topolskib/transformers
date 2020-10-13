@@ -16,7 +16,7 @@
 import collections
 import ast
 from typing import Any, Dict, Iterable, List, Mapping, Optional, overload, Text, Tuple, Union
-import dataclasses
+from dataclasses import dataclass
 
 import torch
 
@@ -58,20 +58,20 @@ PRETRAINED_INIT_CONFIGURATION = {
 }
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclass(frozen=True)
 class TokenCoordinates:
   column_index: int
   row_index: int
   token_index: int
 
 
-@dataclasses.dataclass
+@dataclass
 class TokenizedTable:
   rows: List[List[List[Text]]]
   selected_tokens: List[TokenCoordinates]
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclass(frozen=True)
 class SerializedExample:
   tokens: List[Text]
   column_ids: List[int]
