@@ -30,6 +30,7 @@ from transformers import modeling_tapas_utilities as utils
 from .configuration_tapas import TapasConfig
 from .modeling_bert import BertLayerNorm, BertPreTrainedModel, BertEncoder, BertPooler, BertOnlyMLMHead
 from .modeling_outputs import (
+    ModelOutput,
     BaseModelOutputWithPooling,
     MaskedLMOutput,
     QuestionAnsweringModelOutput, # to be used
@@ -79,7 +80,6 @@ def load_tf_weights_in_tapas(model, config, tf_checkpoint_path):
         # which are not required for using pretrained model
         if any(
             n in ["adam_v", "adam_m", "AdamWeightDecayOptimizer", "AdamWeightDecayOptimizer_1", "global_step", "seq_relationship"]
-            #"column_output_bias", "column_output_weights", "output_bias", "output_weights"]
             for n in name
         ):
             logger.info("Skipping {}".format("/".join(name)))
@@ -143,6 +143,18 @@ def load_tf_weights_in_tapas(model, config, tf_checkpoint_path):
     return model
 
 
+@dataclass
+class TableQuestionAnsweringOutput(ModelOutput):
+    """
+    Class for table question answering outputs.
+    """
+    loss: Optional[torch.FloatTensor] = None
+    logits: torch.FloatTensor = None
+    logits_aggregation: torch.FloatTensor = None
+    logits_cls: torch.FloatTensor = None
+    hidden_states: Optional[Tuple[torch.FloatTensor]] = None
+    attentions: Optional[Tuple[torch.FloatTensor]] = None
+    
 
 class TapasEmbeddings(nn.Module):
     """
@@ -408,6 +420,9 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
 
         # base model
         self.tapas = TapasModel(config)
+
+        # dropout (only used when training)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
         
         # cell selection heads
         """init_cell_selection_weights_to_zero: Whether the initial weights should be
@@ -488,6 +503,9 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
 
         sequence_output = outputs[0]
         pooled_output = outputs[1]
+
+        # if config.is_training:
+        #     sequence_output = self.dropout(sequence_output)
         
         # Construct indices for the table.
         if token_type_ids is None:
@@ -674,3 +692,12 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         if not return_dict:
             output = (logits, logits_aggregation, logits_cls) + outputs[2:]
             return ((total_loss,) + output) if calculate_loss else output
+
+        return TableQuestionAnsweringOutput(
+            loss=total_loss,
+            logits=logits,
+            logits_aggregation=logits_aggregation,
+            logits_cls=logits_cls,
+            hidden_states=outputs.hidden_states,
+            attentions=outputs.attentions,
+        )

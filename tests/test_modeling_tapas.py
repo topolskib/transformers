@@ -15,56 +15,41 @@
 
 
 import unittest
-import random
 
-import torch
 from transformers import is_torch_available
-from transformers.testing_utils import require_torch, slow, torch_device
+from transformers.testing_utils import require_torch, require_torch_and_cuda, slow, torch_device
 
 from .test_configuration_common import ConfigTester
 from .test_modeling_common import ModelTesterMixin, ids_tensor
 
-def token_type_ids_tensor(shape, type_vocab_size, rng=None, name=None):
-    #  Small change compared to "ids_tensor" function (from .test_modeling_common)
-    #  Creates a random int32 tensor of the shape, within the type vocab sizes
-    if rng is None:
-        global_rng = random.Random()
-        rng = global_rng
-
-    total_dims = 1
-    for dim in shape[:-1]:
-        total_dims *= dim
-
-    values = []
-    for _ in range(total_dims):
-        for vocab_size in type_vocab_size:
-            values.append(rng.randint(0, vocab_size - 1))
-
-    return torch.tensor(data=values, dtype=torch.long, device=torch_device).view(shape).contiguous()
 
 if is_torch_available():
     from transformers import (
-        TapasConfig,
-        TapasModel,
-        TapasForMaskedLM,
-        #TapasForQuestionAnswering, # to be used
         AutoModelForMaskedLM,
         AutoTokenizer,
+        TapasConfig,
+        TapasForMaskedLM,
+        #XxxForMultipleChoice, # to be added
+        TapasForQuestionAnswering,
+        #XxxForSequenceClassification, # to be added
+        #XxxForTokenClassification, # to be added
+        TapasModel,
     )
     from transformers.file_utils import cached_property
 
 
 class TapasModelTester:
+    """You can also import this e.g from .test_modeling_bart import BartModelTester """
 
     def __init__(
         self,
         parent,
         batch_size=13,
-        seq_length=8,
+        seq_length=7,
         is_training=True,
         use_input_mask=True,
         use_token_type_ids=True,
-        use_labels=True,
+        # use_labels=True, # to be added
         vocab_size=99,
         hidden_size=32,
         num_hidden_layers=5,
@@ -74,11 +59,11 @@ class TapasModelTester:
         hidden_dropout_prob=0.1,
         attention_probs_dropout_prob=0.1,
         max_position_embeddings=512,
-        type_vocab_size=[8,12,35,42,11,8,15],
-        type_sequence_label_size=2,
+        type_vocab_size=[3, 256, 256, 2, 256, 256, 10],
+        #type_sequence_label_size=2, # to be added
         initializer_range=0.02,
-        num_labels=3,
-        #num_choices=4,
+        #num_labels=3, # to be added
+        #num_choices=4, # to be added
         scope=None,
     ):
         self.parent = parent
@@ -87,7 +72,7 @@ class TapasModelTester:
         self.is_training = is_training
         self.use_input_mask = use_input_mask
         self.use_token_type_ids = use_token_type_ids
-        self.use_labels = use_labels
+        #self.use_labels = use_labels # to be added
         self.vocab_size = vocab_size
         self.hidden_size = hidden_size
         self.num_hidden_layers = num_hidden_layers
@@ -98,12 +83,12 @@ class TapasModelTester:
         self.attention_probs_dropout_prob = attention_probs_dropout_prob
         self.max_position_embeddings = max_position_embeddings
         self.type_vocab_size = type_vocab_size
-        self.type_sequence_label_size = type_sequence_label_size
+        #self.type_sequence_label_size = type_sequence_label_size # to be added
         self.initializer_range = initializer_range
-        self.num_labels = num_labels
-        #self.num_choices = num_choices
+        #self.num_labels = num_labels # to be added
+        #self.num_choices = num_choices # to be added
         self.scope = scope
-    
+
     def prepare_config_and_inputs(self):
         input_ids = ids_tensor([self.batch_size, self.seq_length], self.vocab_size)
 
@@ -113,15 +98,15 @@ class TapasModelTester:
 
         token_type_ids = None
         if self.use_token_type_ids:
-            token_type_ids = token_type_ids_tensor([self.batch_size, self.seq_length, len(self.type_vocab_size)], self.type_vocab_size)
+            token_type_ids = ids_tensor([self.batch_size, self.seq_length], self.type_vocab_size)
 
         sequence_labels = None
         token_labels = None
-        #choice_labels = None
+        choice_labels = None
         if self.use_labels:
             sequence_labels = ids_tensor([self.batch_size], self.type_sequence_label_size)
             token_labels = ids_tensor([self.batch_size, self.seq_length], self.num_labels)
-            #choice_labels = ids_tensor([self.batch_size], self.num_choices)
+            choice_labels = ids_tensor([self.batch_size], self.num_choices)
 
         config = TapasConfig(
             vocab_size=self.vocab_size,
@@ -134,16 +119,15 @@ class TapasModelTester:
             attention_probs_dropout_prob=self.attention_probs_dropout_prob,
             max_position_embeddings=self.max_position_embeddings,
             type_vocab_size=self.type_vocab_size,
-            is_decoder=False,
             initializer_range=self.initializer_range,
             return_dict=True,
         )
 
-        return config, input_ids, token_type_ids, input_mask, sequence_labels, token_labels
-        #, choice_labels
+        return config, input_ids, token_type_ids, input_mask, sequence_labels, token_labels, choice_labels
 
-    def create_and_check_tapas_model(
-        self, config, input_ids, token_type_ids, input_mask, sequence_labels, token_labels):
+    def create_and_check_model(
+        self, config, input_ids, token_type_ids, input_mask, sequence_labels, token_labels, choice_labels
+    ):
         model = TapasModel(config=config)
         model.to(torch_device)
         model.eval()
@@ -153,18 +137,16 @@ class TapasModelTester:
         self.parent.assertEqual(result.last_hidden_state.shape, (self.batch_size, self.seq_length, self.hidden_size))
         self.parent.assertEqual(result.pooler_output.shape, (self.batch_size, self.hidden_size))
 
-    def create_and_check_tapas_for_masked_lm(
-        self, config, input_ids, token_type_ids, input_mask, sequence_labels, token_labels):
+    def create_and_check_for_masked_lm(
+        self, config, input_ids, token_type_ids, input_mask, sequence_labels, token_labels, choice_labels
+    ):
         model = TapasForMaskedLM(config=config)
         model.to(torch_device)
         model.eval()
-        result = model(
-            input_ids, attention_mask=input_mask, token_type_ids=token_type_ids, labels=token_labels
-        )
+        result = model(input_ids, attention_mask=input_mask, token_type_ids=token_type_ids, labels=token_labels)
         self.parent.assertEqual(result.logits.shape, (self.batch_size, self.seq_length, self.vocab_size))
 
-    """
-    def create_and_check_tapas_for_question_answering(
+    def create_and_check_for_question_answering(
         self, config, input_ids, token_type_ids, input_mask, sequence_labels, token_labels, choice_labels
     ):
         model = TapasForQuestionAnswering(config=config)
@@ -180,16 +162,43 @@ class TapasModelTester:
         self.parent.assertEqual(result.start_logits.shape, (self.batch_size, self.seq_length))
         self.parent.assertEqual(result.end_logits.shape, (self.batch_size, self.seq_length))
 
-    def create_and_check_for_sequence_classification(
-        self, config, input_ids, token_type_ids, input_mask, sequence_labels, token_labels, choice_labels
-    ):
-        config.num_labels = self.num_labels
-        model = BertForSequenceClassification(config)
-        model.to(torch_device)
-        model.eval()
-        result = model(input_ids, attention_mask=input_mask, token_type_ids=token_type_ids, labels=sequence_labels)
-        self.parent.assertEqual(result.logits.shape, (self.batch_size, self.num_labels))
-    """
+    # def create_and_check_for_sequence_classification(
+    #     self, config, input_ids, token_type_ids, input_mask, sequence_labels, token_labels, choice_labels
+    # ):
+    #     config.num_labels = self.num_labels
+    #     model = TapasForSequenceClassification(config)
+    #     model.to(torch_device)
+    #     model.eval()
+    #     result = model(input_ids, attention_mask=input_mask, token_type_ids=token_type_ids, labels=sequence_labels)
+    #     self.parent.assertEqual(result.logits.shape, (self.batch_size, self.num_labels))
+
+    # def create_and_check_for_token_classification(
+    #     self, config, input_ids, token_type_ids, input_mask, sequence_labels, token_labels, choice_labels
+    # ):
+    #     config.num_labels = self.num_labels
+    #     model = TapasForTokenClassification(config=config)
+    #     model.to(torch_device)
+    #     model.eval()
+    #     result = model(input_ids, attention_mask=input_mask, token_type_ids=token_type_ids, labels=token_labels)
+    #     self.parent.assertEqual(result.logits.shape, (self.batch_size, self.seq_length, self.num_labels))
+
+    # def create_and_check_for_multiple_choice(
+    #     self, config, input_ids, token_type_ids, input_mask, sequence_labels, token_labels, choice_labels
+    # ):
+    #     config.num_choices = self.num_choices
+    #     model = TapasForMultipleChoice(config=config)
+    #     model.to(torch_device)
+    #     model.eval()
+    #     multiple_choice_inputs_ids = input_ids.unsqueeze(1).expand(-1, self.num_choices, -1).contiguous()
+    #     multiple_choice_token_type_ids = token_type_ids.unsqueeze(1).expand(-1, self.num_choices, -1).contiguous()
+    #     multiple_choice_input_mask = input_mask.unsqueeze(1).expand(-1, self.num_choices, -1).contiguous()
+    #     result = model(
+    #         multiple_choice_inputs_ids,
+    #         attention_mask=multiple_choice_input_mask,
+    #         token_type_ids=multiple_choice_token_type_ids,
+    #         labels=choice_labels,
+    #     )
+    #     self.parent.assertEqual(result.logits.shape, (self.batch_size, self.num_choices))
 
     def prepare_config_and_inputs_for_common(self):
         config_and_inputs = self.prepare_config_and_inputs()
@@ -200,7 +209,7 @@ class TapasModelTester:
             input_mask,
             sequence_labels,
             token_labels,
-            #choice_labels,
+            choice_labels,
         ) = config_and_inputs
         inputs_dict = {"input_ids": input_ids, "token_type_ids": token_type_ids, "attention_mask": input_mask}
         return config, inputs_dict
@@ -210,9 +219,9 @@ class TapasModelTester:
 class TapasModelTest(ModelTesterMixin, unittest.TestCase):
 
     all_model_classes = (
-        (TapasModel, TapasForMaskedLM)
-        #, XxxForQuestionAnswering, XxxForSequenceClassification, XxxForTokenClassification) # to be used
-        if is_torch_available() 
+        (TapasModel, TapasForMaskedLM, TapasForQuestionAnswering)
+        #TapasForSequenceClassification, TapasForTokenClassification) # to be added
+        if is_torch_available()
         else ()
     )
 
@@ -223,53 +232,63 @@ class TapasModelTest(ModelTesterMixin, unittest.TestCase):
     def test_config(self):
         self.config_tester.run_common_tests()
 
-    def test_tapas_model(self):
+    def test_model(self):
         config_and_inputs = self.model_tester.prepare_config_and_inputs()
-        self.model_tester.create_and_check_tapas_model(*config_and_inputs)
+        self.model_tester.create_and_check_model(*config_and_inputs)
 
     def test_for_masked_lm(self):
         config_and_inputs = self.model_tester.prepare_config_and_inputs()
-        self.model_tester.create_and_check_tapas_for_masked_lm(*config_and_inputs)
+        self.model_tester.create_and_check_for_masked_lm(*config_and_inputs)
 
-    """
     def test_for_question_answering(self):
         config_and_inputs = self.model_tester.prepare_config_and_inputs()
         self.model_tester.create_and_check_for_question_answering(*config_and_inputs)
 
-    def test_for_sequence_classification(self):
-        config_and_inputs = self.model_tester.prepare_config_and_inputs()
-        self.model_tester.create_and_check_for_sequence_classification(*config_and_inputs)
-    
-    @slow
-    def test_lm_outputs_same_as_reference_model(self):
-        checkpoint_path = "XXX/bart-large"
-        model = self.big_model
-        tokenizer = AutoTokenizer.from_pretrained(
-            checkpoint_path
-        )  # same with AutoTokenizer (see tokenization_auto.py). This is not mandatory
-        # MODIFY THIS DEPENDING ON YOUR MODELS RELEVANT TASK.
-        batch = tokenizer(["I went to the <mask> yesterday"]).to(torch_device)
-        desired_mask_result = tokenizer.decode("store")  # update this
-        logits = model(**batch).logits
-        masked_index = (batch.input_ids == self.tokenizer.mask_token_id).nonzero()
-        assert model.num_parameters() == 175e9  # a joke
-        mask_entry_logits = logits[0, masked_index.item(), :]
-        probs = mask_entry_logits.softmax(dim=0)
-        _, predictions = probs.topk(1)
-        self.assertEqual(tokenizer.decode(predictions), desired_mask_result)
+    # def test_for_sequence_classification(self):
+    #     config_and_inputs = self.model_tester.prepare_config_and_inputs()
+    #     self.model_tester.create_and_check_for_sequence_classification(*config_and_inputs)
 
-    @cached_property
-    def big_model(self):
-        checkpoint_path = "XXX/bart-large"
-        model = AutoModelForMaskedLM.from_pretrained(checkpoint_path).to(
-            torch_device
-        )  # test whether AutoModel can determine your model_class from checkpoint name
-        if torch_device == "cuda":
-            model.half()
+    # def test_for_token_classification(self):
+    #     config_and_inputs = self.model_tester.prepare_config_and_inputs()
+    #     self.model_tester.create_and_check_for_token_classification(*config_and_inputs)
+
+    # def test_for_multiple_choice(self):
+    #     config_and_inputs = self.model_tester.prepare_config_and_inputs()
+    #     self.model_tester.create_and_check_electra_for_multiple_choice(*config_and_inputs)
+
+    # @slow
+    # def test_lm_outputs_same_as_reference_model(self):
+    #     """Write something that could help someone fixing this here."""
+    #     checkpoint_path = "XXX/bart-large"
+    #     model = self.big_model
+    #     tokenizer = AutoTokenizer.from_pretrained(
+    #         checkpoint_path
+    #     )  # same with AutoTokenizer (see tokenization_auto.py). This is not mandatory
+    #     # MODIFY THIS DEPENDING ON YOUR MODELS RELEVANT TASK.
+    #     batch = tokenizer(["I went to the <mask> yesterday"]).to(torch_device)
+    #     desired_mask_result = tokenizer.decode("store")  # update this
+    #     logits = model(**batch).logits
+    #     masked_index = (batch.input_ids == self.tokenizer.mask_token_id).nonzero()
+    #     assert model.num_parameters() == 175e9  # a joke
+    #     mask_entry_logits = logits[0, masked_index.item(), :]
+    #     probs = mask_entry_logits.softmax(dim=0)
+    #     _, predictions = probs.topk(1)
+    #     self.assertEqual(tokenizer.decode(predictions), desired_mask_result)
+
+    # @cached_property
+    # def big_model(self):
+    #     """Cached property means this code will only be executed once."""
+    #     checkpoint_path = "XXX/bart-large"
+    #     model = AutoModelForMaskedLM.from_pretrained(checkpoint_path).to(
+    #         torch_device
+    #     )  # test whether AutoModel can determine your model_class from checkpoint name
+    #     if torch_device == "cuda":
+    #         model.half()
 
     # optional: do more testing! This will save you time later!
     @slow
     def test_that_XXX_can_be_used_in_a_pipeline(self):
+        """We can use self.big_model here without calling __init__ again."""
         pass
 
     def test_XXX_loss_doesnt_change_if_you_add_padding(self):
@@ -279,10 +298,9 @@ class TapasModelTest(ModelTesterMixin, unittest.TestCase):
         pass
 
     def test_XXX_backward_pass_reduces_loss(self):
+        """Test loss/gradients same as reference implementation, for example."""
         pass
 
     @require_torch_and_cuda
     def test_large_inputs_in_fp16_dont_cause_overflow(self):
         pass
-
-    """

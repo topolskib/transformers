@@ -57,14 +57,6 @@ PRETRAINED_INIT_CONFIGURATION = {
     # to be added
 }
 
-# @dataclasses.dataclass(frozen=True)
-# class Token:
-#   original_text: Text
-#   piece: Text
-
-# def _get_pieces(tokens):
-#   return (token.piece for token in tokens)
-
 
 @dataclasses.dataclass(frozen=True)
 class TokenCoordinates:
@@ -962,6 +954,8 @@ class TapasTokenizer(BertTokenizer):
         encoded_inputs = {}
 
         if return_overflowing_tokens:
+            # currently, if drop_rows_to_fit is set to False and a table is too big, a ValueError is thrown 
+            # see function _get_num_rows 
             raise ValueError("Overflowing tokens is currently not supported")
 
         if (answer_coordinates and not answer_texts) or (not answer_coordinates and answer_texts):
