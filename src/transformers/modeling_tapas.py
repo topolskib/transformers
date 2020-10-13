@@ -31,7 +31,7 @@ from torch.nn import CrossEntropyLoss
 from transformers import modeling_tapas_utilities as utils
 
 from .configuration_tapas import TapasConfig
-from .modeling_bert import BertLayerNorm, BertPreTrainedModel, BertEncoder, BertPooler, BertOnlyMLMHead
+from .modeling_bert import BertLayerNorm, BertPreTrainedModel, BertEncoder, BertPooler, BertOnlyMLMHead # to be removed and copied
 from .modeling_outputs import (
     ModelOutput,
     BaseModelOutputWithPooling,
@@ -49,9 +49,8 @@ TAPAS_PRETRAINED_MODEL_ARCHIVE_LIST = [
 ]
 
 def load_tf_weights_in_tapas(model, config, tf_checkpoint_path):
-    """ Load tf checkpoints in a PyTorch model. 3 changes compared to "load_tf_weights_in_bert":
-        - change start of all variable names to "tapas" rather than "bert" (except for "cls" layer)
-        - skip seq_relationship variables (as the model is expected to be TapasModel)
+    """ Load tf checkpoints in a PyTorch model. This is an adaptation from load_tf_weights_in_bert
+        - add cell selection and aggregation heads
         - take into account additional token type embedding layers
     """
     try:
@@ -166,7 +165,7 @@ class TapasEmbeddings(nn.Module):
 
     def __init__(self, config):
         super().__init__()
-        # we do not include config.disabled_features and config.disable_position_embeddings
+        # we do not include config.disabled_features and config.disable_position_embeddings from the original implementation
         # word embeddings
         self.word_embeddings = nn.Embedding(config.vocab_size, config.hidden_size, padding_idx=config.pad_token_id)
         # position embeddings

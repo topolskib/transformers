@@ -49,7 +49,7 @@ class TapasModelTester:
         is_training=True,
         use_input_mask=True,
         use_token_type_ids=True,
-        # use_labels=True, # to be added
+        use_labels=True, # to be added
         vocab_size=99,
         hidden_size=32,
         num_hidden_layers=5,
@@ -60,10 +60,10 @@ class TapasModelTester:
         attention_probs_dropout_prob=0.1,
         max_position_embeddings=512,
         type_vocab_size=[3, 256, 256, 2, 256, 256, 10],
-        #type_sequence_label_size=2, # to be added
+        type_sequence_label_size=2, # to be added
         initializer_range=0.02,
-        #num_labels=3, # to be added
-        #num_choices=4, # to be added
+        num_labels=3, # to be added
+        num_choices=4, # to be added
         scope=None,
     ):
         self.parent = parent
@@ -72,7 +72,7 @@ class TapasModelTester:
         self.is_training = is_training
         self.use_input_mask = use_input_mask
         self.use_token_type_ids = use_token_type_ids
-        #self.use_labels = use_labels # to be added
+        self.use_labels = use_labels # to be added
         self.vocab_size = vocab_size
         self.hidden_size = hidden_size
         self.num_hidden_layers = num_hidden_layers
@@ -83,10 +83,10 @@ class TapasModelTester:
         self.attention_probs_dropout_prob = attention_probs_dropout_prob
         self.max_position_embeddings = max_position_embeddings
         self.type_vocab_size = type_vocab_size
-        #self.type_sequence_label_size = type_sequence_label_size # to be added
+        self.type_sequence_label_size = type_sequence_label_size # to be added
         self.initializer_range = initializer_range
-        #self.num_labels = num_labels # to be added
-        #self.num_choices = num_choices # to be added
+        self.num_labels = num_labels # to be added
+        self.num_choices = num_choices # to be added
         self.scope = scope
 
     def prepare_config_and_inputs(self):
@@ -159,8 +159,8 @@ class TapasModelTester:
             start_positions=sequence_labels,
             end_positions=sequence_labels,
         )
-        self.parent.assertEqual(result.start_logits.shape, (self.batch_size, self.seq_length))
-        self.parent.assertEqual(result.end_logits.shape, (self.batch_size, self.seq_length))
+        self.parent.assertEqual(result.logits.shape, (self.batch_size, self.seq_length))
+        self.parent.assertEqual(result.logits_aggregation.shape, (self.batch_size, self.seq_length))
 
     # def create_and_check_for_sequence_classification(
     #     self, config, input_ids, token_type_ids, input_mask, sequence_labels, token_labels, choice_labels
