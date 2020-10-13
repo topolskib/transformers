@@ -85,7 +85,7 @@ def _is_inner_wordpiece(token):
 
 class TapasTokenizer(BertTokenizer):
     r"""
-    Construct an TAPAS tokenizer.
+    Construct a TAPAS tokenizer.
 
     :class:`~transformers.TapasTokenizer` inherits from :class:`~transformers.BertTokenizer` since it uses the same
     vocabulary. However, it adds several token type ids to encode tabular structure. It runs end-to-end
@@ -93,6 +93,21 @@ class TapasTokenizer(BertTokenizer):
 
     Refer to superclass :class:`~transformers.BertTokenizer` for usage examples and documentation concerning
     parameters.
+
+    Args:
+        cell_trim_length (:obj:`int`, `optional`, defaults to -1):
+            If > 0: Trim cells so that the length is <= this value. Also disables further cell trimming, should thus be used with 'drop_rows_to_fit' below. 
+        max_column_id (:obj:`int`, `optional`, defaults to None):
+            Max column id to extract.
+        max_row_id (:obj:`int`, `optional`, defaults to None):
+            Max row id to extract. 
+        strip_column_names (:obj:`bool`, `optional`, defaults to :obj:`False`):
+            If true, add empty strings instead of column names.
+        update_answer_coordinates (:obj:`bool`, `optional`, defaults to :obj:`False`):
+            If true, recompute answer coordinates from the answer text.
+        drop_rows_to_fit (:obj:`bool`, `optional`, defaults to :obj:`False`):
+            If true, drop last rows if table doesn't fit within max sequence length.
+
     """
 
     vocab_files_names = VOCAB_FILES_NAMES
@@ -105,12 +120,8 @@ class TapasTokenizer(BertTokenizer):
                 max_column_id: int = None,
                 max_row_id: int = None,
                 strip_column_names: bool = False,
-                # add_aggregation_candidates: bool = False, # suggestion, remove this?
-                # expand_entity_descriptions: bool = False, # suggestion, remove this?
-                # entity_descriptions_sentence_limit: int = 5, # suggestion, remove this?
-                #use_document_title: bool = False, # suggestion: remove this?
-                update_answer_coordinates: bool = False, # Re-compute answer coordinates from the answer text.
-                drop_rows_to_fit: bool = False, # Drop last rows if table doesn't fit within max sequence length.
+                update_answer_coordinates: bool = False, 
+                drop_rows_to_fit: bool = False, 
                 **kwargs):
         super().__init__(**kwargs)
 
@@ -125,10 +136,6 @@ class TapasTokenizer(BertTokenizer):
         self.max_column_id = max_column_id if max_column_id is not None else self.model_max_length
         self.max_row_id = max_row_id if max_row_id is not None else self.model_max_length
         self.strip_column_names = strip_column_names
-        # self.add_aggregation_candidates = add_aggregation_candidates, suggestion: remove this?
-        # self.expand_entity_descriptions = expand_entity_descriptions, suggestion: remove this?
-        # self.entity_descriptions_sentence_limit = entity_descriptions_sentence_limit, suggestion: remove this?
-        #self.use_document_title = use_document_title, suggestion: remove this?
         self.update_answer_coordinates = update_answer_coordinates
         self.drop_rows_to_fit = drop_rows_to_fit
     
