@@ -268,6 +268,12 @@ def reduce_max(values, index, name='segmented_reduce_max'):
     """
     return _segment_reduce(values, index, "max", name)
 
+def reduce_min(values, index, name='segmented_reduce_min'):
+  """Computes the minimum over segments."""
+  return _segment_reduce(values, index, "min", name)
+
+### end of everything related to segmented tensors
+
 def compute_column_logits(sequence_output,
                           column_output_weights,
                           column_output_bias,

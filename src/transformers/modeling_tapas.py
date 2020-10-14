@@ -204,6 +204,8 @@ class TapasEmbeddings(nn.Module):
                 first_position = utils.gather(first_position_per_segment, full_index) # ? shape (batch_size, seq_len). First absolute position of the cell for every token
                 position = torch.arange(seq_length, dtype=torch.long, device=device).unsqueeze(0) # ? shape (1, seq_len)
                 position_ids = torch.minimum(config.max_position_embeddings - 1, position - first_position)
+                print(position_ids.shape)
+                print(position_ids[0])
         
         if token_type_ids is None:
             token_type_ids = torch.zeros((*input_shape, self.number_of_token_type_embeddings), dtype=torch.long, device=device)
