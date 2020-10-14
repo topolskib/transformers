@@ -34,7 +34,7 @@ class TapasConfig(BertConfig):
     This is the configuration class to store the configuration of a :class:`~transformers.TapasModel. 
     It is used to instantiate a TAPAS model according to the specified arguments, defining the model 
     architecture. Instantiating a configuration with the defaults will yield a similar configuration 
-    to that of the TAPAS `tapas-base-finetuned-sqa (URL to be added) architecture. Configuration objects 
+    to that of the TAPAS `tapas-base-finetuned-sqa` (URL to be added) architecture. Configuration objects 
     inherit from :class:`~transformers.PreTrainedConfig` and can be used to control the model outputs. 
     Read the documentation from :class:`~transformers.PretrainedConfig` for more information.
 
@@ -43,7 +43,7 @@ class TapasConfig(BertConfig):
 
     Args:
         max_position_embeddings (:obj:`int`, `optional`, defaults to 1024):
-            Maximum number of position embeddings of the TAPAS model. 
+            The maximum sequence length that this model might ever be used with. Typically set this to something large just in case (e.g., 512 or 1024 or 2048).
         type_vocab_size (:obj:`List[int]`, `optional`, defaults to [3, 256, 256, 2, 256, 256, 10]):
             The vocabulary size of the :obj:`token_type_ids` passed when calling :class:`~transformers.TapasModel`.
         task (:obj:`string`, `optional`, defaults to :obj:`"SQA"`):

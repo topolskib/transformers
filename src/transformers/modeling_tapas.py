@@ -32,15 +32,22 @@ from transformers import modeling_tapas_utilities as utils
 
 from .configuration_tapas import TapasConfig
 from .modeling_bert import BertLayerNorm, BertPreTrainedModel, BertEncoder, BertPooler, BertOnlyMLMHead # to be removed and copied
-from .modeling_outputs import (
+from .file_utils import (
     ModelOutput,
+    add_code_sample_docstrings,
+    add_start_docstrings,
+    add_start_docstrings_to_callable,
+    replace_return_docstrings,
+)
+from .modeling_outputs import (
     BaseModelOutputWithPooling,
-    MaskedLMOutput,
-    QuestionAnsweringModelOutput, # to be used
-    SequenceClassifierOutput, # to be used
+    MaskedLMOutput
 )
 
 logger = logging.getLogger(__name__)
+
+_CONFIG_FOR_DOC = "TapasConfig"
+_TOKENIZER_FOR_DOC = "TapasTokenizer"
 
 TAPAS_PRETRAINED_MODEL_ARCHIVE_LIST = [
     "tapas-base",
@@ -143,23 +150,11 @@ def load_tf_weights_in_tapas(model, config, tf_checkpoint_path):
             array = np.array(array)
         pointer.data = torch.from_numpy(array)
     return model
-
-
-@dataclass
-class TableQuestionAnsweringOutput(ModelOutput):
-    """
-    Class for table question answering outputs.
-    """
-    loss: Optional[torch.FloatTensor] = None
-    logits: torch.FloatTensor = None
-    logits_aggregation: torch.FloatTensor = None
-    logits_cls: torch.FloatTensor = None
-    hidden_states: Optional[Tuple[torch.FloatTensor]] = None
-    attentions: Optional[Tuple[torch.FloatTensor]] = None
     
 
 class TapasEmbeddings(nn.Module):
     """
+    Construct the embeddings from word, position and token_type embeddings.
     Same as BertEmbeddings but with a number of additional token type embeddings to encode tabular structure.
     """
 
@@ -219,10 +214,90 @@ class TapasEmbeddings(nn.Module):
         return embeddings
 
 
+TAPAS_START_DOCSTRING = r"""
+    This model inherits from :class:`~transformers.PreTrainedModel`. Check the superclass documentation for the generic
+    methods the library implements for all its models (such as downloading or saving, resizing the input embeddings,
+    pruning heads etc.)
+    This model is also a PyTorch `torch.nn.Module <https://pytorch.org/docs/stable/nn.html#torch.nn.Module>`__ subclass.
+    Use it as a regular PyTorch Module and refer to the PyTorch documentation for all matter related to general
+    usage and behavior.
+    Parameters:
+        config (:class:`~transformers.TapasConfig`): Model configuration class with all the parameters of the model.
+            Initializing with a config file does not load the weights associated with the model, only the configuration.
+            Check out the :meth:`~transformers.PreTrainedModel.from_pretrained` method to load the model weights.
+"""
+
+TAPAS_INPUTS_DOCSTRING = r"""
+    Args:
+        input_ids (:obj:`torch.LongTensor` of shape :obj:`({0})`):
+            Indices of input sequence tokens in the vocabulary.
+            Indices can be obtained using :class:`~transformers.TapasTokenizer`.
+            See :meth:`transformers.PreTrainedTokenizer.encode` and
+            :meth:`transformers.PreTrainedTokenizer.__call__` for details.
+            `What are input IDs? <../glossary.html#input-ids>`__
+        attention_mask (:obj:`torch.FloatTensor` of shape :obj:`({0})`, `optional`):
+            Mask to avoid performing attention on padding token indices.
+            Mask values selected in ``[0, 1]``:
+            - 1 for tokens that are **not masked**,
+            - 0 for tokens that are **masked**.
+            `What are attention masks? <../glossary.html#attention-mask>`__
+        token_type_ids (:obj:`torch.LongTensor` of shape :obj:`({0}, 7)`, `optional`):
+            Token indices that encode tabular structure. 
+            Indices can be obtained using :class:`~transformers.TapasTokenizer`. 
+            Tapas expects 7 token type ids, in the following order:
+            - segment_ids: indicate whether a token belongs to the question (0) or the table (1). 0 for special tokens and padding.
+            - column_ids: indicate to which column of the table a token belongs (starting from 1). Is 0 for all question tokens, special tokens and padding.
+            - row_ids: indicate to which row of the table a token belongs (starting from 1). Is 0 for all question tokens, special tokens and padding. Tokens of column headers are also 0.
+            - prev_label_ids: indicate whether a token was (part of) an answer to the previous question (1) or not (0). Useful in a conversational setup (such as SQA).
+            - column_ranks: indicate the rank of a table token relative to a column, if applicable. For example, if you have a column "number of movies" with values 87,
+            53 and 69, then the column ranks of these tokens are 3, 1 and 2 respectively. 0 for all question tokens, special tokens and padding.
+            - inv_column_ranks: indicate the inverse rank of a table token relative to a column, if applicable. For example, if you have a column "number of movies" with values 87,
+            53 and 69, then the inverse column ranks of these tokens are 1, 3 and 2 respectively. 0 for all question tokens, special tokens and padding.
+            - numeric_relations: indicate numeric relations between the question and the tokens of the table. 0 for all question tokens, special tokens and padding
+            `What are token type IDs? <../glossary.html#token-type-ids>`_
+        position_ids (:obj:`torch.LongTensor` of shape :obj:`({0})`, `optional`):
+            Indices of positions of each input sequence tokens in the position embeddings.
+            Selected in the range ``[0, config.max_position_embeddings - 1]``.
+            `What are position IDs? <../glossary.html#position-ids>`_
+        head_mask (:obj:`torch.FloatTensor` of shape :obj:`(num_heads,)` or :obj:`(num_layers, num_heads)`, `optional`):
+            Mask to nullify selected heads of the self-attention modules.
+            Mask values selected in ``[0, 1]``:
+            - 1 indicates the head is **not masked**,
+            - 0 indicates the head is **masked**.
+        inputs_embeds (:obj:`torch.FloatTensor` of shape :obj:`({0}, hidden_size)`, `optional`):
+            Optionally, instead of passing :obj:`input_ids` you can choose to directly pass an embedded representation.
+            This is useful if you want more control over how to convert :obj:`input_ids` indices into associated
+            vectors than the model's internal embedding lookup matrix.
+        output_attentions (:obj:`bool`, `optional`):
+            Whether or not to return the attentions tensors of all attention layers. See ``attentions`` under returned
+            tensors for more detail.
+        output_hidden_states (:obj:`bool`, `optional`):
+            Whether or not to return the hidden states of all layers. See ``hidden_states`` under returned tensors for
+            more detail.
+        return_dict (:obj:`bool`, `optional`):
+            Whether or not to return a :class:`~transformers.file_utils.ModelOutput` instead of a plain tuple.
+"""
+
+
+@add_start_docstrings(
+    "The bare Tapas Model transformer outputting raw hidden-states without any specific head on top.",
+    TAPAS_START_DOCSTRING,
+)
 class TapasModel(BertPreTrainedModel):
     """
-    This class is a small adaption from :class:`~transformers.BertModel`. Please check this
-    class for the appropriate documentation alongside usage examples.
+    This class is a small change compared to :class:`~transformers.BertModel`, taking into account the additional token type ids.
+    
+    The model can behave as an encoder (with only self-attention) as well
+    as a decoder, in which case a layer of cross-attention is added between
+    the self-attention layers, following the architecture described in `Attention is all you need
+    <https://arxiv.org/abs/1706.03762>`__ by Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones,
+    Aidan N. Gomez, Lukasz Kaiser and Illia Polosukhin.
+    
+    To behave as an decoder the model needs to be initialized with the
+    :obj:`is_decoder` argument of the configuration set to :obj:`True`.
+    To be used in a Seq2Seq model, the model needs to initialized with both :obj:`is_decoder`
+    argument and :obj:`add_cross_attention` set to :obj:`True`; an
+    :obj:`encoder_hidden_states` is then expected as an input to the forward pass.
     """
 
     config_class = TapasConfig
@@ -252,6 +327,13 @@ class TapasModel(BertPreTrainedModel):
         for layer, heads in heads_to_prune.items():
             self.encoder.layer[layer].attention.prune_heads(heads)
 
+    @add_start_docstrings_to_callable(TAPAS_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
+    @add_code_sample_docstrings(
+        tokenizer_class=_TOKENIZER_FOR_DOC,
+        checkpoint="tapas-base-finetuned-sqa",
+        output_type=BaseModelOutputWithPooling,
+        config_class=_CONFIG_FOR_DOC,
+    )
     def forward(
         self,
         input_ids=None,
@@ -266,6 +348,17 @@ class TapasModel(BertPreTrainedModel):
         output_hidden_states=None,
         return_dict=None,
     ):
+        r"""
+        encoder_hidden_states  (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length, hidden_size)`, `optional`):
+            Sequence of hidden-states at the output of the last layer of the encoder. Used in the cross-attention
+            if the model is configured as a decoder.
+        encoder_attention_mask (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length)`, `optional`):
+            Mask to avoid performing attention on the padding token indices of the encoder input. This mask
+            is used in the cross-attention if the model is configured as a decoder.
+            Mask values selected in ``[0, 1]``:
+            - 1 for tokens that are **not masked**,
+            - 0 for tokens that are **masked**.
+        """ 
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
@@ -337,6 +430,7 @@ class TapasModel(BertPreTrainedModel):
         )
 
 
+@add_start_docstrings("""Tapas Model with a `language modeling` head on top. """, TAPAS_START_DOCSTRING)
 class TapasForMaskedLM(BertPreTrainedModel):
     config_class = TapasConfig
     base_model_prefix = "tapas"
@@ -356,6 +450,13 @@ class TapasForMaskedLM(BertPreTrainedModel):
     def get_output_embeddings(self):
         return self.cls.predictions.decoder
 
+    @add_start_docstrings_to_callable(TAPAS_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
+    @add_code_sample_docstrings(
+        tokenizer_class=_TOKENIZER_FOR_DOC,
+        checkpoint="tapas-base-finetuned-sqa",
+        output_type=MaskedLMOutput,
+        config_class=_CONFIG_FOR_DOC,
+    )
     def forward(
         self,
         input_ids=None,
@@ -372,6 +473,15 @@ class TapasForMaskedLM(BertPreTrainedModel):
         return_dict=None,
         **kwargs
     ):
+        r"""
+        labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size, sequence_length)`, `optional`):
+            Labels for computing the masked language modeling loss.
+            Indices should be in ``[-100, 0, ..., config.vocab_size]`` (see ``input_ids`` docstring)
+            Tokens with indices set to ``-100`` are ignored (masked), the loss is only computed for the tokens with labels
+            in ``[0, ..., config.vocab_size]``
+        kwargs (:obj:`Dict[str, any]`, optional, defaults to `{}`):
+            Used to hide legacy arguments that have been deprecated.
+        """
         if "masked_lm_labels" in kwargs:
             warnings.warn(
                 "The `masked_lm_labels` argument is deprecated and will be removed in a future version, use `labels` instead.",
@@ -416,6 +526,47 @@ class TapasForMaskedLM(BertPreTrainedModel):
             attentions=outputs.attentions,
         )
 
+
+@dataclass
+class TableQuestionAnsweringOutput(ModelOutput):
+    """
+    Output type of :class:`~transformers.TapasForQuestionAnswering`.
+
+    Args:
+        loss (`optional`, returned when ``label_ids`` and ``answer`` (and possibly ``classification_class_index``, ``aggregation_function_id``, ``numeric_values``
+        and ``numeric_values_scale`` are provided), ``torch.FloatTensor`` of shape :obj:`(1,)`):
+            Total loss as the sum of the hierarchical cell selection log-likelihood loss,  (optionally) classification loss, (optionally) supervised cell selection
+            loss and (optionally) the semi-supervised regression loss and supervised loss for aggregations.
+        logits (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length)`):
+            Prediction scores of the cell selection head, for every token.
+        logits_aggregation (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, num_aggregation_labels)`):
+            Prediction scores of the aggregation head, for every aggregation operator (including NONE). 
+        logits_cls (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, num_classification_labels)`):
+            Prediction scores of the classification head, for every class index. 
+        hidden_states (:obj:`tuple(torch.FloatTensor)`, `optional`, returned when ``output_hidden_states=True`` is passed or when ``config.output_hidden_states=True``):
+            Tuple of :obj:`torch.FloatTensor` (one for the output of the embeddings + one for the output of each layer)
+            of shape :obj:`(batch_size, sequence_length, hidden_size)`.
+            Hidden-states of the model at the output of each layer plus the initial embedding outputs.
+        attentions (:obj:`tuple(torch.FloatTensor)`, `optional`, returned when ``output_attentions=True`` is passed or when ``config.output_attentions=True``):
+            Tuple of :obj:`torch.FloatTensor` (one for each layer) of shape
+            :obj:`(batch_size, num_heads, sequence_length, sequence_length)`.
+            Attentions weights after the attention softmax, used to compute the weighted average in the self-attention
+            heads.
+    """
+
+    loss: Optional[torch.FloatTensor] = None
+    logits: torch.FloatTensor = None
+    logits_aggregation: torch.FloatTensor = None
+    logits_cls: torch.FloatTensor = None
+    hidden_states: Optional[Tuple[torch.FloatTensor]] = None
+    attentions: Optional[Tuple[torch.FloatTensor]] = None
+
+
+@add_start_docstrings(
+    """Tapas Model with a cell selection head and optionally aggregation and classification heads on top for question-answering 
+    tasks on tables (linear layers on top of the hidden-states output to compute `logits` and optionally `logits_aggregation` and `logits_cls`). """,
+    TAPAS_START_DOCSTRING,
+)
 class TapasForQuestionAnswering(BertPreTrainedModel):
     def __init__(self, config):   
         super().__init__(config)
@@ -454,6 +605,13 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
 
         self.init_weights()
 
+    @add_start_docstrings_to_callable(TAPAS_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
+    @add_code_sample_docstrings(
+        tokenizer_class=_TOKENIZER_FOR_DOC,
+        checkpoint="tapas-base-finetuned-sqa",
+        output_type=TableQuestionAnsweringOutput,
+        config_class=_CONFIG_FOR_DOC,
+    )
     def forward(
         self,
         input_ids=None,
@@ -481,9 +639,9 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
         aggregation_function_id (:obj:`torch.LongTensor` of shape :obj:`(batch_size, )`, `optional`):
             Aggregation function id for every example in the batch. 
         answer (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, )`, `optional`):
-            Answer for every example in the batch. 
+            Answer for every example in the batch. Nan if there is no scalar answer.
         numeric_values (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, seq_length)`, `optional`):
-            Numeric values of every token. 
+            Numeric values of every token. Nan for tokens which are not numeric values.
         numeric_values_scale (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, seq_length)`, `optional`):
             Scale of the numeric values of every token. 
         classification_class_index (:obj:`torch.LongTensor` of shape :obj:`(batch_size, )`, `optional`):

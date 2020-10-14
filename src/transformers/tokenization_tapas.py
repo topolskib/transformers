@@ -88,7 +88,7 @@ class TapasTokenizer(BertTokenizer):
     Construct a TAPAS tokenizer.
 
     :class:`~transformers.TapasTokenizer` inherits from :class:`~transformers.BertTokenizer` since it uses the same
-    vocabulary. However, it adds several token type ids to encode tabular structure. To be more precise, it adds 7 token 
+    vocabulary. However, it creates several token type ids to encode tabular structure. To be more precise, it adds 7 token 
     type ids, in the following order: "segment_ids", "column_ids", "row_ids", "prev_label_ids", "column_ranks",
     "inv_column_ranks" and "numeric_relations". Here I explain each of them:
 
@@ -99,7 +99,7 @@ class TapasTokenizer(BertTokenizer):
     - column_ranks: indicate the rank of a table token relative to a column, if applicable. For example, if you have a column "number of movies" with values 87,
     53 and 69, then the column ranks of these tokens are 3, 1 and 2 respectively. 0 for all question tokens, special tokens and padding.
     - inv_column_ranks: indicate the inverse rank of a table token relative to a column, if applicable. For example, if you have a column "number of movies" with values 87,
-    53 and 69, then the column ranks of these tokens are 1, 3 and 2 respectively. 0 for all question tokens, special tokens and padding.
+    53 and 69, then the inverse column ranks of these tokens are 1, 3 and 2 respectively. 0 for all question tokens, special tokens and padding.
     - numeric_relations: indicate numeric relations between the question and the tokens of the table. 0 for all question tokens, special tokens and padding.
 
     It runs end-to-end tokenization on a table and associated queries: punctuation splitting and wordpiece.
@@ -156,7 +156,12 @@ class TapasTokenizer(BertTokenizer):
         self,
         table = None,
         ):
-        """Runs tokenizer over columns and table cell texts."""
+        """Tokenizes columns and cell texts of a table.
+        Args:
+            table: pd.DataFrame
+        Returns:
+            TokenizedTable object.
+        """
         tokenized_rows = []
         tokenized_row = []
         # tokenize column headers
@@ -277,7 +282,7 @@ class TapasTokenizer(BertTokenizer):
         return num_rows
     
     def _serialize_text(self, question_tokens):
-        """Serialzes texts in index arrays."""
+        """Serializes texts in index arrays."""
         tokens = []
         segment_ids = []
         column_ids = []
@@ -330,7 +335,7 @@ class TapasTokenizer(BertTokenizer):
         )
         
     def _get_column_values(self, table_numeric_values):
-        """This is an adaptation from _get_column_values in tf_example_utils.py.
+        """This is an adaptation from _get_column_values in tf_example_utils.py of the original implementation.
         Given table_numeric_values, a dictionary that maps row indices of a certain column 
         of a Pandas dataframe to either an empty list (no numeric value) or a list containing 
         a NumericValue object, it returns the same dictionary, but only for the row indices that 
@@ -355,7 +360,7 @@ class TapasTokenizer(BertTokenizer):
         ranks = [0] * len(column_ids)
         inv_ranks = [0] * len(column_ids)
 
-        # here, some complex code involving functions from number_annotations_utils are used in the original implementation
+        # original code from number_annotations_utils.py of the original implementation
         columns_to_numeric_values = {}
         if table is not None:
             for col_index in range(len(table.columns)):
