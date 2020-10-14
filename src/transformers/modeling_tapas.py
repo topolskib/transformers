@@ -196,8 +196,8 @@ class TapasEmbeddings(nn.Module):
             position_ids = position_ids.unsqueeze(0).expand(input_shape)
             # when config.reset_position_index_per_cell is set to True, create relative position embeddings
             if self.config.reset_position_index_per_cell:
-                col_index = utils.IndexMap(token_type_ids[:,:,1], config.type_vocab_size[1], batch_dims=1) # shape (batch_size, seq_len)
-                row_index = utils.IndexMap(token_type_ids[:,:,2], config.type_vocab_size[2], batch_dims=1) # shape (batch_size, seq_len)
+                col_index = utils.IndexMap(token_type_ids[:,:,1], self.config.type_vocab_size[1], batch_dims=1) # shape (batch_size, seq_len)
+                row_index = utils.IndexMap(token_type_ids[:,:,2], self.config.type_vocab_size[2], batch_dims=1) # shape (batch_size, seq_len)
                 full_index = utils.ProductIndexMap(col_index, row_index) # shape (batch_size, seq_len)
 
                 first_position_per_segment = utils.reduce_min(position_ids, full_index)[0] # shape (max_rows * max_columns,). First absolute position for every cell
