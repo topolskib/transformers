@@ -90,7 +90,7 @@ class TapasTokenizer(BertTokenizer):
     :class:`~transformers.TapasTokenizer` inherits from :class:`~transformers.BertTokenizer` since it uses the same
     vocabulary. However, it creates several token type ids to encode tabular structure. To be more precise, it adds 7 token 
     type ids, in the following order: "segment_ids", "column_ids", "row_ids", "prev_label_ids", "column_ranks",
-    "inv_column_ranks" and "numeric_relations". Here I explain each of them:
+    "inv_column_ranks" and "numeric_relations":
 
     - segment_ids: indicate whether a token belongs to the question (0) or the table (1). 0 for special tokens and padding.
     - column_ids: indicate to which column of the table a token belongs (starting from 1). Is 0 for all question tokens, special tokens and padding.
@@ -102,7 +102,7 @@ class TapasTokenizer(BertTokenizer):
     53 and 69, then the inverse column ranks of these tokens are 1, 3 and 2 respectively. 0 for all question tokens, special tokens and padding.
     - numeric_relations: indicate numeric relations between the question and the tokens of the table. 0 for all question tokens, special tokens and padding.
 
-    It runs end-to-end tokenization on a table and associated queries: punctuation splitting and wordpiece.
+    :class:`~transformers.TapasTokenizer` runs end-to-end tokenization on a table and associated queries: punctuation splitting and wordpiece.
 
     Refer to superclass :class:`~transformers.BertTokenizer` for usage examples and documentation concerning
     parameters.
@@ -156,7 +156,7 @@ class TapasTokenizer(BertTokenizer):
         self,
         table = None,
         ):
-        """Tokenizes columns and cell texts of a table.
+        """Tokenizes column headers and cell texts of a table.
         Args:
             table: pd.DataFrame
         Returns:
@@ -203,7 +203,7 @@ class TapasTokenizer(BertTokenizer):
         return self.model_max_length - self.question_encoding_cost(question_tokens)
     
     def _get_table_values(self, table, num_columns, num_rows, num_tokens):
-        """Iterates over partial table and returns token, col. and row indexes."""
+        """Iterates over partial table and returns token, column and row indexes."""
         for tc in table.selected_tokens:
             # First row is header row.
             if tc.row_index >= num_rows + 1:
@@ -580,14 +580,14 @@ class TapasTokenizer(BertTokenizer):
         features = self._add_numeric_relations(question, token_ids_dict['column_ids'],
                                     token_ids_dict['row_ids'], table, features, columns_to_numeric_values)
 
-        # finally, add numeric values and numeric values scale (only needed in case of loss calculation)
+        # finally, add numeric values and numeric values scale (only needed in case of regression loss calculation)
         # so they should only be returned in case answer_coordinates + answer_texts are provided
         
         features = self._add_numeric_values(table, token_ids_dict, features, columns_to_numeric_values)
 
         features = self._add_numeric_values_scale(table, token_ids_dict, features)
 
-        # we do not add table id and table id hash
+        # we do not add table id and table id hash (was used in the original implementation)
         #if table:
         #    features['table_id'] = create_string_feature([table.table_id.encode('utf8')])
         #    features['table_id_hash'] = create_int_feature([fingerprint(table.table_id) % _MAX_INT])

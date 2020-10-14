@@ -189,18 +189,28 @@ class TapasEmbeddings(nn.Module):
         device = input_ids.device if input_ids is not None else inputs_embeds.device
         
         if position_ids is None:
+            # create absolute position embeddings
             position_ids = torch.arange(seq_length, dtype=torch.long, device=device)
             position_ids = position_ids.unsqueeze(0).expand(input_shape)
+            # when config.reset_position_index_per_cell is set to True, create relative position embeddings
+            if config.reset_position_index_per_cell:
+                col_index = utils.IndexMap(token_type_ids[:,:,1], config.type_vocab_size[1], batch_dims=1) # shape (batch_size, seq_len)
+                row_index = utils.IndexMap(token_type_ids[:,:,2], config.type_vocab_size[2], batch_dims=1) # shape (batch_size, seq_len)
+                full_index = utils.ProductIndexMap(col_index, row_index) # shape (batch_size, seq_len)
+
+                first_position_per_segment = utils.reduce_min(position_ids, full_index)[0] # shape (max_rows * max_columns,). First absolute position for every cell
+                first_position = utils.gather(first_position_per_segment, full_index) # ? shape (batch_size, seq_len). First absolute position of the cell for every token
+                position = torch.arange(seq_length, dtype=torch.long, device=device).unsqueeze(0) # ? shape (1, seq_len)
+                position_ids = torch.minimum(config.max_position_embeddings - 1, position - first_position)
+        
         if token_type_ids is None:
             token_type_ids = torch.zeros((*input_shape, self.number_of_token_type_embeddings), dtype=torch.long, device=device)
 
         if inputs_embeds is None:
             inputs_embeds = self.word_embeddings(input_ids)
-        
-        # currently, only absolute position embeddings are implemented
-        # to do: should be updated to account for when config.reset_position_index_per_cell is set to True
-        position_embeddings = self.position_embeddings(position_ids)
 
+        position_embeddings = self.position_embeddings(position_ids)
+        
         embeddings = inputs_embeds + position_embeddings
         
         token_type_embedding_name = "token_type_embeddings"
