@@ -198,12 +198,7 @@ class TapasEmbeddings(nn.Module):
             if self.config.reset_position_index_per_cell:
                 col_index = utils.IndexMap(token_type_ids[:,:,1], self.config.type_vocab_size[1], batch_dims=1) # shape (batch_size, seq_len)
                 row_index = utils.IndexMap(token_type_ids[:,:,2], self.config.type_vocab_size[2], batch_dims=1) # shape (batch_size, seq_len)
-                print(col_index.indices[0])
-                print(row_index.indices[0])
                 full_index = utils.ProductIndexMap(col_index, row_index) # shape (batch_size, seq_len)
-
-                print(position_ids[0])
-                print(full_index.indices[0])
                 
                 first_position_per_segment = utils.reduce_min(position_ids, full_index)[0] # shape (max_rows * max_columns,). First absolute position for every cell
                 first_position = utils.gather(first_position_per_segment, full_index) # ? shape (batch_size, seq_len). First absolute position of the cell for every token
