@@ -179,6 +179,8 @@ class TapasEmbeddings(nn.Module):
         self.LayerNorm = BertLayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
+        self.config = config
+
     def forward(self, input_ids=None, token_type_ids=None, position_ids=None, inputs_embeds=None):
         if input_ids is not None:
             input_shape = input_ids.size()
@@ -193,7 +195,7 @@ class TapasEmbeddings(nn.Module):
             position_ids = torch.arange(seq_length, dtype=torch.long, device=device)
             position_ids = position_ids.unsqueeze(0).expand(input_shape)
             # when config.reset_position_index_per_cell is set to True, create relative position embeddings
-            if config.reset_position_index_per_cell:
+            if self.config.reset_position_index_per_cell:
                 col_index = utils.IndexMap(token_type_ids[:,:,1], config.type_vocab_size[1], batch_dims=1) # shape (batch_size, seq_len)
                 row_index = utils.IndexMap(token_type_ids[:,:,2], config.type_vocab_size[2], batch_dims=1) # shape (batch_size, seq_len)
                 full_index = utils.ProductIndexMap(col_index, row_index) # shape (batch_size, seq_len)
