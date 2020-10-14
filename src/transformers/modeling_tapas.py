@@ -200,6 +200,9 @@ class TapasEmbeddings(nn.Module):
                 row_index = utils.IndexMap(token_type_ids[:,:,2], self.config.type_vocab_size[2], batch_dims=1) # shape (batch_size, seq_len)
                 full_index = utils.ProductIndexMap(col_index, row_index) # shape (batch_size, seq_len)
 
+                print(position_ids.shape)
+                print(full_index.indices.shape)
+                
                 first_position_per_segment = utils.reduce_min(position_ids, full_index)[0] # shape (max_rows * max_columns,). First absolute position for every cell
                 first_position = utils.gather(first_position_per_segment, full_index) # ? shape (batch_size, seq_len). First absolute position of the cell for every token
                 position = torch.arange(seq_length, dtype=torch.long, device=device).unsqueeze(0) # ? shape (1, seq_len)
