@@ -187,6 +187,8 @@ def _segment_reduce(values, index, segment_reduce_fn, name):
     flat_index = flatten(index)
     vector_shape = values.size()[len(index.indices.size()):] # torch.Size object
     flattened_shape = torch.cat([torch.as_tensor([-1],dtype=torch.long), torch.as_tensor(vector_shape, dtype=torch.long)], dim=0)
+    print("Flattened shape:")
+    print(flattened_shape)
     flat_values = values.view(flattened_shape.tolist())
 
     segment_means = scatter(src=flat_values, 
