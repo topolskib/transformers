@@ -194,7 +194,7 @@ class TapasEmbeddings(nn.Module):
             # create absolute position embeddings
             position_ids = torch.arange(seq_length, dtype=torch.long, device=device)
             position_ids = position_ids.unsqueeze(0).expand(input_shape)
-            # when config.reset_position_index_per_cell is set to True, create relative position embeddings
+            # when self.config.reset_position_index_per_cell is set to True, create relative position embeddings
             if self.config.reset_position_index_per_cell:
                 col_index = utils.IndexMap(token_type_ids[:,:,1], self.config.type_vocab_size[1], batch_dims=1) # shape (batch_size, seq_len)
                 row_index = utils.IndexMap(token_type_ids[:,:,2], self.config.type_vocab_size[2], batch_dims=1) # shape (batch_size, seq_len)
@@ -202,10 +202,8 @@ class TapasEmbeddings(nn.Module):
                 
                 first_position_per_segment = utils.reduce_min(position_ids, full_index)[0] # shape (max_rows * max_columns,). First absolute position for every cell
                 first_position = utils.gather(first_position_per_segment, full_index) # ? shape (batch_size, seq_len). First absolute position of the cell for every token
-                position = torch.arange(seq_length, dtype=torch.long, device=device).unsqueeze(0) # ? shape (1, seq_len)
+                position = torch.arange(seq_length, dtype=torch.long, device=device).unsqueeze(0) # shape (1, seq_len)
                 position_ids = torch.min(torch.as_tensor(self.config.max_position_embeddings - 1, device=device), position - first_position)
-                print(position_ids.shape)
-                print(position_ids[0])
         
         if token_type_ids is None:
             token_type_ids = torch.zeros((*input_shape, self.number_of_token_type_embeddings), dtype=torch.long, device=device)
