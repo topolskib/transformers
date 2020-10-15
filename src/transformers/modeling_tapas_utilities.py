@@ -55,12 +55,12 @@ class IndexMap(object):
     def __init__(self, indices, num_segments, batch_dims=0):
         """Creates an index.
         Args:
-            indices: (:obj:`torch.LongTensor`, same shape as `values`)
+            indices (:obj:`torch.LongTensor`, same shape as `values`):
                 Tensor containing the indices.
-            num_segments: (:obj:`torch.LongTensor`)
+            num_segments (:obj:`torch.LongTensor`):
                 Scalar tensor, the number of segments. All elements in a batched segmented tensor 
                 must have the same number of segments (although many segments can be empty).
-            batch_dims: (:obj:`int`, `optional`, defaults to 0)
+            batch_dims (:obj:`int`, `optional`, defaults to 0):
                 The number of batch dimensions. The first `batch_dims` dimensions of a SegmentedTensor 
                 are treated as batch dimensions. Segments in different batch elements are always distinct 
                 even if they have the same index.
@@ -124,14 +124,14 @@ def gather(values, index, name='segmented_gather'):
     value for that index in `values`. Two elements from the same segment always
     get assigned the same value.
     Args:
-        values (:obj:`torch.Tensor` of shape [B1, ..., Bn, num_segments, V1, ...]):  
+        values (:obj:`torch.Tensor` of shape (B1, ..., Bn, num_segments, V1, ...)):  
             Tensor with segment values.
-        index (:obj:`IndexMap` of shape [B1, ..., Bn, I1, ..., Ik]): 
+        index (:obj:`IndexMap` of shape (B1, ..., Bn, I1, ..., Ik)): 
             IndexMap.
         name (:obj:`str`, `optional`, defaults to 'segmented_gather'):
             Name for the operation. Currently not used.
     Returns:
-        :obj:`tuple(torch.Tensor)`: Tensor of shape [B1, ..., Bn, I1, ..., Ik, V1, ...] with the gathered values.
+        :obj:`tuple(torch.Tensor)`: Tensor of shape (B1, ..., Bn, I1, ..., Ik, V1, ...) with the gathered values.
     """
     indices = index.indices
     # first, check whether the indices of the index represent scalar values (i.e. not vectorized)
@@ -426,7 +426,7 @@ def _single_column_cell_selection_loss(token_logits, column_logits, label_ids,
     Returns:
         selection_loss_per_example (:obj:`torch.FloatTensor` of shape :obj:`(batch_size,)`):
             Loss for each example.
-        logits: (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length)`): 
+        logits (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length)`): 
             New logits which are only allowed to select cells in a single column. Logits outside of the most likely 
             column according to `column_logits` will be set to a very low value (such that the probabilities are 0).
     """
@@ -509,7 +509,7 @@ def _single_column_cell_selection_loss(token_logits, column_logits, label_ids,
 def compute_token_logits(sequence_output, temperature, output_weights, output_bias):
     """Computes logits per token.
     Args:
-        sequence_output: (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length, hidden_size)`):
+        sequence_output (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length, hidden_size)`):
             Also known as last_hidden_state. Sequence of hidden-states at the output of the last layer of the model.
         temperature (:obj:`float`):
             Temperature for the Bernoulli distribution.
@@ -518,7 +518,7 @@ def compute_token_logits(sequence_output, temperature, output_weights, output_bi
         output_bias (:obj:`torch.FloatTensor` of shape :obj:`()`):
             Bias of the linear layer for cell selection.
     Returns:
-        logits: (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length)`):
+        logits (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length)`):
             Logits per token.
     """
     logits = (torch.einsum("bsj,j->bs", sequence_output, output_weights) +
@@ -536,7 +536,7 @@ def compute_classification_logits(pooled_output, output_weights_cls, output_bias
         output_bias_cls (:obj:`torch.FloatTensor` of shape :obj:`(num_classification_labels)`):
             Bias of the linear classification head.
     Returns:
-        logits_cls: (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, num_classification_labels)`):
+        logits_cls (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, num_classification_labels)`):
             Logits per class.
     """
     logits_cls = torch.matmul(pooled_output, output_weights_cls.T)
