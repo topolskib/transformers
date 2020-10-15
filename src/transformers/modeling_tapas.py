@@ -652,16 +652,19 @@ class TapasModel(TapasPreTrainedModel):
     :obj:`encoder_hidden_states` is then expected as an input to the forward pass.
     """
 
+    authorized_missing_keys = [r"position_ids"]
+    
     config_class = TapasConfig
     base_model_prefix = "tapas"
 
-    def __init__(self, config):
+    def __init__(self, config, add_pooling_layer=True):
         super().__init__(config)
         self.config = config
 
         self.embeddings = TapasEmbeddings(config)
         self.encoder = TapasEncoder(config)
-        self.pooler = TapasPooler(config)
+        
+        self.pooler = TapasPooler(config) if add_pooling_layer else None
 
         self.init_weights()
 
@@ -769,7 +772,7 @@ class TapasModel(TapasPreTrainedModel):
             return_dict=return_dict,
         )
         sequence_output = encoder_outputs[0]
-        pooled_output = self.pooler(sequence_output)
+        pooled_output = self.pooler(sequence_output) if self.pooler is not None else None
 
         if not return_dict:
             return (sequence_output, pooled_output) + encoder_outputs[1:]
@@ -794,7 +797,7 @@ class TapasForMaskedLM(TapasPreTrainedModel):
             not config.is_decoder
         ), "If you want to use `TapasForMaskedLM` make sure `config.is_decoder=False` for bi-directional self-attention."
 
-        self.tapas = TapasModel(config)
+        self.tapas = TapasModel(config, add_pooling_layer=False)
         self.cls = TapasLMHead(config)
 
         self.init_weights()
