@@ -987,7 +987,7 @@ class TapasTokenizer(BertTokenizer):
 
         add_loss_variables = None
         if answer_coordinates is not None and answer_texts is not None:
-            assert len(answer_coordinates) == len(answer_texts)
+            assert len(answer_coordinates) == len(answer_texts) == len(queries)
             add_loss_variables = True
         
         # First, tokenize the table and get the number of rows and columns

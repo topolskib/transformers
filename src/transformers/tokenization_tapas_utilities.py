@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """ Utilities for TAPAS tokenizer (independent from PyTorch/Tensorflow). 
-    This includes functions to parse numeric values (dates and numbers) from texts, 
+    This includes functions to parse numeric values (dates and numbers) from texts 
     to create the column_ranks, inv_column_ranks, numeric_values, numeric values_scale 
     and numeric_relations.
 """
