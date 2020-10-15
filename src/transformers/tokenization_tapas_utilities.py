@@ -14,9 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """ Utilities for TAPAS tokenizer (independent from PyTorch/Tensorflow). 
+
     This includes functions to parse numeric values (dates and numbers) from texts 
     to create the column_ranks, inv_column_ranks, numeric_values, numeric values_scale 
     and numeric_relations.
+
+    These are meant to be used in an academic setup, for production use cases
+    Gold mine or Aqua should be used.
+
+    Mainly copied from number_utils.py and constants.py (both found under the "utils" directory)
+    of the original implementation.
 """
 
 import enum

@@ -354,7 +354,26 @@ def compute_column_logits(sequence_output,
                           cell_index,
                           cell_mask,
                           allow_empty_column_selection):
-
+    """Computes the column logits.
+    
+    Args:
+        sequence_output (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length, hidden_size)`):
+            Also known as last_hidden_state. Sequence of hidden-states at the output of the last layer of the model.
+        column_output_weights (:obj:`torch.FloatTensor` of shape :obj:`(hidden_size)`):
+            Weights of the linear layer for column selection.
+        column_output_bias (:obj:`torch.FloatTensor` of shape :obj:`()`):
+            Bias of the linear layer for column selection.
+        cell_index (:obj:`ProductIndexMap`):
+            Index that groups tokens into cells.
+        cell_mask (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, max_num_rows * max_num_cols)`):
+            Mask for cells that exist in the table (i.e. that are not padding).
+        allow_empty_column_selection (:obj:`bool`):
+            Whether to allow not to select any column.     
+    Returns:
+        column_logits (:obj:`torch.FloatTensor`of shape :obj:`(batch_size, max_num_cols)`):
+            Tensor containing the column logits for every example in the batch.
+    """
+    
     # First, compute the token logits (batch_size, seq_len) - without temperature
     token_logits = (
                     torch.einsum("bsj,j->bs", sequence_output, column_output_weights) +
@@ -385,9 +404,32 @@ def compute_column_logits(sequence_output,
 
 def _single_column_cell_selection_loss(token_logits, column_logits, label_ids,
                                        cell_index, col_index, cell_mask):
-  
-    ## HIERARCHICAL LOG_LIKEHOOD
-
+    """Computes the loss for cell selection constrained to a single column.
+    The loss is a hierarchical log-likelihood. The model first predicts a column
+    and then selects cells within that column (conditioned on the column). Cells
+    outside the selected column are never selected.
+    
+    Args:
+        token_logits (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length)`):
+            Tensor containing the logits per token.
+        column_logits (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, max_num_cols)`):
+            Tensor containing the logits per column.
+        label_ids (:obj:`torch.LongTensor` of shape :obj:`(batch_size, sequence_length)`):
+            Labels per token.
+        cell_index (:obj:`ProductIndexMap`):
+            Index that groups tokens into cells.
+        col_index (:obj:`IndexMap`):
+            Index that groups tokens into columns.
+        cell_mask (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, max_num_rows * max_num_cols)`):
+            Mask for cells that exist in the table (i.e. that are not padding).
+                
+    Returns:
+        selection_loss_per_example (:obj:`torch.FloatTensor` of shape :obj:`(batch_size,)`):
+            Loss for each example.
+        logits: (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length)`): 
+            New logits which are only allowed to select cells in a single column. Logits outside of the most likely 
+            column according to `column_logits` will be set to a very low value (such that the probabilities are 0).
+    """
     ## Part 1: column loss
     
     # First find the column we should select. We use the column with maximum
@@ -467,11 +509,17 @@ def _single_column_cell_selection_loss(token_logits, column_logits, label_ids,
 def compute_token_logits(sequence_output, temperature, output_weights, output_bias):
     """Computes logits per token.
     Args:
-        sequence_output: <float>[batch_size, seq_length, hidden_dim] Output of the
-        encoder layer.
-        temperature: float Temperature for the Bernoulli distribution.
+        sequence_output: (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length, hidden_size)`):
+            Also known as last_hidden_state. Sequence of hidden-states at the output of the last layer of the model.
+        temperature (:obj:`float`):
+            Temperature for the Bernoulli distribution.
+        output_weights (:obj:`torch.FloatTensor` of shape :obj:`(hidden_size,)`):
+            Weights of the linear layer for cell selection.
+        output_bias (:obj:`torch.FloatTensor` of shape :obj:`()`):
+            Bias of the linear layer for cell selection.
     Returns:
-        logits: <float>[batch_size, seq_length] Logits per token.
+        logits: (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length)`):
+            Logits per token.
     """
     logits = (torch.einsum("bsj,j->bs", sequence_output, output_weights) +
             output_bias) / temperature
@@ -481,9 +529,15 @@ def compute_token_logits(sequence_output, temperature, output_weights, output_bi
 def compute_classification_logits(pooled_output, output_weights_cls, output_bias_cls):
     """Computes logits for each classification of the sequence.
     Args:
-        pooled_output: <float>[batch_size, hidden_dim] Output of the pooler (BertPooler) on top of the encoder layer.
+        pooled_output (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, hidden_size)`):
+            Output of the pooler (BertPooler) on top of the encoder layer.
+        output_weights_cls (:obj:`torch.FloatTensor` of shape :obj:`(num_classification_labels, hidden_size)`):
+            Weights of the linear classification head.
+        output_bias_cls (:obj:`torch.FloatTensor` of shape :obj:`(num_classification_labels)`):
+            Bias of the linear classification head.
     Returns:
-        logits_cls: <float>[batch_size, config.num_classification_labels] Logits per class.
+        logits_cls: (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, num_classification_labels)`):
+            Logits per class.
     """
     logits_cls = torch.matmul(pooled_output, output_weights_cls.T)
     logits_cls += output_bias_cls
@@ -493,9 +547,15 @@ def compute_classification_logits(pooled_output, output_weights_cls, output_bias
 def _calculate_aggregation_logits(pooled_output, output_weights_agg, output_bias_agg):
     """Calculates the aggregation logits.
     Args:
-        pooled_output: torch.FloatTensor[batch_size, hidden_dim] Output of the pooler (BertPooler) on top of the encoder layer.
+        pooled_output (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, hidden_size)`):
+            Output of the pooler (BertPooler) on top of the encoder layer.
+        output_weights_agg (:obj:`torch.FloatTensor` of shape :obj:`(num_aggregation_labels, hidden_size)`):
+            Weights of the linear aggregation head.
+        output_bias_agg (:obj:`torch.FloatTensor` of shape :obj:`(num_aggregation_labels,)`):
+            Bias of the linear aggregation head.
     Returns:
-        logits_aggregation: torch.FloatTensor[batch_size, config.num_aggregation_labels] Logits per aggregation operation.
+        logits_aggregation (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, num_aggregation_labels)`):
+            Logits per aggregation operation.
     """
     logits_aggregation = torch.matmul(pooled_output, output_weights_agg.T)
     logits_aggregation += output_bias_agg
@@ -505,6 +565,7 @@ def _calculate_aggregation_logits(pooled_output, output_weights_agg, output_bias
 
 def _calculate_aggregate_mask(answer, pooled_output, cell_select_pref, label_ids, output_weights_agg, output_bias_agg):
     """Finds examples where the model should select cells with no aggregation.
+    
     Returns a mask that determines for which examples should the model select
     answers directly from the table, without any aggregation function. If the
     answer is a piece of text the case is unambiguous as aggregation functions
@@ -515,15 +576,23 @@ def _calculate_aggregate_mask(answer, pooled_output, cell_select_pref, label_ids
     to select or aggregate. The threshold for this is a hyperparameter
     `cell_select_pref`
     Args:
-        answer: torch.FloatTensor[batch_size]
-        pooled_output: torch.FloatTensor[batch_size, hidden_size]
-        cell_select_pref: Preference for cell selection in ambiguous cases.
-        label_ids: torch.LongTensor[batch_size, seq_length]
+        answer (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, )`):
+            Answer for every example in the batch. Nan if there is no scalar answer.
+        pooled_output (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, hidden_size)`):
+            Output of the pooler (BertPooler) on top of the encoder layer.
+        cell_select_pref (:obj:`float`):
+            Preference for cell selection in ambiguous cases.
+        label_ids (:obj:`torch.LongTensor` of shape :obj:`(batch_size, sequence_length)`):
+            Labels per token.
+        output_weights_agg (:obj:`torch.FloatTensor` of shape :obj:`(num_aggregation_labels, hidden_size)`):
+            Weights of the linear aggregation head.
+        output_bias_agg (:obj:`torch.FloatTensor` of shape :obj:`(num_aggregation_labels,)`):
+            Bias of the linear aggregation head.
     Returns:
-        aggregate_mask: torch.FloatTensor[batch_size] A mask set to 1 for examples that
-        should use aggregation functions.
+        aggregate_mask (:obj:`torch.FloatTensor` of shape :obj:`(batch_size,)`): 
+            A mask set to 1 for examples that should use aggregation functions.
     """
-    # torch.FloatTensor[batch_size]
+    # torch.FloatTensor(batch_size,)
     aggregate_mask_init = torch.logical_not(torch.isnan(answer)).type(torch.FloatTensor).to(answer.device)
     logits_aggregation = _calculate_aggregation_logits(pooled_output, output_weights_agg, output_bias_agg)
     dist_aggregation = torch.distributions.categorical.Categorical(logits=logits_aggregation)
@@ -551,17 +620,24 @@ def _calculate_aggregate_mask(answer, pooled_output, cell_select_pref, label_ids
 def _calculate_aggregation_loss_known(logits_aggregation, aggregate_mask,
                                 aggregation_function_id, config):
     """Calculates aggregation loss when its type is known during training.
+    
     In the weakly supervised setting, the only known information is that for
     cell selection examples, "no aggregation" should be predicted. For other
     examples (those that require aggregation), no loss is accumulated.
     In the setting where aggregation type is always known, standard cross entropy
     loss is accumulated for all examples.
     Args:
-        logits_aggregation: torch.FloatTensor[batch_size, num_aggregation_labels]
-        aggregate_mask: torch.FloatTensor[batch_size]
-        aggregation_function_id: torch.LongTensor[batch_size]
+        logits_aggregation (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, num_aggregation_labels)`):
+            Logits per aggregation operation.
+        aggregate_mask (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, )`):
+            A mask set to 1 for examples that should use aggregation functions.
+        aggregation_function_id (:obj:`torch.LongTensor` of shape :obj:`(batch_size, )`):
+            Aggregation function id for every example in the batch.
+        config (:class:`~transformers.TapasConfig`): 
+            Model configuration class with all the parameters of the model.
     Returns:
-        aggregation_loss_known: torch.FloatTensor[batch_size, num_aggregation_labels]
+        aggregation_loss_known (:obj:`torch.FloatTensor` of shape :obj:`(batch_size,)`):
+            Aggregation loss (when its type is known during training) per example.
     """
     if config.use_answer_as_supervision:
         # Prepare "no aggregation" targets for cell selection examples.
@@ -587,7 +663,16 @@ def _calculate_aggregation_loss_known(logits_aggregation, aggregate_mask,
         return per_example_aggregation_intermediate
 
 def _calculate_aggregation_loss_unknown(logits_aggregation, aggregate_mask):
-    """Calculates aggregation loss in the case of answer supervision."""
+    """Calculates aggregation loss in the case of answer supervision.
+    Args:
+        logits_aggregation (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, num_aggregation_labels)`):
+            Logits per aggregation operation.
+        aggregate_mask (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, )`):
+            A mask set to 1 for examples that should use aggregation functions.
+    Returns:
+        aggregation_loss_unknown (:obj:`torch.FloatTensor` of shape :obj:`(batch_size,)`):
+            Aggregation loss (in case of answer supervision) per example.
+    """
 
     dist_aggregation = torch.distributions.categorical.Categorical(logits=logits_aggregation)
     # Index 0 correponds to "no aggregation".
@@ -602,7 +687,20 @@ def _calculate_aggregation_loss_unknown(logits_aggregation, aggregate_mask):
 
 def _calculate_aggregation_loss(logits_aggregation, aggregate_mask,
                             aggregation_function_id, config):
-    """Calculates the aggregation loss per example."""
+    """Calculates the aggregation loss per example.
+    Args:
+        logits_aggregation (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, num_aggregation_labels)`):
+            Logits per aggregation operation.
+        aggregate_mask (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, )`):
+            A mask set to 1 for examples that should use aggregation functions.
+        aggregation_function_id (:obj:`torch.LongTensor` of shape :obj:`(batch_size, )`):
+            Aggregation function id for every example in the batch.
+        config (:class:`~transformers.TapasConfig`): 
+            Model configuration class with all the parameters of the model.
+    Returns:
+        aggregation_loss (:obj:`torch.FloatTensor` of shape :obj:`(batch_size,)`):
+            Aggregation loss per example.
+    """
     per_example_aggregation_loss = _calculate_aggregation_loss_known(
         logits_aggregation, aggregate_mask, aggregation_function_id, config)
 
@@ -616,7 +714,24 @@ def _calculate_expected_result(dist_per_cell, numeric_values,
                                numeric_values_scale, input_mask_float,
                                logits_aggregation,
                                config):
-    """Calculate the expected result given cell and aggregation probabilities."""
+    """Calculate the expected result given cell and aggregation probabilities.
+    Args:
+        dist_per_cell (:obj:`torch.distributions.Bernoulli`):
+            Cell selection distribution for each cell.
+        numeric_values (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, seq_length)`):
+            Numeric values of every token. Nan for tokens which are not numeric values.
+        numeric_values_scale (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, seq_length)`):
+            Scale of the numeric values of every token. 
+        input_mask_float (:obj: `torch.FloatTensor` of shape :obj:`(batch_size, seq_length)`): 
+            Mask for the table, without question tokens and table headers.
+        logits_aggregation (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, num_aggregation_labels)`):
+            Logits per aggregation operation.
+        config (:class:`~transformers.TapasConfig`): 
+            Model configuration class with all the parameters of the model.
+    Returns:
+        expected_result (:obj:`torch.FloatTensor` of shape :obj:`(batch_size,)`):
+            The expected result per example.
+    """
     if config.use_gumbel_for_cells:
         gumbel_dist = torch.distributions.RelaxedBernoulli(
             # The token logits where already divided by the temperature and used for
@@ -695,20 +810,27 @@ def _calculate_regression_loss(answer, aggregate_mask, dist_per_cell,
                                config):
     """Calculates the regression loss per example.
     Args:
-        answer: <float32>[batch_size]
-        aggregate_mask: <float32>[batch_size]
-        dist_per_cell: Cell selection distribution for each cell.
-        numeric_values: <float32>[batch_size, seq_length]
-        numeric_values_scale: <float32>[batch_size, seq_length]
-        input_mask_float: <float32>[batch_size, seq_length]
-        logits_aggregation: <float32>[batch_size, num_aggregation_labels]
-        probabilities.
-        config: Configuration for Tapas model.
+        answer (:obj: `torch.FloatTensor` of shape :obj:`(batch_size,)`):
+            Answer for every example in the batch. Nan if there is no scalar answer.
+        aggregate_mask (:obj: `torch.FloatTensor` of shape :obj:`(batch_size,)`): 
+            A mask set to 1 for examples that should use aggregation functions.
+        dist_per_cell (:obj:`torch.distributions.Bernoulli`): 
+            Cell selection distribution for each cell.
+        numeric_values (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, seq_length)`):
+            Numeric values of every token. Nan for tokens which are not numeric values.
+        numeric_values_scale (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, seq_length)`):
+            Scale of the numeric values of every token. 
+        input_mask_float (:obj: `torch.FloatTensor` of shape :obj:`(batch_size, seq_length)`): 
+            Mask for the table, without question tokens and table headers.
+        logits_aggregation (:obj: `torch.FloatTensor` of shape :obj:`(batch_size, num_aggregation_labels)`):
+            Logits per aggregation operation.
+        config (:class:`~transformers.TapasConfig`): 
+            Model configuration class with all the parameters of the model.
     Returns:
-        per_example_answer_loss_scaled: <float32>[batch_size]. Scales answer loss
-        for each example in the batch.
-        large_answer_loss_mask: <float32>[batch_size]. A mask which is 1 for
-        examples for which their answer loss is larger than the answer_loss_cutoff.
+        per_example_answer_loss_scaled (:obj:`torch.FloatTensor` of shape :obj:`(batch_size,)`):
+            Scales answer loss for each example in the batch.
+        large_answer_loss_mask (:obj:`torch.FloatTensor` of shape :obj:`(batch_size,)`):
+            A mask which is 1 for examples for which their answer loss is larger than the answer_loss_cutoff.
     """
     # <float32>[batch_size]
     expected_result = _calculate_expected_result(dist_per_cell, numeric_values,
