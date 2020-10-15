@@ -12,7 +12,27 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-""" Utilities for PyTorch Tapas model.
+""" Utilities for PyTorch Tapas model. This includes: 
+- operations on segmented tensors using the torch_scatter PyTorch package
+- functions to calculate the various logits and losses defined by the authors of TAPAS 
+(cell selection loss, aggregation loss, regression loss). These make use of these operations.
+
+For the operations on segmented tensors, first 2 classes are defined that actually segment tensors:
+IndexMap and ProductIndexMap.
+- An IndexMap is typically used to represent the column_ids or row_ids of the various tokens of a batch. 
+Each token belongs to a particular segment, i.e., a particular column or row.  
+- A ProductIndexMap is typically used to represent the cell of the various tokens of a batch. 
+Each token belongs to a particular segment, i.e. a particular cell. 
+Next, the operations themselves are defined as separate functions: gather, reduce_sum, reduce_mean,
+reduce_max and reduce_min. The functions flatten and range_index_map are used within these functions. 
+
+For the calculations of the custom losses, the following is defined:
+- calculation of the column logits
+- calculation of the hierarchical log likelihood loss for cell selection
+- calculation of the token logits, classification and aggregation logits
+- calculation of the aggregation loss (this function makes use of _calculate_aggregate_mask,
+_calculate_aggregation_loss_known and _calculate_aggregation_loss_unknown)
+- calculation of the regression loss (this function makes use of _calculate_expected_result)
 """
 
 import torch
@@ -27,20 +47,23 @@ class AverageApproximationFunction(str, enum.Enum):
   FIRST_ORDER = "first_order"
   SECOND_ORDER = "second_order"
 
+### Beginning of everything related to segmented tensors ###
+
 class IndexMap(object):
     """Index grouping entries within a tensor."""
 
     def __init__(self, indices, num_segments, batch_dims=0):
         """Creates an index.
         Args:
-            indices: torch.LongTensor of indices, same shape as `values`.
-            num_segments: Scalar tensor, the number of segments. All elements
-            in a batched segmented tensor must have the same number of segments
-            (although many segments can be empty).
-            batch_dims: Python integer, the number of batch dimensions. The first
-            `batch_dims` dimensions of a SegmentedTensor are treated as batch
-            dimensions. Segments in different batch elements are always distinct
-            even if they have the same index.
+            indices: (:obj:`torch.LongTensor`, same shape as `values`)
+                Tensor containing the indices.
+            num_segments: (:obj:`torch.LongTensor`)
+                Scalar tensor, the number of segments. All elements in a batched segmented tensor 
+                must have the same number of segments (although many segments can be empty).
+            batch_dims: (:obj:`int`, `optional`, defaults to 0)
+                The number of batch dimensions. The first `batch_dims` dimensions of a SegmentedTensor 
+                are treated as batch dimensions. Segments in different batch elements are always distinct 
+                even if they have the same index.
         """
         self.indices = torch.as_tensor(indices)
         self.num_segments = torch.as_tensor(num_segments, device=indices.device)
@@ -63,8 +86,10 @@ class ProductIndexMap(IndexMap):
         {0, .., nm - 1}. The output has `num_segments` equal to
             `outer_index.num_segments` * `inner_index.num_segments`.
         Args:
-        outer_index: IndexMap.
-        inner_index: IndexMap, must have the same shape as `outer_index`.
+            outer_index (:obj:`IndexMap`):
+                IndexMap.
+            inner_index (:obj:`IndexMap`):
+                IndexMap, must have the same shape as `outer_index`.
         """
         if outer_index.batch_dims != inner_index.batch_dims:
          raise ValueError('outer_index.batch_dims and inner_index.batch_dims must be the same.')
@@ -99,11 +124,14 @@ def gather(values, index, name='segmented_gather'):
     value for that index in `values`. Two elements from the same segment always
     get assigned the same value.
     Args:
-        values: [B1, ..., Bn, num_segments, V1, ...] Tensor with segment values.
-        index: [B1, ..., Bn, I1, ..., Ik] IndexMap.
-        name: Name for the TensorFlow operation.
+        values (:obj:`torch.Tensor` of shape [B1, ..., Bn, num_segments, V1, ...]):  
+            Tensor with segment values.
+        index (:obj:`IndexMap` of shape [B1, ..., Bn, I1, ..., Ik]): 
+            IndexMap.
+        name (:obj:`str`, `optional`, defaults to 'segmented_gather'):
+            Name for the operation. Currently not used.
     Returns:
-        [B1, ..., Bn, I1, ..., Ik, V1, ...] Tensor with the gathered values.
+        :obj:`tuple(torch.Tensor)`: Tensor of shape [B1, ..., Bn, I1, ..., Ik, V1, ...] with the gathered values.
     """
     indices = index.indices
     # first, check whether the indices of the index represent scalar values (i.e. not vectorized)
@@ -125,10 +153,12 @@ def flatten(index, name='segmented_flatten'):
     result is a tensor with `num_segments` multiplied by the number of elements
     in the batch.
     Args:
-        index: IndexMap to flatten.
-        name: Name for the TensorFlow operation.
+        index (:obj:`IndexMap`): 
+            IndexMap to flatten.
+        name (:obj:`str`, `optional`, defaults to 'segmented_flatten'):
+            Name for the operation. Currently not used.
     Returns:
-        The flattened IndexMap.
+        (:obj:`IndexMap`): The flattened IndexMap.
     """
     # first, get batch_size as scalar tensor
     batch_size = torch.prod(torch.tensor(list(index.batch_shape()))) 
@@ -148,11 +178,14 @@ def flatten(index, name='segmented_flatten'):
 def range_index_map(batch_shape, num_segments, name='range_index_map'):
     """Constructs an index map equal to range(num_segments).
     Args:
-        batch_shape: torch.Size object indicating the batch shape 
-        num_segments: int, indicating number of segments
-        name: Name for the TensorFlow operation.
+        batch_shape (:obj:`torch.Size`): 
+            Batch shape 
+        num_segments (:obj:`int`): 
+            Number of segments
+        name (:obj:`str`, `optional`, defaults to 'range_index_map'): 
+            Name for the operation. Currently not used.
     Returns:
-        IndexMap of shape batch_shape with elements equal to range(num_segments).
+        (:obj:`IndexMap`): IndexMap of shape batch_shape with elements equal to range(num_segments).
     """
     batch_shape = torch.as_tensor(batch_shape, dtype=torch.long) # create a rank 1 tensor vector containing batch_shape (e.g. [2]) 
     assert len(batch_shape.size()) == 1
@@ -180,7 +213,19 @@ def range_index_map(batch_shape, num_segments, name='range_index_map'):
         batch_dims=list(batch_shape.size())[0])
 
 def _segment_reduce(values, index, segment_reduce_fn, name):
-    """Applies a segment reduction segment-wise."""
+    """Applies a segment reduction segment-wise.
+    Args:
+        values (:obj:`torch.Tensor`): 
+            Tensor with segment values.
+        index (:obj:`IndexMap`): 
+            IndexMap.
+        segment_reduce_fn (:obj:`str`):
+            Name for the reduce operation. One of "sum", "mean", "max" or "min".
+        name (:obj:`str`):
+            Name for the operation. Currently not used.
+    Returns:
+        (:obj:`IndexMap`): IndexMap of shape batch_shape with elements equal to range(num_segments).
+    """
     # Flatten the batch dimensions, as segments ops (scatter) do not support batching.
     # However if `values` has extra dimensions to the right keep them
     # unflattened. Segmented ops support vector-valued operations.
@@ -217,14 +262,17 @@ def reduce_sum(values, index, name='segmented_reduce_sum'):
         the output will be a sum of vectors rather than scalars.
     Only the middle dimensions [I1, ..., Ik] are reduced by the operation.
     Args:
-        values: [B1, B2, ..., Bn, I1, .., Ik, V1, V2, ..] tensor of values to be
-        averaged.
-        index: IndexMap [B1, B2, ..., Bn, I1, .., Ik] index defining the segments.
-        name: Name for the TensorFlow ops.
+        values (:obj:`torch.Tensor` of shape [B1, B2, ..., Bn, I1, .., Ik, V1, V2, ..]):  
+            Tensor containing the values of which the sum must be taken segment-wise.
+        index (:obj:`IndexMap`, indices are of shape [B1, B2, ..., Bn, I1, .., Ik].): 
+            Index defining the segments. 
+        name (:obj:`str`, `optional`, defaults to 'segmented_reduce_sum'):
+            Name for the operation. Currently not used.
     Returns:
-        A pair (output_values, output_index) where `output_values` is a tensor
-        of shape [B1, B2, ..., Bn, num_segments, V1, V2, ..] and `index` is an
-        IndexMap with shape [B1, B2, ..., Bn, num_segments].
+        output_values (:obj:`torch.Tensor`of shape [B1, B2, ..., Bn, num_segments, V1, V2, ..]):
+            Tensor containing the output values.
+        output_index (:obj:`IndexMap`):
+            IndexMap with shape [B1, B2, ..., Bn, num_segments].       .
     """
     return _segment_reduce(values, index, "sum", name)
 
@@ -238,14 +286,17 @@ def reduce_mean(values, index, name='segmented_reduce_mean'):
         the output will be a mean of vectors rather than scalars.
     Only the middle dimensions [I1, ..., Ik] are reduced by the operation.
     Args:
-        values: [B1, B2, ..., Bn, I1, .., Ik, V1, V2, ..] tensor of values to be
-        averaged.
-        index: IndexMap [B1, B2, ..., Bn, I1, .., Ik] index defining the segments.
-        name: Name for the TensorFlow ops.
+        values (:obj:`torch.Tensor` of shape [B1, B2, ..., Bn, I1, .., Ik, V1, V2, ..]):  
+            Tensor containing the values of which the mean must be taken segment-wise.
+        index (:obj:`IndexMap`, indices are of shape [B1, B2, ..., Bn, I1, .., Ik].): 
+            Index defining the segments. 
+        name (:obj:`str`, `optional`, defaults to 'segmented_reduce_sum'):
+            Name for the operation. Currently not used.
     Returns:
-        A pair (output_values, output_index) where `output_values` is a tensor
-        of shape [B1, B2, ..., Bn, num_segments, V1, V2, ..] and `index` is an
-        IndexMap with shape [B1, B2, ..., Bn, num_segments].
+        output_values (:obj:`torch.Tensor`of shape [B1, B2, ..., Bn, num_segments, V1, V2, ..]):
+            Tensor containing the output values.
+        output_index (:obj:`IndexMap`):
+            IndexMap with shape [B1, B2, ..., Bn, num_segments]. 
     """
     return _segment_reduce(values, index, "mean", name)
 
@@ -258,22 +309,44 @@ def reduce_max(values, index, name='segmented_reduce_max'):
         the output will be an element-wise maximum of vectors rather than scalars.
     Only the middle dimensions [I1, ..., Ik] are reduced by the operation.
     Args:
-        values: [B1, B2, ..., Bn, I1, .., Ik, V1, V2, ..] tensor of values to be
-        averaged.
-        index: IndexMap [B1, B2, ..., Bn, I1, .., Ik] index defining the segments.
-        name: Name for the TensorFlow ops.
+        values (:obj:`torch.Tensor` of shape [B1, B2, ..., Bn, I1, .., Ik, V1, V2, ..]):  
+            Tensor containing the values of which the max must be taken segment-wise.
+        index (:obj:`IndexMap`, indices are of shape [B1, B2, ..., Bn, I1, .., Ik].): 
+            Index defining the segments. 
+        name (:obj:`str`, `optional`, defaults to 'segmented_reduce_sum'):
+            Name for the operation. Currently not used.
     Returns:
-        A pair (output_values, output_index) where `output_values` is a tensor
-        of shape [B1, B2, ..., Bn, num_segments, V1, V2, ..] and `index` is an
-        IndexMap with shape [B1, B2, ..., Bn, num_segments].
+        output_values (:obj:`torch.Tensor`of shape [B1, B2, ..., Bn, num_segments, V1, V2, ..]):
+            Tensor containing the output values.
+        output_index (:obj:`IndexMap`):
+            IndexMap with shape [B1, B2, ..., Bn, num_segments]. 
     """
     return _segment_reduce(values, index, "max", name)
 
 def reduce_min(values, index, name='segmented_reduce_min'):
-  """Computes the minimum over segments."""
+  """Computes the minimum over segments.
+    This operations computes the maximum over segments, with support for:
+        - Batching using the first dimensions [B1, B2, ..., Bn]. Each element in
+        a batch can have different indices.
+        - Vectorization using the last dimension [V1, V2, ...]. If they are present
+        the output will be an element-wise maximum of vectors rather than scalars.
+    Only the middle dimensions [I1, ..., Ik] are reduced by the operation.
+    Args:
+        values (:obj:`torch.Tensor` of shape [B1, B2, ..., Bn, I1, .., Ik, V1, V2, ..]):  
+            Tensor containing the values of which the min must be taken segment-wise.
+        index (:obj:`IndexMap`, indices are of shape [B1, B2, ..., Bn, I1, .., Ik].): 
+            Index defining the segments. 
+        name (:obj:`str`, `optional`, defaults to 'segmented_reduce_sum'):
+            Name for the operation. Currently not used.
+    Returns:
+        output_values (:obj:`torch.Tensor`of shape [B1, B2, ..., Bn, num_segments, V1, V2, ..]):
+            Tensor containing the output values.
+        output_index (:obj:`IndexMap`):
+            IndexMap with shape [B1, B2, ..., Bn, num_segments]. 
+    """
   return _segment_reduce(values, index, "min", name)
 
-### end of everything related to segmented tensors
+### End of everything related to segmented tensors ###
 
 def compute_column_logits(sequence_output,
                           column_output_weights,
@@ -611,7 +684,7 @@ def _calculate_expected_result(dist_per_cell, numeric_values,
         all_results * aggregation_op_only_probs, dim=1)
     return expected_result
 
-  # PyTorch does not currently support Huber loss with custom delta so we define it ourself
+# PyTorch does not currently support Huber loss with custom delta so we define it ourself
 def huber_loss(input, target, delta: float = 1.0):
     errors = torch.abs(input - target) # shape (batch_size,)
     return torch.where(errors < delta, 0.5 * errors ** 2, errors * delta - (0.5 * delta ** 2))

@@ -1,3 +1,24 @@
+# coding=utf-8
+# Copyright (...) and the HuggingFace Inc. team.
+# Copyright (c) (...).  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+""" Utilities for TAPAS tokenizer (independent from PyTorch/Tensorflow). 
+    This includes functions to parse numeric values (dates and numbers) from texts, 
+    to create the column_ranks, inv_column_ranks, numeric_values, numeric values_scale 
+    and numeric_relations.
+"""
+
 import enum
 from dataclasses import dataclass
 from typing import Text, Union, Tuple, Iterable, List, Any, Dict, Callable, Optional, Set
@@ -192,6 +213,7 @@ def get_all_spans(text,
                   max_ngram_length):
   """Split a text into all possible ngrams up to 'max_ngram_length'.
   Split points are white space and punctuation.
+
   Args:
     text: Text to split.
     max_ngram_length: maximal ngram length.
@@ -211,6 +233,7 @@ def get_all_spans(text,
 
 def parse_text(text):
   """Extracts longest number and date spans.
+  
   Args:
     text: text to annotate.
   Returns:
@@ -326,6 +349,7 @@ def get_numeric_sort_key_fn(
   If we added a third value "2006" with primitive value (2006., None, None),
   we could only compare by the year so we would map to (2010.,), (2007.,)
   and (2006.,).
+  
   Args:
    numeric_values: Values to compare.
   Returns:
@@ -374,9 +398,10 @@ def _parse_column_values(
     table,
     col_index):
   """Parses text in column and returns a dict mapping row_index to values.
+  
   Args: 
-  table: Pandas dataframe
-  col_index: integer, indicating the index of the column to get the numeric values of 
+    table: Pandas dataframe
+    col_index: integer, indicating the index of the column to get the numeric values of 
   """
   index_to_values = {}
   for row_index, row in table.iterrows():
