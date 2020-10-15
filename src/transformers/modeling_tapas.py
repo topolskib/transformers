@@ -15,6 +15,7 @@
 """PyTorch TAPAS model. """
 
 
+import math
 import logging
 import warnings
 import os
@@ -32,6 +33,7 @@ from transformers import modeling_tapas_utilities as utils
 from .activations import ACT2FN, gelu
 from .configuration_tapas import TapasConfig
 #from .modeling_bert import BertLayerNorm OK, BertPreTrainedModel OK, BertEncoder OK, BertPooler OK, BertOnlyMLMHead OK # to be removed and copied
+
 from .file_utils import (
     ModelOutput,
     add_code_sample_docstrings,
