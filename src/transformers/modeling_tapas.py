@@ -545,15 +545,15 @@ class TableQuestionAnsweringOutput(ModelOutput):
     Output type of :class:`~transformers.TapasForQuestionAnswering`.
 
     Args:
-        loss (`optional`, returned when ``label_ids`` and ``answer`` (and possibly ``classification_class_index``, ``aggregation_function_id``, ``numeric_values``
-        and ``numeric_values_scale`` are provided), ``torch.FloatTensor`` of shape :obj:`(1,)`):
-            Total loss as the sum of the hierarchical cell selection log-likelihood loss,  (optionally) classification loss, (optionally) supervised cell selection
-            loss and (optionally) the semi-supervised regression loss and supervised loss for aggregations.
+        loss (:obj:`torch.FloatTensor` of shape :obj:`(1,)`, `optional`, returned when :obj:`label_ids` and :obj:`answer` (and possibly :obj:`classification_class_index`,
+        `:obj:`aggregation_function_id`, :obj:`numeric_values` and :obj:`numeric_values_scale` are provided):
+            Total loss as the sum of the hierarchical cell selection log-likelihood loss, (optionally) classification loss, (optionally) supervised cell selection
+            loss and (optionally) the semi-supervised regression loss and (optionally) supervised loss for aggregations.
         logits (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length)`):
             Prediction scores of the cell selection head, for every token.
-        logits_aggregation (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, num_aggregation_labels)`):
+        logits_aggregation (:obj:`torch.FloatTensor`, `optional`, of shape :obj:`(batch_size, num_aggregation_labels)`):
             Prediction scores of the aggregation head, for every aggregation operator (including NONE). 
-        logits_cls (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, num_classification_labels)`):
+        logits_cls (:obj:`torch.FloatTensor`, `optional`, of shape :obj:`(batch_size, num_classification_labels)`):
             Prediction scores of the classification head, for every class index. 
         hidden_states (:obj:`tuple(torch.FloatTensor)`, `optional`, returned when ``output_hidden_states=True`` is passed or when ``config.output_hidden_states=True``):
             Tuple of :obj:`torch.FloatTensor` (one for the output of the embeddings + one for the output of each layer)
