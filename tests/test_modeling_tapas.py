@@ -25,7 +25,6 @@ from transformers.testing_utils import require_torch, require_torch_and_cuda, sl
 from .test_configuration_common import ConfigTester
 from .test_modeling_common import ModelTesterMixin, ids_tensor
 
-
 if is_torch_available():
     from transformers import (
         AutoModelForMaskedLM,
@@ -34,9 +33,6 @@ if is_torch_available():
         TapasModel,
         TapasForMaskedLM,
         TapasForQuestionAnswering,
-        #XxxForMultipleChoice, # to be added
-        #XxxForSequenceClassification, # to be added
-        #XxxForTokenClassification, # to be added
     )
     from transformers.file_utils import cached_property
 
@@ -158,8 +154,8 @@ class TapasModelTester:
 
         token_type_ids = None
         if self.use_token_type_ids:
-            token_type_ids = token_type_ids_tensor_tapas([self.batch_size, 
-                self.seq_length, len(self.type_vocab_size)], self.type_vocab_size)
+            token_type_ids = token_type_ids_tensor_tapas([self.batch_size, self.seq_length, len(self.type_vocab_size)], 
+                                                            self.type_vocab_size)
 
         #label_ids = None
         #answer_coordinates = None
@@ -251,44 +247,6 @@ class TapasModelTester:
         self.parent.assertEqual(result.logits_aggregation.shape, (self.batch_size, self.num_aggregation_labels))
         self.parent.assertEqual(result.logits_aggregation.shape, (self.batch_size, self.num_classification_labels))
 
-    # def create_and_check_for_sequence_classification(
-    #     self, config, input_ids, token_type_ids, input_mask, sequence_labels, token_labels, choice_labels
-    # ):
-    #     config.num_labels = self.num_labels
-    #     model = TapasForSequenceClassification(config)
-    #     model.to(torch_device)
-    #     model.eval()
-    #     result = model(input_ids, attention_mask=input_mask, token_type_ids=token_type_ids, labels=sequence_labels)
-    #     self.parent.assertEqual(result.logits.shape, (self.batch_size, self.num_labels))
-
-    # def create_and_check_for_token_classification(
-    #     self, config, input_ids, token_type_ids, input_mask, sequence_labels, token_labels, choice_labels
-    # ):
-    #     config.num_labels = self.num_labels
-    #     model = TapasForTokenClassification(config=config)
-    #     model.to(torch_device)
-    #     model.eval()
-    #     result = model(input_ids, attention_mask=input_mask, token_type_ids=token_type_ids, labels=token_labels)
-    #     self.parent.assertEqual(result.logits.shape, (self.batch_size, self.seq_length, self.num_labels))
-
-    # def create_and_check_for_multiple_choice(
-    #     self, config, input_ids, token_type_ids, input_mask, sequence_labels, token_labels, choice_labels
-    # ):
-    #     config.num_choices = self.num_choices
-    #     model = TapasForMultipleChoice(config=config)
-    #     model.to(torch_device)
-    #     model.eval()
-    #     multiple_choice_inputs_ids = input_ids.unsqueeze(1).expand(-1, self.num_choices, -1).contiguous()
-    #     multiple_choice_token_type_ids = token_type_ids.unsqueeze(1).expand(-1, self.num_choices, -1).contiguous()
-    #     multiple_choice_input_mask = input_mask.unsqueeze(1).expand(-1, self.num_choices, -1).contiguous()
-    #     result = model(
-    #         multiple_choice_inputs_ids,
-    #         attention_mask=multiple_choice_input_mask,
-    #         token_type_ids=multiple_choice_token_type_ids,
-    #         labels=choice_labels,
-    #     )
-    #     self.parent.assertEqual(result.logits.shape, (self.batch_size, self.num_choices))
-
     def prepare_config_and_inputs_for_common(self):
         config_and_inputs = self.prepare_config_and_inputs()
         (
@@ -309,7 +267,6 @@ class TapasModelTest(ModelTesterMixin, unittest.TestCase):
 
     all_model_classes = (
         (TapasModel, TapasForMaskedLM, TapasForQuestionAnswering)
-        #TapasForSequenceClassification, TapasForTokenClassification) # to be added
         if is_torch_available()
         else ()
     )
@@ -332,18 +289,6 @@ class TapasModelTest(ModelTesterMixin, unittest.TestCase):
     # def test_for_question_answering(self):
     #     config_and_inputs = self.model_tester.prepare_config_and_inputs()
     #     self.model_tester.create_and_check_for_question_answering(*config_and_inputs)
-
-    # def test_for_sequence_classification(self):
-    #     config_and_inputs = self.model_tester.prepare_config_and_inputs()
-    #     self.model_tester.create_and_check_for_sequence_classification(*config_and_inputs)
-
-    # def test_for_token_classification(self):
-    #     config_and_inputs = self.model_tester.prepare_config_and_inputs()
-    #     self.model_tester.create_and_check_for_token_classification(*config_and_inputs)
-
-    # def test_for_multiple_choice(self):
-    #     config_and_inputs = self.model_tester.prepare_config_and_inputs()
-    #     self.model_tester.create_and_check_electra_for_multiple_choice(*config_and_inputs)
 
     # @slow
     # def test_lm_outputs_same_as_reference_model(self):
@@ -375,21 +320,21 @@ class TapasModelTest(ModelTesterMixin, unittest.TestCase):
     #         model.half()
 
     # optional: do more testing! This will save you time later!
-    @slow
-    def test_that_XXX_can_be_used_in_a_pipeline(self):
-        """We can use self.big_model here without calling __init__ again."""
-        pass
+    # @slow
+    # def test_that_XXX_can_be_used_in_a_pipeline(self):
+    #     """We can use self.big_model here without calling __init__ again."""
+    #     pass
 
-    def test_XXX_loss_doesnt_change_if_you_add_padding(self):
-        pass
+    # def test_XXX_loss_doesnt_change_if_you_add_padding(self):
+    #     pass
 
-    def test_XXX_bad_args(self):
-        pass
+    # def test_XXX_bad_args(self):
+    #     pass
 
-    def test_XXX_backward_pass_reduces_loss(self):
-        """Test loss/gradients same as reference implementation, for example."""
-        pass
+    # def test_XXX_backward_pass_reduces_loss(self):
+    #     """Test loss/gradients same as reference implementation, for example."""
+    #     pass
 
-    @require_torch_and_cuda
-    def test_large_inputs_in_fp16_dont_cause_overflow(self):
-        pass
+    # @require_torch_and_cuda
+    # def test_large_inputs_in_fp16_dont_cause_overflow(self):
+    #     pass
