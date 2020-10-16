@@ -166,5 +166,3 @@ class TapasConfig(BertConfig):
         self.reset_position_index_per_cell = reset_position_index_per_cell
         self.disable_per_token_loss = disable_per_token_loss
         self.span_prediction = span_prediction
-
-        

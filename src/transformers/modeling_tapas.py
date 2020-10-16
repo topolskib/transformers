@@ -678,10 +678,17 @@ class TapasForQuestionAnswering(BertPreTrainedModel):
 
         # if config.is_training:
         #     sequence_output = self.dropout(sequence_output)
+
+        if input_ids is not None:
+            input_shape = input_ids.size()
+        else:
+            input_shape = inputs_embeds.size()[:-1]
+
+        device = input_ids.device if input_ids is not None else inputs_embeds.device
         
         # Construct indices for the table.
         if token_type_ids is None:
-            raise ValueError("You have to specify token type ids")
+            token_type_ids = torch.zeros((*input_shape, len(self.config.type_vocab_size)), dtype=torch.long, device=device)
         
         token_types = ["segment_ids", "column_ids", "row_ids", "prev_label_ids", "column_ranks",
                             "inv_column_ranks", "numeric_relations"]
