@@ -113,7 +113,6 @@ class TapasConfig(BertConfig):
         self, 
         max_position_embeddings=1024,
         type_vocab_size=[3, 256, 256, 2, 256, 256, 10],
-        task="SQA",
         positive_weight=10.0,
         num_aggregation_labels=0,
         num_classification_labels=0,
@@ -143,7 +142,6 @@ class TapasConfig(BertConfig):
         super().__init__(max_position_embeddings=max_position_embeddings, type_vocab_size=type_vocab_size, **kwargs)
         
         # Fine-tuning task arguments
-        self.task = task
         self.positive_weight = positive_weight
         self.num_aggregation_labels = num_aggregation_labels
         self.num_classification_labels = num_classification_labels
@@ -169,57 +167,4 @@ class TapasConfig(BertConfig):
         self.disable_per_token_loss = disable_per_token_loss
         self.span_prediction = span_prediction
 
-        if task == "SQA":
-            # run_task_main.py hparams
-            self.num_aggregation_labels = 0
-            self.use_answer_as_supervision = None
-            
-            # hparam_utils.py hparams
-            self.init_cell_selection_weights_to_zero = False
-            self.select_one_column = True
-            self.allow_empty_column_selection = False
-
-        elif task == "WTQ":
-            # run_task_main.py hparams
-            self.num_aggregation_labels = 4
-            self.use_answer_as_supervision = True 
-            
-            # hparam_utils.py hparams
-            self.answer_loss_cutoff = 0.664694
-            self.cell_select_pref = 0.207951
-            self.huber_loss_delta = 0.121194
-            self.init_cell_selection_weights_to_zero = True
-            self.select_one_column = True
-            self.allow_empty_column_selection = False
-            self.temperature = 0.0352513
-    
-        elif task == "WIKISQL":
-            # run_task_main.py hparams
-            self.num_aggregation_labels = 4
-            self.use_answer_as_supervision = True
-            
-            # hparam_utils.py hparams
-            self.answer_loss_cutoff = 0.185567
-            self.cell_select_pref = 0.611754
-            self.huber_loss_delta = 1265.74
-            self.init_cell_selection_weights_to_zero = False
-            self.select_one_column = False
-            self.allow_empty_column_selection = False
-            self.temperature = 0.107515
-
-        elif task == "WIKISQL_SUPERVISED":
-            # run_task_main.py hparams
-            self.num_aggregation_labels = 4
-            self.use_answer_as_supervision = False
-            
-            # hparam_utils.py hparams
-            self.answer_loss_cutoff = 36.4519
-            self.cell_select_pref = 0.903421
-            self.huber_loss_delta = 222.088
-            self.init_cell_selection_weights_to_zero = True
-            self.select_one_column = True
-            self.allow_empty_column_selection = True
-            self.temperature = 0.763141
         
-        else:
-            raise ValueError(f'Unknown task: {task}')
