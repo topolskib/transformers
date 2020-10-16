@@ -55,6 +55,42 @@ TAPAS_PRETRAINED_MODEL_ARCHIVE_LIST = [
     # See all TAPAS models at https://huggingface.co/models?filter=tapas
 ]
 
+
+@dataclass
+class TableQuestionAnsweringOutput(ModelOutput):
+    """
+    Output type of :class:`~transformers.TapasForQuestionAnswering`.
+
+    Args:
+        loss (:obj:`torch.FloatTensor` of shape :obj:`(1,)`, `optional`, returned when :obj:`label_ids` and :obj:`answer` (and possibly :obj:`classification_class_index`,
+        `:obj:`aggregation_function_id`, :obj:`numeric_values` and :obj:`numeric_values_scale` are provided):
+            Total loss as the sum of the hierarchical cell selection log-likelihood loss, (optionally) classification loss, (optionally) supervised cell selection
+            loss and (optionally) the semi-supervised regression loss and (optionally) supervised loss for aggregations.
+        logits (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length)`):
+            Prediction scores of the cell selection head, for every token.
+        logits_aggregation (:obj:`torch.FloatTensor`, `optional`, of shape :obj:`(batch_size, num_aggregation_labels)`):
+            Prediction scores of the aggregation head, for every aggregation operator (including NONE). 
+        logits_cls (:obj:`torch.FloatTensor`, `optional`, of shape :obj:`(batch_size, num_classification_labels)`):
+            Prediction scores of the classification head, for every class index. 
+        hidden_states (:obj:`tuple(torch.FloatTensor)`, `optional`, returned when ``output_hidden_states=True`` is passed or when ``config.output_hidden_states=True``):
+            Tuple of :obj:`torch.FloatTensor` (one for the output of the embeddings + one for the output of each layer)
+            of shape :obj:`(batch_size, sequence_length, hidden_size)`.
+            Hidden-states of the model at the output of each layer plus the initial embedding outputs.
+        attentions (:obj:`tuple(torch.FloatTensor)`, `optional`, returned when ``output_attentions=True`` is passed or when ``config.output_attentions=True``):
+            Tuple of :obj:`torch.FloatTensor` (one for each layer) of shape
+            :obj:`(batch_size, num_heads, sequence_length, sequence_length)`.
+            Attentions weights after the attention softmax, used to compute the weighted average in the self-attention
+            heads.
+    """
+
+    loss: Optional[torch.FloatTensor] = None
+    logits: torch.FloatTensor = None
+    logits_aggregation: torch.FloatTensor = None
+    logits_cls: torch.FloatTensor = None
+    hidden_states: Optional[Tuple[torch.FloatTensor]] = None
+    attentions: Optional[Tuple[torch.FloatTensor]] = None
+
+
 def load_tf_weights_in_tapas(model, config, tf_checkpoint_path):
     """ Load tf checkpoints in a PyTorch model. This is an adaptation from load_tf_weights_in_bert
         - add cell selection and aggregation heads
@@ -537,41 +573,6 @@ class TapasForMaskedLM(BertPreTrainedModel):
             hidden_states=outputs.hidden_states,
             attentions=outputs.attentions,
         )
-
-
-@dataclass
-class TableQuestionAnsweringOutput(ModelOutput):
-    """
-    Output type of :class:`~transformers.TapasForQuestionAnswering`.
-
-    Args:
-        loss (:obj:`torch.FloatTensor` of shape :obj:`(1,)`, `optional`, returned when :obj:`label_ids` and :obj:`answer` (and possibly :obj:`classification_class_index`,
-        `:obj:`aggregation_function_id`, :obj:`numeric_values` and :obj:`numeric_values_scale` are provided):
-            Total loss as the sum of the hierarchical cell selection log-likelihood loss, (optionally) classification loss, (optionally) supervised cell selection
-            loss and (optionally) the semi-supervised regression loss and (optionally) supervised loss for aggregations.
-        logits (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length)`):
-            Prediction scores of the cell selection head, for every token.
-        logits_aggregation (:obj:`torch.FloatTensor`, `optional`, of shape :obj:`(batch_size, num_aggregation_labels)`):
-            Prediction scores of the aggregation head, for every aggregation operator (including NONE). 
-        logits_cls (:obj:`torch.FloatTensor`, `optional`, of shape :obj:`(batch_size, num_classification_labels)`):
-            Prediction scores of the classification head, for every class index. 
-        hidden_states (:obj:`tuple(torch.FloatTensor)`, `optional`, returned when ``output_hidden_states=True`` is passed or when ``config.output_hidden_states=True``):
-            Tuple of :obj:`torch.FloatTensor` (one for the output of the embeddings + one for the output of each layer)
-            of shape :obj:`(batch_size, sequence_length, hidden_size)`.
-            Hidden-states of the model at the output of each layer plus the initial embedding outputs.
-        attentions (:obj:`tuple(torch.FloatTensor)`, `optional`, returned when ``output_attentions=True`` is passed or when ``config.output_attentions=True``):
-            Tuple of :obj:`torch.FloatTensor` (one for each layer) of shape
-            :obj:`(batch_size, num_heads, sequence_length, sequence_length)`.
-            Attentions weights after the attention softmax, used to compute the weighted average in the self-attention
-            heads.
-    """
-
-    loss: Optional[torch.FloatTensor] = None
-    logits: torch.FloatTensor = None
-    logits_aggregation: torch.FloatTensor = None
-    logits_cls: torch.FloatTensor = None
-    hidden_states: Optional[Tuple[torch.FloatTensor]] = None
-    attentions: Optional[Tuple[torch.FloatTensor]] = None
 
 
 @add_start_docstrings(
