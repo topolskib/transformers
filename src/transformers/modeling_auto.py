@@ -40,7 +40,6 @@ from .configuration_auto import (
     RetriBertConfig,
     RobertaConfig,
     T5Config,
-    TapasConfig,
     TransfoXLConfig,
     XLMConfig,
     XLMRobertaConfig,
@@ -147,7 +146,6 @@ from .modeling_roberta import (
     RobertaModel,
 )
 from .modeling_t5 import T5ForConditionalGeneration, T5Model
-from .modeling_tapas import TapasModel, TapasForMaskedLM, TapasForQuestionAnswering
 from .modeling_transfo_xl import TransfoXLLMHeadModel, TransfoXLModel
 from .modeling_xlm import (
     XLMForMultipleChoice,
