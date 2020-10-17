@@ -607,9 +607,11 @@ TAPAS_START_DOCSTRING = r"""
     This model inherits from :class:`~transformers.PreTrainedModel`. Check the superclass documentation for the generic
     methods the library implements for all its models (such as downloading or saving, resizing the input embeddings,
     pruning heads etc.)
+
     This model is also a PyTorch `torch.nn.Module <https://pytorch.org/docs/stable/nn.html#torch.nn.Module>`__ subclass.
     Use it as a regular PyTorch Module and refer to the PyTorch documentation for all matter related to general
     usage and behavior.
+
     Parameters:
         config (:class:`~transformers.TapasConfig`): Model configuration class with all the parameters of the model.
             Initializing with a config file does not load the weights associated with the model, only the configuration.
@@ -957,9 +959,9 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         
         # cell selection heads
-        """init_cell_selection_weights_to_zero: Whether the initial weights should be
-        set to 0. This ensures that all tokens have the same prior probability."""
         if config.init_cell_selection_weights_to_zero: 
+            #init_cell_selection_weights_to_zero: Whether the initial weights should be
+            #set to 0. This ensures that all tokens have the same prior probability.
             self.output_weights = nn.Parameter(torch.zeros(config.hidden_size)) 
             self.column_output_weights = nn.Parameter(torch.zeros(config.hidden_size))
         else:

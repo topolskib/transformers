@@ -30,10 +30,10 @@ TAPAS_PRETRAINED_CONFIG_ARCHIVE_MAP = {
 
 class TapasConfig(BertConfig):
     r"""
-    This is the configuration class to store the configuration of a :class:`~transformers.TapasModel. 
+    This is the configuration class to store the configuration of a :class:`~transformers.TapasModel`. 
     It is used to instantiate a TAPAS model according to the specified arguments, defining the model 
     architecture. Instantiating a configuration with the defaults will yield a similar configuration 
-    to that of the TAPAS `tapas-base-finetuned-sqa` (URL to be added) architecture. Configuration objects 
+    to that of the TAPAS `tapas-base-finetuned-sqa` architecture. Configuration objects 
     inherit from :class:`~transformers.PreTrainedConfig` and can be used to control the model outputs. 
     Read the documentation from :class:`~transformers.PretrainedConfig` for more information.
 
