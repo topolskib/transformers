@@ -12,11 +12,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-<<<<<<< HEAD
 """ Tokenization class for TAPAS model."""
 
-=======
->>>>>>> e3a36ac6... Added all relevant classes of tapas to __init__.py
 
 import collections
 import ast
@@ -102,15 +99,9 @@ class TapasTokenizer(BertTokenizer):
     - row_ids: indicate to which row of the table a token belongs (starting from 1). Is 0 for all question tokens, special tokens and padding. Tokens of column headers are also 0.
     - prev_label_ids: indicate whether a token was (part of) an answer to the previous question (1) or not (0). Useful in a conversational setup (such as SQA).
     - column_ranks: indicate the rank of a table token relative to a column, if applicable. For example, if you have a column "number of movies" with values 87,
-<<<<<<< HEAD
       53 and 69, then the column ranks of these tokens are 3, 1 and 2 respectively. 0 for all question tokens, special tokens and padding.
     - inv_column_ranks: indicate the inverse rank of a table token relative to a column, if applicable. For example, if you have a column "number of movies" with values 87,
       53 and 69, then the inverse column ranks of these tokens are 1, 3 and 2 respectively. 0 for all question tokens, special tokens and padding.
-=======
-    53 and 69, then the column ranks of these tokens are 3, 1 and 2 respectively. 0 for all question tokens, special tokens and padding.
-    - inv_column_ranks: indicate the inverse rank of a table token relative to a column, if applicable. For example, if you have a column "number of movies" with values 87,
-    53 and 69, then the inverse column ranks of these tokens are 1, 3 and 2 respectively. 0 for all question tokens, special tokens and padding.
->>>>>>> e3a36ac6... Added all relevant classes of tapas to __init__.py
     - numeric_relations: indicate numeric relations between the question and the tokens of the table. 0 for all question tokens, special tokens and padding.
 
     :class:`~transformers.TapasTokenizer` runs end-to-end tokenization on a table and associated queries: punctuation splitting and wordpiece.
@@ -206,20 +197,12 @@ class TapasTokenizer(BertTokenizer):
             selected_tokens=token_coordinates,
         )
     
-<<<<<<< HEAD
     def _question_encoding_cost(self, question_tokens):
-=======
-    def question_encoding_cost(self, question_tokens):
->>>>>>> e3a36ac6... Added all relevant classes of tapas to __init__.py
         # Two extra spots of SEP and CLS.
         return len(question_tokens) + 2
     
     def _get_token_budget(self, question_tokens):
-<<<<<<< HEAD
         return self.model_max_length - self._question_encoding_cost(question_tokens)
-=======
-        return self.model_max_length - self.question_encoding_cost(question_tokens)
->>>>>>> e3a36ac6... Added all relevant classes of tapas to __init__.py
     
     def _get_table_values(self, table, num_columns, num_rows, num_tokens):
         """Iterates over partial table and returns token, column and row indexes."""
@@ -1101,11 +1084,7 @@ class TapasTokenizer(BertTokenizer):
 
         return batch_outputs
 
-<<<<<<< HEAD
     #### Everything related to converting logits to predictions ####
-=======
-    #### Everything related to converting logits to answers ####
->>>>>>> e3a36ac6... Added all relevant classes of tapas to __init__.py
 
     def _get_cell_token_probs(self, probabilities, segment_ids, row_ids, column_ids):
         for i, p in enumerate(probabilities):
@@ -1131,7 +1110,6 @@ class TapasTokenizer(BertTokenizer):
         """Parses cell coordinates from text."""
         return [ast.literal_eval(x) for x in raw_coordinates]
 
-<<<<<<< HEAD
     def convert_logits_to_predictions(self, data, logits, logits_agg=None, logits_cls=None, cell_classification_threshold=0.5):
         """Converts logits to actual predictions.
         
@@ -1156,9 +1134,6 @@ class TapasTokenizer(BertTokenizer):
             classification_predictions (`optional`, returned when ``logits_cls`` is provided) ``List[int]`` of length ``batch_size``:
                 Prediction indices of the classification head. 
         """
-=======
-    def convert_logits_to_answers(self, data, logits, logits_agg=None, logits_cls=None, cell_classification_threshold=0.5):
->>>>>>> e3a36ac6... Added all relevant classes of tapas to __init__.py
         # compute probabilities from token logits
         dist_per_token = torch.distributions.Bernoulli(logits=logits)
         probabilities = dist_per_token.probs * data["attention_mask"].type(torch.float32).to(dist_per_token.probs.device)
@@ -1217,10 +1192,6 @@ class TapasTokenizer(BertTokenizer):
         
         return output
 
-<<<<<<< HEAD
     #### End of everything related to converting logits to predictions ####
-=======
-    #### End of everything related to converting logits to answers ####
->>>>>>> e3a36ac6... Added all relevant classes of tapas to __init__.py
 
             
