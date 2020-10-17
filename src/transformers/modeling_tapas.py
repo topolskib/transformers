@@ -944,7 +944,7 @@ class TapasLMHead(nn.Module):
     tasks on tables (linear layers on top of the hidden-states output to compute `logits` and optionally `logits_aggregation` and `logits_cls`). """,
     TAPAS_START_DOCSTRING,
 )
-class TapasForQuestionAnswering(BertPreTrainedModel):
+class TapasForQuestionAnswering(TapasPreTrainedModel):
     def __init__(self, config):   
         super().__init__(config)
 
