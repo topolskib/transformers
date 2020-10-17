@@ -97,9 +97,9 @@ class TapasTokenizer(BertTokenizer):
     - row_ids: indicate to which row of the table a token belongs (starting from 1). Is 0 for all question tokens, special tokens and padding. Tokens of column headers are also 0.
     - prev_label_ids: indicate whether a token was (part of) an answer to the previous question (1) or not (0). Useful in a conversational setup (such as SQA).
     - column_ranks: indicate the rank of a table token relative to a column, if applicable. For example, if you have a column "number of movies" with values 87,
-    53 and 69, then the column ranks of these tokens are 3, 1 and 2 respectively. 0 for all question tokens, special tokens and padding.
+      53 and 69, then the column ranks of these tokens are 3, 1 and 2 respectively. 0 for all question tokens, special tokens and padding.
     - inv_column_ranks: indicate the inverse rank of a table token relative to a column, if applicable. For example, if you have a column "number of movies" with values 87,
-    53 and 69, then the inverse column ranks of these tokens are 1, 3 and 2 respectively. 0 for all question tokens, special tokens and padding.
+      53 and 69, then the inverse column ranks of these tokens are 1, 3 and 2 respectively. 0 for all question tokens, special tokens and padding.
     - numeric_relations: indicate numeric relations between the question and the tokens of the table. 0 for all question tokens, special tokens and padding.
 
     :class:`~transformers.TapasTokenizer` runs end-to-end tokenization on a table and associated queries: punctuation splitting and wordpiece.
