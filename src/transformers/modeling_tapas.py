@@ -69,7 +69,7 @@ class TableQuestionAnsweringOutput(ModelOutput):
 
     Args:
         loss (:obj:`torch.FloatTensor` of shape :obj:`(1,)`, `optional`, returned when :obj:`label_ids` and :obj:`answer` (and possibly :obj:`classification_class_index`,
-            `:obj:`aggregation_function_id`, :obj:`numeric_values` and :obj:`numeric_values_scale` are provided):
+        `:obj:`aggregation_function_id`, :obj:`numeric_values` and :obj:`numeric_values_scale` are provided):
             Total loss as the sum of the hierarchical cell selection log-likelihood loss, (optionally) classification loss, (optionally) supervised cell selection
             loss and (optionally) the semi-supervised regression loss and (optionally) supervised loss for aggregations.
         logits (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length)`):
@@ -873,6 +873,8 @@ class TapasForMaskedLM(TapasPreTrainedModel):
             position_ids=position_ids,
             head_mask=head_mask,
             inputs_embeds=inputs_embeds,
+            encoder_hidden_states=encoder_hidden_states,
+            encoder_attention_mask=encoder_attention_mask,
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
