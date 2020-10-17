@@ -12,8 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-""" TAPAS configuration. Currently only the 4 fine-tuning tasks (SQA, WTQ, WIKISQL and
-    WIKISQL_SUPERVISED) are supported. By default, intializes to SQA configuration. 
+""" TAPAS configuration.  
 """
 
 
@@ -46,8 +45,6 @@ class TapasConfig(BertConfig):
             The maximum sequence length that this model might ever be used with. Typically set this to something large just in case (e.g., 512 or 1024 or 2048).
         type_vocab_size (:obj:`List[int]`, `optional`, defaults to [3, 256, 256, 2, 256, 256, 10]):
             The vocabulary size of the :obj:`token_type_ids` passed when calling :class:`~transformers.TapasModel`.
-        task (:obj:`string`, `optional`, defaults to :obj:`"SQA"`):
-            The task of interest. One of 'SQA', 'WTQ', 'WIKISQL' or 'WIKISQL_SUPERVISED'. 
         positive_weight (:obj:`float`, `optional`, defaults to 10.0):
             Weight for positive labels.
         num_aggregation_labels (:obj:`int`, `optional`, defaults to 0):
