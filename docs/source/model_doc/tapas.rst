@@ -45,7 +45,7 @@ The original code can be found `here <https://github.com/google-research/tapas>`
 
 Tips:
 
-- TAPAS is a model that uses relative position embeddings by default (restarting the position ids at every cell). According to
+- TAPAS is a model that uses relative position embeddings by default (restarting the position embeddings at every cell). According to
   the authors, this usually results in a slightly better performance, and allows you to encode longer sequences without running out 
   of embeddings.
   If you don't want this, set the `reset_position_index_per_cell` parameter of :class:`~transformers.TapasConfig` to False, and make 
