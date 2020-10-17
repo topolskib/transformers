@@ -8,13 +8,22 @@ The TAPAS model was proposed in `TAPAS: Weakly Supervised Table Parsing via Pre-
 <https://arxiv.org/abs/2004.02349>`__ by Jonathan Herzig, Paweł Krzysztof Nowak, Thomas Müller, Francesco Piccinno and 
 Julian Martin Eisenschlos.
 It's a BERT-based model specifically designed (and pre-trained) for answering questions about tabular data. Compared to 
+<<<<<<< HEAD
 BERT, TAPAS uses relative position embeddings and has 7 token types that encode tabular structure. TAPAS is pre-trained 
+=======
+BERT, TAPAS has 7 token type ids as well as relative position embeddings that encode tabular structure. TAPAS is pre-trained 
+>>>>>>> 72ba5838... Added tapas.rst to index
 on the masked language modeling (MLM) objective on a large dataset comprising millions of tables from English Wikipedia and 
 corresponding texts. For question answering, TAPAS has 2 heads on top: a cell selection head and an aggregation head, for 
 (optionally) performing aggregations (such as counting or summing) among selected cells. TAPAS has been fine-tuned on several 
 datasets: SQA (Sequential Question Answering by Microsoft), WTQ (Wiki Table Questions by Stanford University) and WikiSQL 
+<<<<<<< HEAD
 (by Salesforce). It achieves state-of-the-art on both SQA and WTQ, while having comparable performance to SOTA on WikiSQL, 
 with a much simpler architecture. 
+=======
+(by Salesforce). It achieves state-of-the-art on the former, while having comparable performance to SOTA algorithms for both 
+WTQ and WikiSQL, with a much simpler architecture. 
+>>>>>>> 72ba5838... Added tapas.rst to index
 
 The abstract from the paper is the following:
 
@@ -50,11 +59,18 @@ Tips:
   of embeddings.
   If you don't want this, set the `reset_position_index_per_cell` parameter of :class:`~transformers.TapasConfig` to False, and make 
   sure you're loading the weights of a model that was pretrained with absolute position embeddings.
+<<<<<<< HEAD
 - TAPAS has checkpoints fine-tuned on SQA, which are capable of answering questions related to a table in a conversational set-up. This 
   means that you can ask follow-up questions such as "what is his age?" related to the previous question. Note that the forward pass of 
   TAPAS is a bit different in case of a conversational set-up: in that case, you have to feed every training example one by one to the 
   model, such that the `prev_label_ids` token type ids can be overwritten by the predicted `label_ids` of the model to the previous 
   question.
+=======
+- As TAPAS was fine-tuned on SQA, it is capable of answering questions related to a table in a conversational set-up. Note that the
+  forward pass of TAPAS is a bit different in case of a conversational set-up: in that case, you have to feed every training example one
+  by one to the model, such that the `prev_label_ids` token type ids can be overwritten by the predicted `label_ids` of the model to the 
+  previous question.
+>>>>>>> 72ba5838... Added tapas.rst to index
 - TAPAS is similar to BERT and therefore relies on the masked language modeling (MLM) objective.
   It is therefore efficient at predicting masked tokens and at NLU in general, but is not optimal for
   text generation. Models trained with a causal language modeling (CLM) objective are better in that regard.
