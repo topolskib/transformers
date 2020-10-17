@@ -42,6 +42,7 @@ from .file_utils import (
     replace_return_docstrings,
 )
 from .modeling_outputs import (
+    BaseModelOutput,
     BaseModelOutputWithPooling,
     MaskedLMOutput
 )
