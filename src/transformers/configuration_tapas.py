@@ -30,17 +30,10 @@ TAPAS_PRETRAINED_CONFIG_ARCHIVE_MAP = {
 
 class TapasConfig(BertConfig):
     r"""
-<<<<<<< HEAD
     This is the configuration class to store the configuration of a :class:`~transformers.TapasModel`. 
     It is used to instantiate a TAPAS model according to the specified arguments, defining the model 
     architecture. Instantiating a configuration with the defaults will yield a similar configuration 
     to that of the TAPAS `tapas-base-finetuned-sqa` architecture. Configuration objects 
-=======
-    This is the configuration class to store the configuration of a :class:`~transformers.TapasModel. 
-    It is used to instantiate a TAPAS model according to the specified arguments, defining the model 
-    architecture. Instantiating a configuration with the defaults will yield a similar configuration 
-    to that of the TAPAS `tapas-base-finetuned-sqa` (URL to be added) architecture. Configuration objects 
->>>>>>> e3a36ac6... Added all relevant classes of tapas to __init__.py
     inherit from :class:`~transformers.PreTrainedConfig` and can be used to control the model outputs. 
     Read the documentation from :class:`~transformers.PretrainedConfig` for more information.
 
@@ -94,11 +87,7 @@ class TapasConfig(BertConfig):
             Allow not to select any column.
         init_cell_selection_weights_to_zero: (:obj:`bool`, `optional`, defaults to :obj:`False`):
             Whether to initialize cell selection weights to 0 so that the initial probabilities are 50%.
-<<<<<<< HEAD
         reset_position_index_per_cell: (:obj:`bool`, `optional`, defaults to :obj:`True`):
-=======
-        reset_position_index_per_cell: (:obj:`bool`, `optional`, defaults to :obj:`False`):
->>>>>>> e3a36ac6... Added all relevant classes of tapas to __init__.py
             Restart position indexes at every cell.
         disable_per_token_loss: (:obj:`bool`, `optional`, defaults to :obj:`False`):
             Disable any (strong or weak) supervision on cells.
@@ -142,11 +131,7 @@ class TapasConfig(BertConfig):
         select_one_column=True,
         allow_empty_column_selection=False,
         init_cell_selection_weights_to_zero=False,
-<<<<<<< HEAD
         reset_position_index_per_cell=True,
-=======
-        reset_position_index_per_cell=False,
->>>>>>> e3a36ac6... Added all relevant classes of tapas to __init__.py
         disable_per_token_loss=False,
         span_prediction="none",  
         **kwargs):
