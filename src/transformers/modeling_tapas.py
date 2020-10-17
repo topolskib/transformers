@@ -31,7 +31,7 @@ from torch.nn import CrossEntropyLoss
 from transformers import modeling_tapas_utilities as utils
 
 from .configuration_tapas import TapasConfig
-from .modeling_bert import BertLayerNorm, BertPreTrainedModel, BertEncoder, BertPooler, BertOnlyMLMHead # to be removed and copied
+#from .modeling_bert import BertLayerNorm, BertPreTrainedModel, BertEncoder, BertPooler, BertOnlyMLMHead # to be removed and copied
 from .activations import ACT2FN, gelu
 from .file_utils import (
     ModelOutput,
