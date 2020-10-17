@@ -50,6 +50,7 @@ from .configuration_auto import (
     RobertaConfig,
     SqueezeBertConfig,
     T5Config,
+    TapasConfig,
     TransfoXLConfig,
     XLMConfig,
     XLMProphetNetConfig,
@@ -84,6 +85,12 @@ from .tokenization_rag import RagTokenizer
 from .tokenization_retribert import RetriBertTokenizer
 from .tokenization_roberta import RobertaTokenizer
 from .tokenization_squeezebert import SqueezeBertTokenizer
+from .tokenization_reformer import ReformerTokenizer, ReformerTokenizerFast
+from .tokenization_retribert import RetriBertTokenizer, RetriBertTokenizerFast
+from .tokenization_roberta import RobertaTokenizer, RobertaTokenizerFast
+from .tokenization_squeezebert import SqueezeBertTokenizer, SqueezeBertTokenizerFast
+from .tokenization_t5 import T5Tokenizer, T5TokenizerFast
+from .tokenization_tapas import TapasTokenizer
 from .tokenization_transfo_xl import TransfoXLTokenizer
 from .tokenization_xlm import XLMTokenizer
 from .utils import logging
@@ -205,6 +212,7 @@ TOKENIZER_MAPPING = OrderedDict(
         (RagConfig, (RagTokenizer, None)),
         (XLMProphetNetConfig, (XLMProphetNetTokenizer, None)),
         (ProphetNetConfig, (ProphetNetTokenizer, None)),
+        (TapasConfig, (TapasTokenizer, None)),
     ]
 )
 
