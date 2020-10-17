@@ -87,7 +87,7 @@ class TapasConfig(BertConfig):
             Allow not to select any column.
         init_cell_selection_weights_to_zero: (:obj:`bool`, `optional`, defaults to :obj:`False`):
             Whether to initialize cell selection weights to 0 so that the initial probabilities are 50%.
-        reset_position_index_per_cell: (:obj:`bool`, `optional`, defaults to :obj:`False`):
+        reset_position_index_per_cell: (:obj:`bool`, `optional`, defaults to :obj:`True`):
             Restart position indexes at every cell.
         disable_per_token_loss: (:obj:`bool`, `optional`, defaults to :obj:`False`):
             Disable any (strong or weak) supervision on cells.
@@ -131,7 +131,7 @@ class TapasConfig(BertConfig):
         select_one_column=True,
         allow_empty_column_selection=False,
         init_cell_selection_weights_to_zero=False,
-        reset_position_index_per_cell=False,
+        reset_position_index_per_cell=True,
         disable_per_token_loss=False,
         span_prediction="none",  
         **kwargs):
