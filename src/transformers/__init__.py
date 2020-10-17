@@ -61,6 +61,7 @@ from .configuration_retribert import RETRIBERT_PRETRAINED_CONFIG_ARCHIVE_MAP, Re
 from .configuration_roberta import ROBERTA_PRETRAINED_CONFIG_ARCHIVE_MAP, RobertaConfig
 from .configuration_squeezebert import SQUEEZEBERT_PRETRAINED_CONFIG_ARCHIVE_MAP, SqueezeBertConfig
 from .configuration_t5 import T5_PRETRAINED_CONFIG_ARCHIVE_MAP, T5Config
+from .configuration_tapas import TAPAS_PRETRAINED_CONFIG_ARCHIVE_MAP, TapasConfig
 from .configuration_transfo_xl import TRANSFO_XL_PRETRAINED_CONFIG_ARCHIVE_MAP, TransfoXLConfig
 from .configuration_utils import PretrainedConfig
 from .configuration_xlm import XLM_PRETRAINED_CONFIG_ARCHIVE_MAP, XLMConfig
@@ -187,9 +188,18 @@ from .tokenization_openai import OpenAIGPTTokenizer
 from .tokenization_phobert import PhobertTokenizer
 from .tokenization_prophetnet import ProphetNetTokenizer
 from .tokenization_rag import RagTokenizer
+<<<<<<< HEAD
 from .tokenization_retribert import RetriBertTokenizer
 from .tokenization_roberta import RobertaTokenizer
 from .tokenization_squeezebert import SqueezeBertTokenizer
+=======
+from .tokenization_reformer import ReformerTokenizer, ReformerTokenizerFast
+from .tokenization_retribert import RetriBertTokenizer, RetriBertTokenizerFast
+from .tokenization_roberta import RobertaTokenizer, RobertaTokenizerFast
+from .tokenization_squeezebert import SqueezeBertTokenizer, SqueezeBertTokenizerFast
+from .tokenization_t5 import T5Tokenizer, T5TokenizerFast
+from .tokenization_tapas import TapasTokenizer
+>>>>>>> 215455b7... Added all relevant classes of tapas to __init__.py
 from .tokenization_transfo_xl import TransfoXLCorpus, TransfoXLTokenizer
 from .tokenization_utils import PreTrainedTokenizer
 from .tokenization_utils_base import (
@@ -541,6 +551,12 @@ if is_torch_available():
         T5Model,
         T5PreTrainedModel,
         load_tf_weights_in_t5,
+    )
+    from .modeling_tapas import (
+        TAPAS_PRETRAINED_MODEL_ARCHIVE_LIST,
+        TapasModel,
+        TapasForMaskedLM,
+        TapasForQuestionAnswering,
     )
     from .modeling_transfo_xl import (
         TRANSFO_XL_PRETRAINED_MODEL_ARCHIVE_LIST,
