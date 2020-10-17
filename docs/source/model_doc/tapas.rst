@@ -132,7 +132,11 @@ TapasTokenizer
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. autoclass:: transformers.TapasTokenizer
+<<<<<<< HEAD
     :members: convert_logits_to_predictions, save_vocabulary
+=======
+    :members: save_vocabulary
+>>>>>>> fd4985dd... Added extra documentation
 
 
 TapasModel
