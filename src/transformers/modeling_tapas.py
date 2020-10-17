@@ -30,10 +30,6 @@ from torch.nn import CrossEntropyLoss
 from transformers import modeling_tapas_utilities as utils
 
 from .configuration_tapas import TapasConfig
-<<<<<<< HEAD
-=======
-from .modeling_bert import BertLayerNorm, BertPreTrainedModel, BertEncoder, BertPooler, BertOnlyMLMHead # to be removed and copied
->>>>>>> 2462642c... Removed bert imports and replaced by original code blocks
 from .activations import ACT2FN, gelu
 from .file_utils import (
     ModelOutput,
