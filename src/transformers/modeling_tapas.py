@@ -695,8 +695,8 @@ class TapasModel(TapasPreTrainedModel):
         self.config = config
 
         self.embeddings = TapasEmbeddings(config)
-        self.encoder = BertEncoder(config)
-        self.pooler = BertPooler(config)
+        self.encoder = TapasEncoder(config)
+        self.pooler = TapasPooler(config)
 
         self.init_weights()
 
@@ -818,7 +818,7 @@ class TapasModel(TapasPreTrainedModel):
 
 
 @add_start_docstrings("""Tapas Model with a `language modeling` head on top. """, TAPAS_START_DOCSTRING)
-class TapasForMaskedLM(BertPreTrainedModel):
+class TapasForMaskedLM(TapasPreTrainedModel):
     config_class = TapasConfig
     base_model_prefix = "tapas"
 
@@ -830,7 +830,7 @@ class TapasForMaskedLM(BertPreTrainedModel):
         ), "If you want to use `TapasForMaskedLM` make sure `config.is_decoder=False` for bi-directional self-attention."
 
         self.tapas = TapasModel(config)
-        self.cls = BertOnlyMLMHead(config)
+        self.cls = TapasLMHead(config)
 
         self.init_weights()
 
@@ -912,6 +912,31 @@ class TapasForMaskedLM(BertPreTrainedModel):
             hidden_states=outputs.hidden_states,
             attentions=outputs.attentions,
         )
+
+
+class TapasLMHead(nn.Module):
+    """Tapas Head for masked language modeling."""
+
+    def __init__(self, config):
+        super().__init__()
+        self.dense = nn.Linear(config.hidden_size, config.hidden_size)
+        self.layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+
+        self.decoder = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
+        self.bias = nn.Parameter(torch.zeros(config.vocab_size))
+
+        # Need a link between the two variables so that the bias is correctly resized with `resize_token_embeddings`
+        self.decoder.bias = self.bias
+
+    def forward(self, features, **kwargs):
+        x = self.dense(features)
+        x = gelu(x)
+        x = self.layer_norm(x)
+
+        # project back to size of vocabulary with bias
+        x = self.decoder(x)
+
+        return x
 
 
 @add_start_docstrings(
