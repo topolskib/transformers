@@ -15,6 +15,7 @@
 """PyTorch TAPAS model. """
 
 
+import math
 import logging
 import warnings
 import os
