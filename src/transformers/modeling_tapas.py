@@ -827,11 +827,7 @@ class TapasForMaskedLM(TapasPreTrainedModel):
         super().__init__(config)
 
         self.tapas = TapasModel(config)
-<<<<<<< HEAD
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size)
-=======
-        self.cls = TapasLMHead(config)
->>>>>>> 2eb5b03f... Added TapasLMHead
 
         self.init_weights()
 
