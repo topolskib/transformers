@@ -27,12 +27,9 @@ import torch
 import torch.nn as nn
 from torch.nn import CrossEntropyLoss
 
-#from .modeling_tapas_utilities import *
-#import .modeling_tapas_utilities as utils
 from transformers import modeling_tapas_utilities as utils
 
 from .configuration_tapas import TapasConfig
-#from .modeling_bert import BertLayerNorm, BertPreTrainedModel, BertEncoder, BertPooler, BertOnlyMLMHead # to be removed and copied
 from .activations import ACT2FN, gelu
 from .file_utils import (
     ModelOutput,
@@ -72,7 +69,7 @@ class TableQuestionAnsweringOutput(ModelOutput):
 
     Args:
         loss (:obj:`torch.FloatTensor` of shape :obj:`(1,)`, `optional`, returned when :obj:`label_ids` and :obj:`answer` (and possibly :obj:`classification_class_index`,
-        `:obj:`aggregation_function_id`, :obj:`numeric_values` and :obj:`numeric_values_scale` are provided):
+            `:obj:`aggregation_function_id`, :obj:`numeric_values` and :obj:`numeric_values_scale` are provided):
             Total loss as the sum of the hierarchical cell selection log-likelihood loss, (optionally) classification loss, (optionally) supervised cell selection
             loss and (optionally) the semi-supervised regression loss and (optionally) supervised loss for aggregations.
         logits (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length)`):
@@ -829,17 +826,13 @@ class TapasForMaskedLM(TapasPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
 
-        assert (
-            not config.is_decoder
-        ), "If you want to use `TapasForMaskedLM` make sure `config.is_decoder=False` for bi-directional self-attention."
-
         self.tapas = TapasModel(config)
-        self.cls = TapasLMHead(config)
+        self.lm_head = nn.Linear(config.hidden_size, config.vocab_size)
 
         self.init_weights()
 
     def get_output_embeddings(self):
-        return self.cls.predictions.decoder
+        return self.lm_head
 
     @add_start_docstrings_to_callable(TAPAS_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
     @add_code_sample_docstrings(
@@ -870,18 +863,7 @@ class TapasForMaskedLM(TapasPreTrainedModel):
             Indices should be in ``[-100, 0, ..., config.vocab_size]`` (see ``input_ids`` docstring)
             Tokens with indices set to ``-100`` are ignored (masked), the loss is only computed for the tokens with labels
             in ``[0, ..., config.vocab_size]``
-        kwargs (:obj:`Dict[str, any]`, optional, defaults to `{}`):
-            Used to hide legacy arguments that have been deprecated.
         """
-        if "masked_lm_labels" in kwargs:
-            warnings.warn(
-                "The `masked_lm_labels` argument is deprecated and will be removed in a future version, use `labels` instead.",
-                FutureWarning,
-            )
-            labels = kwargs.pop("masked_lm_labels")
-        assert "lm_labels" not in kwargs, "Use `BertWithLMHead` for autoregressive language modeling task."
-        assert kwargs == {}, f"Unexpected keyword arguments: {list(kwargs.keys())}."
-
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         outputs = self.tapas(
@@ -891,15 +873,13 @@ class TapasForMaskedLM(TapasPreTrainedModel):
             position_ids=position_ids,
             head_mask=head_mask,
             inputs_embeds=inputs_embeds,
-            encoder_hidden_states=encoder_hidden_states,
-            encoder_attention_mask=encoder_attention_mask,
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
 
         sequence_output = outputs[0]
-        prediction_scores = self.cls(sequence_output)
+        prediction_scores = self.lm_head(sequence_output)
 
         masked_lm_loss = None
         if labels is not None:
@@ -916,31 +896,6 @@ class TapasForMaskedLM(TapasPreTrainedModel):
             hidden_states=outputs.hidden_states,
             attentions=outputs.attentions,
         )
-
-
-class TapasLMHead(nn.Module):
-    """Tapas Head for masked language modeling."""
-
-    def __init__(self, config):
-        super().__init__()
-        self.dense = nn.Linear(config.hidden_size, config.hidden_size)
-        self.layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
-
-        self.decoder = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
-        self.bias = nn.Parameter(torch.zeros(config.vocab_size))
-
-        # Need a link between the two variables so that the bias is correctly resized with `resize_token_embeddings`
-        self.decoder.bias = self.bias
-
-    def forward(self, features, **kwargs):
-        x = self.dense(features)
-        x = gelu(x)
-        x = self.layer_norm(x)
-
-        # project back to size of vocabulary with bias
-        x = self.decoder(x)
-
-        return x
 
 
 @add_start_docstrings(
@@ -1013,8 +968,8 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
         return_dict=None,
     ):
         r"""
-        table_mask (:obj: `torch.LongTensor` of shape :obj:`(batch_size, seq_length)`, `optional`): 
-            Mask for the table.   
+        table_mask (:obj:`torch.LongTensor` of shape :obj:`(batch_size, seq_length)`, `optional`): 
+            Mask for the table. Indicates which tokens belong to the table (1). Question tokens, table headers and padding are 0.
         label_ids (:obj:`torch.LongTensor` of shape :obj:`(batch_size, seq_length)`, `optional`):
             Labels per token.
         aggregation_function_id (:obj:`torch.LongTensor` of shape :obj:`(batch_size, )`, `optional`):
