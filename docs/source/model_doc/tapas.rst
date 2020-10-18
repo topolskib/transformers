@@ -8,13 +8,13 @@ The TAPAS model was proposed in `TAPAS: Weakly Supervised Table Parsing via Pre-
 <https://arxiv.org/abs/2004.02349>`__ by Jonathan Herzig, Paweł Krzysztof Nowak, Thomas Müller, Francesco Piccinno and 
 Julian Martin Eisenschlos.
 It's a BERT-based model specifically designed (and pre-trained) for answering questions about tabular data. Compared to 
-BERT, TAPAS has 7 token type ids as well as relative position embeddings that encode tabular structure. TAPAS is pre-trained 
+BERT, TAPAS uses relative position embeddings and has 7 token types that encode tabular structure. TAPAS is pre-trained 
 on the masked language modeling (MLM) objective on a large dataset comprising millions of tables from English Wikipedia and 
 corresponding texts. For question answering, TAPAS has 2 heads on top: a cell selection head and an aggregation head, for 
 (optionally) performing aggregations (such as counting or summing) among selected cells. TAPAS has been fine-tuned on several 
 datasets: SQA (Sequential Question Answering by Microsoft), WTQ (Wiki Table Questions by Stanford University) and WikiSQL 
-(by Salesforce). It achieves state-of-the-art on the former, while having comparable performance to SOTA algorithms for both 
-WTQ and WikiSQL, with a much simpler architecture. 
+(by Salesforce). It achieves state-of-the-art on both SQA and WTQ, while having comparable performance to SOTA on WikiSQL, 
+with a much simpler architecture. 
 
 The abstract from the paper is the following:
 
@@ -41,20 +41,69 @@ state-of-the-art on TabFact, a large-scale dataset with 16k Wikipedia tables for
 For more details, see their new paper: `Understanding tables with intermediate pre-training <https://arxiv.org/abs/2010.00571>`__ 
 by Julian Martin Eisenschlos, Syrine Krichene and Thomas Müller.
 
+The original code can be found `here <https://github.com/google-research/tapas>`__.
+
 Tips:
 
-- TAPAS is a model that uses relative position embeddings by default (restarting the position embeddings at every cell). According to
+- TAPAS is a model that uses relative position embeddings by default (restarting the position ids at every cell). According to
   the authors, this usually results in a slightly better performance, and allows you to encode longer sequences without running out 
   of embeddings.
   If you don't want this, set the `reset_position_index_per_cell` parameter of :class:`~transformers.TapasConfig` to False, and make 
   sure you're loading the weights of a model that was pretrained with absolute position embeddings.
-- As TAPAS was fine-tuned on SQA, it is capable of answering questions related to a table in a conversational set-up. Note that the
-  forward pass of TAPAS is a bit different in case of a conversational set-up: in that case, you have to feed every training example one
-  by one to the model, such that the `prev_label_ids` token type ids can be overwritten by the predicted `label_ids` of the model to the 
-  previous question.
+- TAPAS has checkpoints fine-tuned on SQA, which are capable of answering questions related to a table in a conversational set-up. This 
+  means that you can ask follow-up questions such as "what is his age?" related to the previous question. Note that the forward pass of 
+  TAPAS is a bit different in case of a conversational set-up: in that case, you have to feed every training example one by one to the 
+  model, such that the `prev_label_ids` token type ids can be overwritten by the predicted `label_ids` of the model to the previous 
+  question.
 - TAPAS is similar to BERT and therefore relies on the masked language modeling (MLM) objective.
   It is therefore efficient at predicting masked tokens and at NLU in general, but is not optimal for
   text generation. Models trained with a causal language modeling (CLM) objective are better in that regard.
+
+
+Usage
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you just want to perform inference (i.e. making predictions), you can do the following:
+
+        >>> from transformers import TapasTokenizer, TapasForQuestionAnswering
+        >>> import pandas as pd 
+        >>> 
+        >>> model_name = 'tapas-base-finetuned-wtq'
+        >>> model = TapasForQuestionAnswering.from_pretrained(model_name)
+        >>> tokenizer = TapasTokenizer.from_pretrained(model_name)
+        >>> 
+        >>> data = {'Actors': ["Brad Pitt", "Leonardo Di Caprio", "George Clooney"], 'Number of movies': ["87", "53", "69"]}
+        >>> queries = ["What is the name of the first actor?", "How many movies has George Clooney played in?", "What is the total number of movies?"]
+        >>> table = pd.Dataframe(data)
+        >>> inputs = tokenizer(table, queries, return_tensors='pt')
+        >>> logits, logits_agg = model(**inputs)
+        >>> answer_coordinates_batch, aggregation_predictions = tokenizer.convert_logits_to_predictions(inputs, logits, logits_agg)
+        >>> 
+        >>> # let's print out the results:
+        >>> id2aggregation = {0: "NONE", 1: "SUM", 2: "AVERAGE", 3:"COUNT"}
+        >>> aggregation_predictions_string = [id2aggregation[x] for x in aggregation_predictions]
+        >>>
+        >>> answers = []
+        >>> for coordinates in answer_coordinates_batch:
+        >>>   if len(coordinates) == 1:
+        >>>     # only a single cell:
+        >>>     answers.append(df.iat[coordinates[0]])
+        >>>   else:
+        >>>     # multiple cells
+        >>>     cell_values = []
+        >>>     for coordinate in coordinates:
+        >>>        cell_values.append(df.iat[coordinate])
+        >>>     answers.append(", ".join(cell_values))
+        >>>
+        >>> display(df)
+        >>> print("")
+        >>> for query, answer, predicted_agg in zip(queries, answers, aggregation_predictions_string):
+        >>>   print(query)
+        >>>   if predicted_agg == "NONE":
+        >>>     print("Predicted answer: " + answer)
+        >>>   else:
+        >>>     print("Predicted answer: " + predicted_agg + " > " + answer)    
+
 
 TapasConfig
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

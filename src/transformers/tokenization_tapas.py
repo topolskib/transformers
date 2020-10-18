@@ -12,6 +12,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+""" Tokenization class for TAPAS model."""
+
 
 import collections
 import ast
@@ -195,12 +197,12 @@ class TapasTokenizer(BertTokenizer):
             selected_tokens=token_coordinates,
         )
     
-    def question_encoding_cost(self, question_tokens):
+    def _question_encoding_cost(self, question_tokens):
         # Two extra spots of SEP and CLS.
         return len(question_tokens) + 2
     
     def _get_token_budget(self, question_tokens):
-        return self.model_max_length - self.question_encoding_cost(question_tokens)
+        return self.model_max_length - self._question_encoding_cost(question_tokens)
     
     def _get_table_values(self, table, num_columns, num_rows, num_tokens):
         """Iterates over partial table and returns token, column and row indexes."""
