@@ -1082,7 +1082,7 @@ class TapasTokenizer(BertTokenizer):
 
         return batch_outputs
 
-    #### Everything related to converting logits to answers ####
+    #### Everything related to converting logits to predictions ####
 
     def _get_cell_token_probs(self, probabilities, segment_ids, row_ids, column_ids):
         for i, p in enumerate(probabilities):
@@ -1108,7 +1108,30 @@ class TapasTokenizer(BertTokenizer):
         """Parses cell coordinates from text."""
         return [ast.literal_eval(x) for x in raw_coordinates]
 
-    def convert_logits_to_answers(self, data, logits, logits_agg=None, logits_cls=None, cell_classification_threshold=0.5):
+    def convert_logits_to_predictions(self, data, logits, logits_agg=None, logits_cls=None, cell_classification_threshold=0.5):
+        """Converts logits to actual predictions.
+        
+        Args:
+            data (:obj:`dict`):
+                Dictionary mapping features to actual values. Should be created using :class:`~transformers.TapasTokenizer`.
+            logits (:obj:`torch.FloatTensor` of shape ``(batch_size, sequence_length)``):
+                Tensor containing the logits at the token level.
+            logits_agg (:obj:`torch.FloatTensor` of shape ``(batch_size, num_aggregation_labels)``, `optional`):
+                Tensor containing the aggregation logits.
+            logits_cls (:obj:`torch.FloatTensor` of shape ``(batch_size, num_classification_labels)``, `optional`):
+                Tensor containing the classification logits.
+            cell_classification_threshold (:obj:`float`, `optional`, defaults to 0.5):
+                Threshold to be used for cell selection. All table cells for which their probability is larger than this threshold will be selected.
+        Returns:
+            :obj:`tuple` comprising various elements depending on the inputs:
+            answer_coordinates_batch (``List[List[[tuple]]``) of length ``batch_size``:
+                Answer coordinates as a list of lists of tuples. Each element in the list contains the predicted answer coordinates of a single example in the batch, as a list of tuples.
+                Each tuple is a cell (row, column pair). 
+            aggregation_predictions (`optional`, returned when ``logits_aggregation`` is provided) ``List[int]`` of length ``batch_size``:
+                Prediction indices of the aggregation head. 
+            classification_predictions (`optional`, returned when ``logits_cls`` is provided) ``List[int]`` of length ``batch_size``:
+                Prediction indices of the classification head. 
+        """
         # compute probabilities from token logits
         dist_per_token = torch.distributions.Bernoulli(logits=logits)
         probabilities = dist_per_token.probs * data["attention_mask"].type(torch.float32).to(dist_per_token.probs.device)
@@ -1167,6 +1190,6 @@ class TapasTokenizer(BertTokenizer):
         
         return output
 
-    #### End of everything related to converting logits to answers ####
+    #### End of everything related to converting logits to predictions ####
 
             
