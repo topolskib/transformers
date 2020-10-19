@@ -384,12 +384,9 @@ installation page: https://github.com/google/flax and follow the ones that match
 """
 
 SCATTER_IMPORT_ERROR = """
-{0} requires the torch-scatter library but it was not found in your enviromnent. You can install it with:
-```
-!pip install torch-scatter==latest+${CUDA} -f https://pytorch-geometric.com/whl/torch-1.6.0.html
-```
-where ${CUDA} should be replaced by either cpu, cu92, cu101 or cu102 depending on your PyTorch installation.
-For more details, see https://github.com/rusty1s/pytorch_scatter
+{0} requires the torch-scatter library but it was not found in your enviromnent. You can install it with pip as
+explained here: https://github.com/rusty1s/pytorch_scatter.
+
 """
 
 
