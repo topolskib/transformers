@@ -12,8 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-""" TAPAS configuration.  
-"""
+""" TAPAS configuration. """
 
 
 import logging
@@ -23,22 +22,20 @@ from .configuration_bert import BertConfig
 
 logger = logging.getLogger(__name__)
 
-TAPAS_PRETRAINED_CONFIG_ARCHIVE_MAP = {
-    "tapas-base": "", # to be added
-    "tapas-large": "" # to be added
-}
+TAPAS_PRETRAINED_CONFIG_ARCHIVE_MAP = {"tapas-base": "", "tapas-large": ""}  # to be added  # to be added
+
 
 class TapasConfig(BertConfig):
     r"""
-    This is the configuration class to store the configuration of a :class:`~transformers.TapasModel`. 
-    It is used to instantiate a TAPAS model according to the specified arguments, defining the model 
-    architecture. Instantiating a configuration with the defaults will yield a similar configuration 
-    to that of the TAPAS `tapas-base-finetuned-sqa` architecture. Configuration objects 
-    inherit from :class:`~transformers.PreTrainedConfig` and can be used to control the model outputs. 
+    This is the configuration class to store the configuration of a :class:`~transformers.TapasModel`.
+    It is used to instantiate a TAPAS model according to the specified arguments, defining the model
+    architecture. Instantiating a configuration with the defaults will yield a similar configuration
+    to that of the TAPAS `tapas-base-finetuned-sqa` architecture. Configuration objects
+    inherit from :class:`~transformers.PreTrainedConfig` and can be used to control the model outputs.
     Read the documentation from :class:`~transformers.PretrainedConfig` for more information.
 
     Hyperparameters additional to BERT are taken from run_task_main.py and hparam_utils.py of the original implementation.
-    Original implementation available at https://github.com/google-research/tapas/tree/master. 
+    Original implementation available at https://github.com/google-research/tapas/tree/master.
 
     Args:
         max_position_embeddings (:obj:`int`, `optional`, defaults to 1024):
@@ -103,11 +100,11 @@ class TapasConfig(BertConfig):
         >>> # Accessing the model configuration
         >>> configuration = model.config
     """
-    
+
     model_type = "tapas"
 
     def __init__(
-        self, 
+        self,
         max_position_embeddings=1024,
         type_vocab_size=[3, 256, 256, 2, 256, 256, 10],
         positive_weight=10.0,
@@ -133,11 +130,12 @@ class TapasConfig(BertConfig):
         init_cell_selection_weights_to_zero=False,
         reset_position_index_per_cell=True,
         disable_per_token_loss=False,
-        span_prediction="none",  
-        **kwargs):
+        span_prediction="none",
+        **kwargs
+    ):
 
         super().__init__(max_position_embeddings=max_position_embeddings, type_vocab_size=type_vocab_size, **kwargs)
-        
+
         # Fine-tuning task arguments
         self.positive_weight = positive_weight
         self.num_aggregation_labels = num_aggregation_labels
@@ -154,7 +152,7 @@ class TapasConfig(BertConfig):
         self.average_approximation_function = average_approximation_function
         self.cell_select_pref = cell_select_pref
         self.answer_loss_cutoff = answer_loss_cutoff
-        self.max_num_rows=max_num_rows
+        self.max_num_rows = max_num_rows
         self.max_num_columns = max_num_columns
         self.average_logits_per_cell = average_logits_per_cell
         self.select_one_column = select_one_column

@@ -14,8 +14,8 @@
 # limitations under the License.
 
 
-import unittest
 import random
+import unittest
 
 import torch
 
@@ -25,18 +25,20 @@ from transformers.testing_utils import require_torch, require_torch_and_cuda, sl
 from .test_configuration_common import ConfigTester
 from .test_modeling_common import ModelTesterMixin, ids_tensor
 
+
 if is_torch_available():
     from transformers import (
         AutoModelForMaskedLM,
         AutoTokenizer,
         TapasConfig,
-        TapasModel,
         TapasForMaskedLM,
         TapasForQuestionAnswering,
+        TapasModel,
     )
     from transformers.file_utils import cached_property
 
 global_rng = random.Random()
+
 
 def token_type_ids_tensor_tapas(shape, type_vocab_size, rng=None, name=None):
     #  Creates a random int32 tensor of the shape within the type vocab sizes
@@ -45,16 +47,16 @@ def token_type_ids_tensor_tapas(shape, type_vocab_size, rng=None, name=None):
 
     values = []
     for example in range(shape[0]):
-      for token in range(shape[1]):
-        for idx in (range(shape[2])):
-          values.append(rng.randint(0, type_vocab_size[idx] -1))
+        for token in range(shape[1]):
+            for idx in range(shape[2]):
+                values.append(rng.randint(0, type_vocab_size[idx] - 1))
 
     return torch.tensor(data=values, dtype=torch.long, device=torch_device).view(shape).contiguous()
 
 
 class TapasModelTester:
     """You can also import this e.g from .test_modeling_tapas import TapasModelTester """
-    
+
     def __init__(
         self,
         parent,
@@ -63,7 +65,7 @@ class TapasModelTester:
         is_training=True,
         use_input_mask=True,
         use_token_type_ids=True,
-        use_labels=True, 
+        use_labels=True,
         vocab_size=99,
         hidden_size=32,
         num_hidden_layers=5,
@@ -107,7 +109,7 @@ class TapasModelTester:
         self.is_training = is_training
         self.use_input_mask = use_input_mask
         self.use_token_type_ids = use_token_type_ids
-        self.use_labels = use_labels 
+        self.use_labels = use_labels
         self.vocab_size = vocab_size
         self.hidden_size = hidden_size
         self.num_hidden_layers = num_hidden_layers
@@ -116,7 +118,7 @@ class TapasModelTester:
         self.hidden_act = hidden_act
         self.hidden_dropout_prob = hidden_dropout_prob
         self.attention_probs_dropout_prob = attention_probs_dropout_prob
-        self.initializer_range= initializer_range
+        self.initializer_range = initializer_range
         self.max_position_embeddings = max_position_embeddings
         self.type_vocab_size = type_vocab_size
         self.positive_weight = positive_weight
@@ -154,17 +156,18 @@ class TapasModelTester:
 
         token_type_ids = None
         if self.use_token_type_ids:
-            token_type_ids = token_type_ids_tensor_tapas([self.batch_size, self.seq_length, len(self.type_vocab_size)], 
-                                                            self.type_vocab_size)
+            token_type_ids = token_type_ids_tensor_tapas(
+                [self.batch_size, self.seq_length, len(self.type_vocab_size)], self.type_vocab_size
+            )
 
-        #label_ids = None
-        #answer_coordinates = None
-        #answer_texts = None
+        # label_ids = None
+        # answer_coordinates = None
+        # answer_texts = None
         token_labels = None
         aggregation_function_id = None
         classification_class_index = None
         if self.use_labels:
-            #label_ids = ids_tensor([self.batch_size, self.seq_length], vocab_size=2)
+            # label_ids = ids_tensor([self.batch_size, self.seq_length], vocab_size=2)
             token_labels = ids_tensor([self.batch_size, self.seq_length], vocab_size=2)
             aggregation_function_id = ids_tensor([self.batch_size], self.num_aggregation_labels)
             classification_class_index = ids_tensor([self.batch_size], self.num_classification_labels)
@@ -205,10 +208,18 @@ class TapasModelTester:
             reset_position_index_per_cell=self.reset_position_index_per_cell,
             disable_per_token_loss=self.disable_per_token_loss,
             span_prediction=self.span_prediction,
-            return_dict=True
+            return_dict=True,
         )
 
-        return config, input_ids, token_type_ids, input_mask, token_labels, aggregation_function_id, classification_class_index
+        return (
+            config,
+            input_ids,
+            token_type_ids,
+            input_mask,
+            token_labels,
+            aggregation_function_id,
+            classification_class_index,
+        )
 
     def create_and_check_model(
         self, config, input_ids, token_type_ids, input_mask, token_labels, aggregation_labels, classification_labels
@@ -241,11 +252,11 @@ class TapasModelTester:
             input_ids,
             attention_mask=input_mask,
             token_type_ids=token_type_ids,
-            #start_positions=sequence_labels,
-            #end_positions=sequence_labels,
+            # start_positions=sequence_labels,
+            # end_positions=sequence_labels,
         )
         self.parent.assertEqual(result.logits_aggregation.shape, (self.batch_size, self.num_aggregation_labels))
-        self.parent.assertEqual(result.logits_aggregation.shape, (self.batch_size, self.num_classification_labels))
+        self.parent.assertEqual(result.logits_cls.shape, (self.batch_size, self.num_classification_labels))
 
     def prepare_config_and_inputs_for_common(self):
         config_and_inputs = self.prepare_config_and_inputs()
@@ -255,8 +266,8 @@ class TapasModelTester:
             token_type_ids,
             input_mask,
             token_labels,
-            aggregation_labels, 
-            classification_labels
+            aggregation_labels,
+            classification_labels,
         ) = config_and_inputs
         inputs_dict = {"input_ids": input_ids, "token_type_ids": token_type_ids, "attention_mask": input_mask}
         return config, inputs_dict
@@ -265,11 +276,7 @@ class TapasModelTester:
 @require_torch
 class TapasModelTest(ModelTesterMixin, unittest.TestCase):
 
-    all_model_classes = (
-        (TapasModel, TapasForMaskedLM, TapasForQuestionAnswering)
-        if is_torch_available()
-        else ()
-    )
+    all_model_classes = (TapasModel, TapasForMaskedLM, TapasForQuestionAnswering) if is_torch_available() else ()
 
     def setUp(self):
         self.model_tester = TapasModelTester(self)

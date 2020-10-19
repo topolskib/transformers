@@ -189,7 +189,7 @@ from .modeling_squeezebert import (
     SqueezeBertModel,
 )
 from .modeling_t5 import T5ForConditionalGeneration, T5Model
-from .modeling_tapas import TapasModel, TapasForMaskedLM, TapasForQuestionAnswering
+from .modeling_tapas import TapasForMaskedLM, TapasForQuestionAnswering, TapasModel
 from .modeling_transfo_xl import TransfoXLLMHeadModel, TransfoXLModel
 from .modeling_xlm import (
     XLMForMultipleChoice,
