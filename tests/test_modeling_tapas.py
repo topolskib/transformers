@@ -252,11 +252,8 @@ class TapasModelTester:
             input_ids,
             attention_mask=input_mask,
             token_type_ids=token_type_ids,
-            # start_positions=sequence_labels,
-            # end_positions=sequence_labels,
         )
-        self.parent.assertEqual(result.logits_aggregation.shape, (self.batch_size, self.num_aggregation_labels))
-        self.parent.assertEqual(result.logits_cls.shape, (self.batch_size, self.num_classification_labels))
+        self.parent.assertEqual(result.logits.shape, (self.batch_size, self.seq_length))
 
     def prepare_config_and_inputs_for_common(self):
         config_and_inputs = self.prepare_config_and_inputs()
