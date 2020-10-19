@@ -22,7 +22,7 @@ from dataclasses import dataclass
 
 import torch
 
-from .tokenization_bert import BertTokenizer, BertTokenizerFast
+from .tokenization_bert import BertTokenizer
 from .tokenization_utils_base import (
     ENCODE_KWARGS_DOCSTRING,
     ENCODE_PLUS_ADDITIONAL_KWARGS_DOCSTRING,
@@ -159,10 +159,11 @@ class TapasTokenizer(BertTokenizer):
         table = None,
         ):
         """Tokenizes column headers and cell texts of a table.
+            
         Args:
-            table: pd.DataFrame
-        Returns:
-            TokenizedTable object.
+            table (:obj:`pd.Dataframe`):
+                Table.
+        Returns: :obj:`TokenizedTable`: TokenizedTable object.       
         """
         tokenized_rows = []
         tokenized_row = []
