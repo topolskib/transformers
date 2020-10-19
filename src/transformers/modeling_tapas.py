@@ -29,7 +29,12 @@ from transformers import modeling_tapas_utilities as utils
 
 from .activations import ACT2FN
 from .configuration_tapas import TapasConfig
-from .file_utils import ModelOutput, add_code_sample_docstrings, add_start_docstrings, add_start_docstrings_to_callable
+from .file_utils import (ModelOutput, 
+                        add_code_sample_docstrings, 
+                        add_start_docstrings, 
+                        add_start_docstrings_to_callable,
+                        requires_scatter,
+)
 from .modeling_outputs import BaseModelOutput, BaseModelOutputWithPooling, MaskedLMOutput
 from .modeling_utils import (
     PreTrainedModel,
@@ -717,6 +722,7 @@ class TapasModel(TapasPreTrainedModel):
     base_model_prefix = "tapas"
 
     def __init__(self, config):
+        requires_scatter(self)
         super().__init__(config)
         self.config = config
 
