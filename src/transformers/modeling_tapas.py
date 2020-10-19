@@ -25,14 +25,13 @@ import torch
 import torch.nn as nn
 from torch.nn import CrossEntropyLoss
 
-from transformers import modeling_tapas_utilities as utils
-
 from .activations import ACT2FN
 from .configuration_tapas import TapasConfig
 from .file_utils import (ModelOutput, 
                         add_code_sample_docstrings, 
                         add_start_docstrings, 
                         add_start_docstrings_to_callable,
+                        is_scatter_available,
                         requires_scatter,
 )
 from .modeling_outputs import BaseModelOutput, BaseModelOutputWithPooling, MaskedLMOutput
@@ -42,6 +41,10 @@ from .modeling_utils import (
     find_pruneable_heads_and_indices,
     prune_linear_layer,
 )
+
+# soft dependency
+if is_scatter_available():
+    from transformers import modeling_tapas_utilities as utils
 
 
 logger = logging.getLogger(__name__)
