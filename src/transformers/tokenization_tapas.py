@@ -15,12 +15,14 @@
 """ Tokenization class for TAPAS model."""
 
 
-import collections
 import ast
-from typing import Any, Dict, Iterable, List, Mapping, Optional, overload, Text, Tuple, Union
+import collections
 from dataclasses import dataclass
+from typing import Dict, List, Optional, Text, Tuple, Union
 
 import torch
+
+from transformers import tokenization_tapas_utilities as utils
 
 from .tokenization_bert import BertTokenizer
 from .tokenization_utils_base import (
@@ -40,7 +42,7 @@ from .tokenization_utils_base import (
     TextInputPair,
     TruncationStrategy,
 )
-from transformers import tokenization_tapas_utilities as utils
+
 
 VOCAB_FILES_NAMES = {"vocab_file": "vocab.txt"}
 
@@ -62,27 +64,27 @@ PRETRAINED_INIT_CONFIGURATION = {
 
 @dataclass(frozen=True)
 class TokenCoordinates:
-  column_index: int
-  row_index: int
-  token_index: int
+    column_index: int
+    row_index: int
+    token_index: int
 
 
 @dataclass
 class TokenizedTable:
-  rows: List[List[List[Text]]]
-  selected_tokens: List[TokenCoordinates]
+    rows: List[List[List[Text]]]
+    selected_tokens: List[TokenCoordinates]
 
 
 @dataclass(frozen=True)
 class SerializedExample:
-  tokens: List[Text]
-  column_ids: List[int]
-  row_ids: List[int]
-  segment_ids: List[int]
-  
+    tokens: List[Text]
+    column_ids: List[int]
+    row_ids: List[int]
+    segment_ids: List[int]
+
 
 def _is_inner_wordpiece(token: Text):
-    return token.startswith('##')
+    return token.startswith("##")
 
 
 class TapasTokenizer(BertTokenizer):
@@ -90,7 +92,7 @@ class TapasTokenizer(BertTokenizer):
     Construct a TAPAS tokenizer.
 
     :class:`~transformers.TapasTokenizer` inherits from :class:`~transformers.BertTokenizer` since it uses the same
-    vocabulary. However, it creates several token type ids to encode tabular structure. To be more precise, it adds 7 token 
+    vocabulary. However, it creates several token type ids to encode tabular structure. To be more precise, it adds 7 token
     type ids, in the following order: "segment_ids", "column_ids", "row_ids", "prev_label_ids", "column_ranks",
     "inv_column_ranks" and "numeric_relations":
 
@@ -111,11 +113,11 @@ class TapasTokenizer(BertTokenizer):
 
     Args:
         cell_trim_length (:obj:`int`, `optional`, defaults to -1):
-            If > 0: Trim cells so that the length is <= this value. Also disables further cell trimming, should thus be used with 'drop_rows_to_fit' below. 
+            If > 0: Trim cells so that the length is <= this value. Also disables further cell trimming, should thus be used with 'drop_rows_to_fit' below.
         max_column_id (:obj:`int`, `optional`, defaults to None):
             Max column id to extract.
         max_row_id (:obj:`int`, `optional`, defaults to None):
-            Max row id to extract. 
+            Max row id to extract.
         strip_column_names (:obj:`bool`, `optional`, defaults to :obj:`False`):
             If true, add empty strings instead of column names.
         update_answer_coordinates (:obj:`bool`, `optional`, defaults to :obj:`False`):
@@ -130,14 +132,16 @@ class TapasTokenizer(BertTokenizer):
     max_model_input_sizes = PRETRAINED_POSITIONAL_EMBEDDINGS_SIZES
     pretrained_init_configuration = PRETRAINED_INIT_CONFIGURATION
 
-    def __init__(self, 
-                cell_trim_length: int = -1,
-                max_column_id: int = None,
-                max_row_id: int = None,
-                strip_column_names: bool = False,
-                update_answer_coordinates: bool = False, 
-                drop_rows_to_fit: bool = False, 
-                **kwargs):
+    def __init__(
+        self,
+        cell_trim_length: int = -1,
+        max_column_id: int = None,
+        max_row_id: int = None,
+        strip_column_names: bool = False,
+        update_answer_coordinates: bool = False,
+        drop_rows_to_fit: bool = False,
+        **kwargs
+    ):
         super().__init__(**kwargs)
 
         # Added tokens - We store this for both slow and fast tokenizers
@@ -146,31 +150,31 @@ class TapasTokenizer(BertTokenizer):
         self.added_tokens_decoder: Dict[int, str] = {}
         self.unique_no_split_tokens: List[str] = []
 
-        # Additional properties 
+        # Additional properties
         self.cell_trim_length = cell_trim_length
         self.max_column_id = max_column_id if max_column_id is not None else self.model_max_length
         self.max_row_id = max_row_id if max_row_id is not None else self.model_max_length
         self.strip_column_names = strip_column_names
         self.update_answer_coordinates = update_answer_coordinates
         self.drop_rows_to_fit = drop_rows_to_fit
-    
+
     def _tokenize_table(
         self,
-        table = None,
-        ):
+        table=None,
+    ):
         """Tokenizes column headers and cell texts of a table.
-            
+
         Args:
             table (:obj:`pd.Dataframe`):
                 Table.
-        Returns: :obj:`TokenizedTable`: TokenizedTable object.       
+        Returns: :obj:`TokenizedTable`: TokenizedTable object.
         """
         tokenized_rows = []
         tokenized_row = []
         # tokenize column headers
         for column in table:
             if self.strip_column_names:
-                tokenized_row.append(self.tokenize(''))
+                tokenized_row.append(self.tokenize(""))
             else:
                 tokenized_row.append(self.tokenize(column))
         tokenized_rows.append(tokenized_row)
@@ -191,20 +195,25 @@ class TapasTokenizer(BertTokenizer):
                             row_index=row_index,
                             column_index=column_index,
                             token_index=token_index,
-                        ))
+                        )
+                    )
 
         return TokenizedTable(
             rows=tokenized_rows,
             selected_tokens=token_coordinates,
         )
-    
+
     def _question_encoding_cost(self, question_tokens):
         # Two extra spots of SEP and CLS.
         return len(question_tokens) + 2
-    
+
     def _get_token_budget(self, question_tokens):
         return self.model_max_length - self._question_encoding_cost(question_tokens)
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> 891876c8... Black formatting and quality tests
     def _get_table_values(self, table, num_columns, num_rows, num_tokens):
         """Iterates over partial table and returns token, column and row indexes."""
         for tc in table.selected_tokens:
@@ -218,13 +227,12 @@ class TapasTokenizer(BertTokenizer):
             word_begin_index = tc.token_index
             # Don't add partial words. Find the starting word piece and check if it
             # fits in the token budget.
-            while word_begin_index >= 0 \
-                and _is_inner_wordpiece(cell[word_begin_index]):
+            while word_begin_index >= 0 and _is_inner_wordpiece(cell[word_begin_index]):
                 word_begin_index -= 1
             if word_begin_index >= num_tokens:
                 continue
             yield token, tc.column_index + 1, tc.row_index
-    
+
     def _get_table_boundaries(self, table):
         """Return maximal number of rows, columns and tokens."""
         max_num_tokens = 0
@@ -238,11 +246,9 @@ class TapasTokenizer(BertTokenizer):
             max_num_rows = min(self.max_row_id, max_num_rows)
         return max_num_rows, max_num_columns, max_num_tokens
 
-    def _get_table_cost(self, table, num_columns,
-                        num_rows, num_tokens):
-        return sum(1 for _ in self._get_table_values(table, num_columns, num_rows,
-                                                    num_tokens))
-    
+    def _get_table_cost(self, table, num_columns, num_rows, num_tokens):
+        return sum(1 for _ in self._get_table_values(table, num_columns, num_rows, num_tokens))
+
     def _get_max_num_tokens(
         self,
         question_tokens,
@@ -257,8 +263,7 @@ class TapasTokenizer(BertTokenizer):
             max_num_tokens = self.cell_trim_length
         num_tokens = 0
         for num_tokens in range(max_num_tokens + 1):
-            cost = self._get_table_cost(tokenized_table, num_columns, num_rows,
-                                        num_tokens + 1)
+            cost = self._get_table_cost(tokenized_table, num_columns, num_rows, num_tokens + 1)
             if cost > token_budget:
                 break
         if num_tokens < max_num_tokens:
@@ -268,11 +273,11 @@ class TapasTokenizer(BertTokenizer):
             if num_tokens == 0:
                 return None
         return num_tokens
-    
+
     def _get_num_columns(self, table):
         num_columns = table.shape[1]
         if num_columns >= self.max_column_id:
-            raise ValueError('Too many columns')
+            raise ValueError("Too many columns")
         return num_columns
 
     def _get_num_rows(self, table, drop_rows_to_fit):
@@ -281,9 +286,9 @@ class TapasTokenizer(BertTokenizer):
             if drop_rows_to_fit:
                 num_rows = self.max_row_id - 1
             else:
-                raise ValueError('Too many rows')
+                raise ValueError("Too many rows")
         return num_rows
-    
+
     def _serialize_text(self, question_tokens):
         """Serializes texts in index arrays."""
         tokens = []
@@ -314,8 +319,7 @@ class TapasTokenizer(BertTokenizer):
         num_tokens,
     ):
         """Serializes table and text."""
-        tokens, segment_ids, column_ids, row_ids = self._serialize_text(
-            question_tokens)
+        tokens, segment_ids, column_ids, row_ids = self._serialize_text(question_tokens)
 
         # add [SEP] token between question and table tokens
         tokens.append(self.sep_token)
@@ -323,8 +327,7 @@ class TapasTokenizer(BertTokenizer):
         column_ids.append(0)
         row_ids.append(0)
 
-        for token, column_id, row_id in self._get_table_values(
-            table, num_columns, num_rows, num_tokens):
+        for token, column_id, row_id in self._get_table_values(table, num_columns, num_rows, num_tokens):
             tokens.append(token)
             segment_ids.append(1)
             column_ids.append(column_id)
@@ -336,28 +339,26 @@ class TapasTokenizer(BertTokenizer):
             column_ids=column_ids,
             row_ids=row_ids,
         )
-        
+
     def _get_column_values(self, table_numeric_values):
         """This is an adaptation from _get_column_values in tf_example_utils.py of the original implementation.
-        Given table_numeric_values, a dictionary that maps row indices of a certain column 
-        of a Pandas dataframe to either an empty list (no numeric value) or a list containing 
-        a NumericValue object, it returns the same dictionary, but only for the row indices that 
-        have a corresponding NumericValue object. 
+        Given table_numeric_values, a dictionary that maps row indices of a certain column
+        of a Pandas dataframe to either an empty list (no numeric value) or a list containing
+        a NumericValue object, it returns the same dictionary, but only for the row indices that
+        have a corresponding NumericValue object.
         """
         table_numeric_values_without_empty_lists = {}
         for row_index, value in table_numeric_values.items():
             if len(value) != 0:
                 table_numeric_values_without_empty_lists[row_index] = value[0]
         return table_numeric_values_without_empty_lists
-    
+
     def _get_cell_token_indexes(self, column_ids, row_ids, column_id, row_id):
         for index in range(len(column_ids)):
-            if (column_ids[index] - 1 == column_id and row_ids[index] - 1 == row_id):
+            if column_ids[index] - 1 == column_id and row_ids[index] - 1 == row_id:
                 yield index
-    
-    def _add_numeric_column_ranks(self, column_ids, row_ids,
-                                table,
-                                features):
+
+    def _add_numeric_column_ranks(self, column_ids, row_ids, table, features):
         """Adds column ranks for all numeric columns."""
 
         ranks = [0] * len(column_ids)
@@ -376,15 +377,11 @@ class TapasTokenizer(BertTokenizer):
                     continue
 
                 try:
-                    key_fn = utils.get_numeric_sort_key_fn(
-                        table_numeric_values.values())
+                    key_fn = utils.get_numeric_sort_key_fn(table_numeric_values.values())
                 except ValueError:
                     continue
 
-                table_numeric_values = {
-                    row_index: key_fn(value)
-                    for row_index, value in table_numeric_values.items()
-                }
+                table_numeric_values = {row_index: key_fn(value) for row_index, value in table_numeric_values.items()}
 
                 table_numeric_values_inv = collections.defaultdict(list)
                 for row_index, value in table_numeric_values.items():
@@ -398,8 +395,8 @@ class TapasTokenizer(BertTokenizer):
                             ranks[index] = rank + 1
                             inv_ranks[index] = len(unique_values) - rank
 
-        features['column_ranks'] = ranks
-        features['inv_column_ranks'] = inv_ranks
+        features["column_ranks"] = ranks
+        features["inv_column_ranks"] = inv_ranks
 
         return features, columns_to_numeric_values
 
@@ -421,12 +418,8 @@ class TapasTokenizer(BertTokenizer):
             return utils.get_numeric_sort_key_fn(all_values)
         except ValueError:
             return None
-    
-    def _add_numeric_relations(self, question,
-                             column_ids, row_ids,
-                             table,
-                             features,
-                             columns_to_numeric_values):
+
+    def _add_numeric_relations(self, question, column_ids, row_ids, table, features, columns_to_numeric_values):
         """Adds numeric relation embeddings to 'features'.
         Args:
             question: The question, numeric values are used.
@@ -449,40 +442,34 @@ class TapasTokenizer(BertTokenizer):
                 for value in numeric_value_span.values:
                     for column_index in range(len(table.columns)):
                         table_numeric_values = columns_to_numeric_values[column_index]
-                        sort_key_fn = self._get_numeric_sort_key_fn(table_numeric_values,
-                                                                value)
+                        sort_key_fn = self._get_numeric_sort_key_fn(table_numeric_values, value)
                         if sort_key_fn is None:
                             continue
                         for row_index, cell_value in table_numeric_values.items():
                             relation = utils.get_numeric_relation(value, cell_value, sort_key_fn)
                             if relation is not None:
                                 cell_indices_to_relations[column_index, row_index].add(relation)
-        
+
         # For each cell add a special feature for all its word pieces.
         for (column_index, row_index), relations in cell_indices_to_relations.items():
             relation_set_index = 0
             for relation in relations:
                 assert relation.value >= utils.Relation.EQ.value
-                relation_set_index += 2**(relation.value - utils.Relation.EQ.value)
-            for cell_token_index in self._get_cell_token_indexes(column_ids, row_ids,
-                                                        column_index, row_index):
+                relation_set_index += 2 ** (relation.value - utils.Relation.EQ.value)
+            for cell_token_index in self._get_cell_token_indexes(column_ids, row_ids, column_index, row_index):
                 numeric_relations[cell_token_index] = relation_set_index
-        
-        features['numeric_relations'] = numeric_relations
+
+        features["numeric_relations"] = numeric_relations
 
         return features
 
-    def _add_numeric_values(self, 
-                          table,
-                          token_ids_dict,
-                          features,
-                          columns_to_numeric_values):
+    def _add_numeric_values(self, table, token_ids_dict, features, columns_to_numeric_values):
         """Adds numeric values for computation of answer loss."""
-        
-        numeric_values = [float('nan')] * self.model_max_length
+
+        numeric_values = [float("nan")] * self.model_max_length
 
         if table is not None:
-            num_rows = table.shape[0] 
+            num_rows = table.shape[0]
             num_columns = table.shape[1]
 
             for col_index in range(num_columns):
@@ -495,68 +482,67 @@ class TapasTokenizer(BertTokenizer):
                             continue
 
                         float_value = numeric_value.float_value
-                        if float_value == float('inf'):
+                        if float_value == float("inf"):
                             continue
 
-                        for index in self._get_cell_token_indexes(token_ids_dict['column_ids'],
-                                                            token_ids_dict['row_ids'],
-                                                            col_index, row_index):
+                        for index in self._get_cell_token_indexes(
+                            token_ids_dict["column_ids"], token_ids_dict["row_ids"], col_index, row_index
+                        ):
                             numeric_values[index] = float_value
 
-        features['numeric_values'] = numeric_values
+        features["numeric_values"] = numeric_values
 
         return features
 
     def _add_numeric_values_scale(self, table, token_ids_dict, features):
         """Adds a scale to each token to down weigh the value of long words."""
-        
+
         numeric_values_scale = [1.0] * self.model_max_length
-        
+
         if table is None:
             return numeric_values_scale
-        
+
         num_rows = table.shape[0]
         num_columns = table.shape[1]
-        
+
         for col_index in range(num_columns):
             for row_index in range(num_rows):
                 indices = [
-                    index for index in self._get_cell_token_indexes(
-                        token_ids_dict['column_ids'], token_ids_dict['row_ids'],
-                        col_index, row_index)
+                    index
+                    for index in self._get_cell_token_indexes(
+                        token_ids_dict["column_ids"], token_ids_dict["row_ids"], col_index, row_index
+                    )
                 ]
                 num_indices = len(indices)
                 if num_indices > 1:
                     for index in indices:
                         numeric_values_scale[index] = float(num_indices)
 
-        features['numeric_values_scale'] = numeric_values_scale
+        features["numeric_values_scale"] = numeric_values_scale
 
         return features
-    
+
     def _pad_to_seq_length(self, inputs):
         while len(inputs) > self.model_max_length:
             inputs.pop()
         while len(inputs) < self.model_max_length:
             inputs.append(0)
-    
+
     def _to_features(self, tokens, token_ids_dict, table, question):
         """Produces a dict of features. This function creates input ids, attention mask, token type ids
-        (except the prev label ids), as well as numeric value and numeric value scale. 
+        (except the prev label ids), as well as numeric value and numeric value scale.
         """
         tokens = list(tokens)
-        token_ids_dict = {
-            key: list(values) for key, values in token_ids_dict.items()
-        }
+        token_ids_dict = {key: list(values) for key, values in token_ids_dict.items()}
 
         length = len(tokens)
         for values in token_ids_dict.values():
             if len(values) != length:
-                raise ValueError('Inconsistent length')
+                raise ValueError("Inconsistent length")
 
-        # currently the input ids, mask and token type ids are created here 
+        # currently the input ids, mask and token type ids are created here
         # also, padding and truncation up to max length is done here (see function _pad_to_seq_length)
-        # (later, this will be done in prepare_for_model)   
+        # (later, this will be done in prepare_for_model)
 
         input_ids = self.convert_tokens_to_ids(tokens)
         attention_mask = [1] * len(input_ids)
@@ -572,40 +558,47 @@ class TapasTokenizer(BertTokenizer):
             assert len(values) == self.model_max_length
 
         features = {}
-        features['input_ids'] = input_ids
-        features['attention_mask'] = attention_mask
+        features["input_ids"] = input_ids
+        features["attention_mask"] = attention_mask
         for key, values in sorted(token_ids_dict.items()):
-             features[key] = values
+            features[key] = values
 
-        features, columns_to_numeric_values = self._add_numeric_column_ranks(token_ids_dict['column_ids'],
-                                   token_ids_dict['row_ids'], table, features)
+        features, columns_to_numeric_values = self._add_numeric_column_ranks(
+            token_ids_dict["column_ids"], token_ids_dict["row_ids"], table, features
+        )
 
-        features = self._add_numeric_relations(question, token_ids_dict['column_ids'],
-                                    token_ids_dict['row_ids'], table, features, columns_to_numeric_values)
+        features = self._add_numeric_relations(
+            question,
+            token_ids_dict["column_ids"],
+            token_ids_dict["row_ids"],
+            table,
+            features,
+            columns_to_numeric_values,
+        )
 
         # finally, add numeric values and numeric values scale (only needed in case of regression loss calculation)
         # so they should only be returned in case answer_coordinates + answer_texts are provided
-        
+
         features = self._add_numeric_values(table, token_ids_dict, features, columns_to_numeric_values)
 
         features = self._add_numeric_values_scale(table, token_ids_dict, features)
 
         # we do not add table id and table id hash (was used in the original implementation)
-        #if table:
+        # if table:
         #    features['table_id'] = create_string_feature([table.table_id.encode('utf8')])
         #    features['table_id_hash'] = create_int_feature([fingerprint(table.table_id) % _MAX_INT])
-        
+
         return features
-    
+
     def _to_trimmed_features(
-            self,
-            question,
-            table,
-            question_tokens,
-            tokenized_table,
-            num_columns,
-            num_rows,
-            drop_rows_to_fit = False,
+        self,
+        question,
+        table,
+        question_tokens,
+        tokenized_table,
+        num_columns,
+        num_rows,
+        drop_rows_to_fit=False,
     ):
         """Finds optimal number of table tokens to include and serializes."""
         init_num_rows = num_rows
@@ -620,33 +613,31 @@ class TapasTokenizer(BertTokenizer):
                 # We could fit the table.
                 break
             if not drop_rows_to_fit or num_rows == 0:
-                raise ValueError('Sequence too long')
+                raise ValueError("Sequence too long")
             # Try to drop a row to fit the table.
             num_rows -= 1
-        
-        serialized_example = self._serialize(question_tokens, tokenized_table,
-                                            num_columns, num_rows, num_tokens)
+
+        serialized_example = self._serialize(question_tokens, tokenized_table, num_columns, num_rows, num_tokens)
 
         assert len(serialized_example.tokens) <= self.model_max_length
 
         feature_dict = {
-            'column_ids': serialized_example.column_ids,
-            'row_ids': serialized_example.row_ids,
-            'segment_ids': serialized_example.segment_ids,
+            "column_ids": serialized_example.column_ids,
+            "row_ids": serialized_example.row_ids,
+            "segment_ids": serialized_example.segment_ids,
         }
 
-        features = self._to_features(
-                serialized_example.tokens, feature_dict, table=table, question=question)
+        features = self._to_features(serialized_example.tokens, feature_dict, table=table, question=question)
 
         return serialized_example, features
 
     #### Everything related to label ids calculation ####
 
     def _get_all_answer_ids_from_coordinates(
-            self,
-            column_ids,
-            row_ids,
-            answers_list,
+        self,
+        column_ids,
+        row_ids,
+        answers_list,
     ):
         """Maps lists of answer coordinates to token indexes."""
         answer_ids = [0] * len(column_ids)
@@ -655,40 +646,29 @@ class TapasTokenizer(BertTokenizer):
         for answers in answers_list:
             column_index, row_index = answers
             all_answers.add((column_index, row_index))
-            for index in self._get_cell_token_indexes(column_ids, row_ids, column_index,
-                                                row_index):
+            for index in self._get_cell_token_indexes(column_ids, row_ids, column_index, row_index):
                 found_answers.add((column_index, row_index))
                 answer_ids[index] = 1
 
         missing_count = len(all_answers) - len(found_answers)
         return answer_ids, missing_count
 
-    def _get_all_answer_ids(
-        self,
-        column_ids,
-        row_ids,
-        question,
-        answer_coordinates
-    ):
+    def _get_all_answer_ids(self, column_ids, row_ids, question, answer_coordinates):
         """Maps lists of questions with answer coordinates to token indexes.
         Here, we swap column and row coordinates. In the TSV format, the coordinates
         are given as (row, column) tuples. Here, we swap them to (column, row) format.
         """
 
-        def _to_coordinates(
-            question, answer_coordinates_question):
-            return [(coords[1], coords[0])
-                    for coords in answer_coordinates_question]
+        def _to_coordinates(question, answer_coordinates_question):
+            return [(coords[1], coords[0]) for coords in answer_coordinates_question]
 
         return self._get_all_answer_ids_from_coordinates(
-            column_ids,
-            row_ids,
-            answers_list=(_to_coordinates(question, answer_coordinates))
+            column_ids, row_ids, answers_list=(_to_coordinates(question, answer_coordinates))
         )
 
     def _find_tokens(self, text, segment):
         """Return start index of segment in text or None."""
-        logging.info('text: %s %s', text, segment)
+        logging.info("text: %s %s", text, segment)
         for index in range(1 + len(text) - len(segment)):
             for seg_index, seg_token in enumerate(segment):
                 if text[index + seg_index].piece != seg_token.piece:
@@ -703,7 +683,7 @@ class TapasTokenizer(BertTokenizer):
         answer_text,
     ):
         """Returns all occurrences of answer_text in the table."""
-        logging.info('answer text: %s', answer_text)
+        logging.info("answer text: %s", answer_text)
         for row_index, row in enumerate(tokenized_table.rows):
             if row_index == 0:
                 # We don't search for answers in the header.
@@ -739,7 +719,8 @@ class TapasTokenizer(BertTokenizer):
                         row_ids,
                         column_id=coordinates.column_index,
                         row_id=coordinates.row_index - 1,
-                    ))
+                    )
+                )
                 indexes.sort()
                 coordinate_answer_ids = []
                 if indexes:
@@ -756,30 +737,28 @@ class TapasTokenizer(BertTokenizer):
 
     def _get_answer_ids(self, column_ids, row_ids, question, answer_coordinates):
         """Maps answer coordinates to token indexes."""
-        answer_ids, missing_count = self._get_all_answer_ids(column_ids, row_ids,
-                                                        [question],
-                                                        answer_coordinates)
+        answer_ids, missing_count = self._get_all_answer_ids(column_ids, row_ids, [question], answer_coordinates)
 
         if missing_count:
             raise ValueError("Couldn't find all answers")
         return answer_ids
 
-    def get_answer_ids(self, column_ids, row_ids, tokenized_table, question, answer_texts_question, answer_coordinates_question):
+    def get_answer_ids(
+        self, column_ids, row_ids, tokenized_table, question, answer_texts_question, answer_coordinates_question
+    ):
         if self.update_answer_coordinates:
             return self._find_answer_ids_from_answer_texts(
                 column_ids,
                 row_ids,
                 tokenized_table,
-                answer_texts=[
-                    self.tokenize(at)
-                    for at in answer_texts_question
-                ],
+                answer_texts=[self.tokenize(at) for at in answer_texts_question],
             )
         return self._get_answer_ids(column_ids, row_ids, question, answer_coordinates_question)
 
     #### End of everything related to label ids calculation ####
 
-    def batch_encode_plus(self,
+    def batch_encode_plus(
+        self,
         table,
         queries: Union[
             List[TextInput],
@@ -888,7 +867,7 @@ class TapasTokenizer(BertTokenizer):
                 "`is_pretokenized` is deprecated and will be removed in a future version, use `is_split_into_words` instead.",
                 FutureWarning,
             )
-        
+
         if "is_split_into_words" in kwargs:
             raise NotImplementedError("Currently TapasTokenizer only supports questions as strings.")
 
@@ -913,7 +892,7 @@ class TapasTokenizer(BertTokenizer):
         )
 
         return BatchEncoding(batch_outputs)
-    
+
     def _batch_prepare_for_model(
         self,
         table,
@@ -942,7 +921,7 @@ class TapasTokenizer(BertTokenizer):
         """
         Prepares a sequence of strings (queries) related to a table so that it can be used by the model.
         It creates input ids, adds special tokens, truncates the table if overflowing (if the drop_rows_to_fit
-        parameter is set to True) while taking into account the special tokens and manages a moving window 
+        parameter is set to True) while taking into account the special tokens and manages a moving window
         (with user defined stride) for overflowing tokens
 
         This function is based on prepare_for_model (but in Tapas, training examples depend on each other,
@@ -977,58 +956,60 @@ class TapasTokenizer(BertTokenizer):
             return_token_type_ids = "token_type_ids" in self.model_input_names
         if return_attention_mask is None:
             return_attention_mask = "attention_mask" in self.model_input_names
-        
+
         encoded_inputs = {}
 
         if return_overflowing_tokens:
-            # currently, if drop_rows_to_fit is set to False and a table is too big, a ValueError is thrown 
-            # see function _get_num_rows 
+            # currently, if drop_rows_to_fit is set to False and a table is too big, a ValueError is thrown
+            # see function _get_num_rows
             raise ValueError("Overflowing tokens is currently not supported")
 
         if (answer_coordinates and not answer_texts) or (not answer_coordinates and answer_texts):
-            raise ValueError("In case you provide answers, both answer_coordinates and answer_text should be provided") 
+            raise ValueError("In case you provide answers, both answer_coordinates and answer_text should be provided")
 
         add_loss_variables = None
         if answer_coordinates is not None and answer_texts is not None:
             assert len(answer_coordinates) == len(answer_texts) == len(queries)
             add_loss_variables = True
-        
+
         # First, tokenize the table and get the number of rows and columns
         tokenized_table = self._tokenize_table(table)
         num_rows = self._get_num_rows(table, self.drop_rows_to_fit)
         num_columns = self._get_num_columns(table)
-        
+
         # Second, create the input ids for every table + query pair (and all the other features). This is a list of lists
         features_examples = {}
         position_to_label_ids = {}
         for position, query in enumerate(queries):
             if isinstance(query, str):
                 text_tokens = self.tokenize(query)
-                # currently, padding is done within the _to_trimmed_features function 
+                # currently, padding is done within the _to_trimmed_features function
                 serialized_example, features = self._to_trimmed_features(
-                                                                question=query,
-                                                                table=table,
-                                                                question_tokens=text_tokens,
-                                                                tokenized_table=tokenized_table,
-                                                                num_columns=num_columns,
-                                                                num_rows=num_rows,
-                                                                drop_rows_to_fit=self.drop_rows_to_fit)
-                
+                    question=query,
+                    table=table,
+                    question_tokens=text_tokens,
+                    tokenized_table=tokenized_table,
+                    num_columns=num_columns,
+                    num_rows=num_rows,
+                    drop_rows_to_fit=self.drop_rows_to_fit,
+                )
+
                 if add_loss_variables:
                     column_ids = serialized_example.column_ids
                     row_ids = serialized_example.row_ids
 
                     # create label ids from answer texts and coordinates
-                    label_ids = self.get_answer_ids(column_ids, 
-                                                    row_ids, 
-                                                    tokenized_table, 
-                                                    query, 
-                                                    answer_texts[position],
-                                                    answer_coordinates[position],
-                                                    )
+                    label_ids = self.get_answer_ids(
+                        column_ids,
+                        row_ids,
+                        tokenized_table,
+                        query,
+                        answer_texts[position],
+                        answer_coordinates[position],
+                    )
                     self._pad_to_seq_length(label_ids)
                     position_to_label_ids[position] = label_ids
-                    features['label_ids'] = label_ids
+                    features["label_ids"] = label_ids
 
                     if position == 0:
                         prev_label_ids = [0] * len(features["input_ids"])
@@ -1045,16 +1026,23 @@ class TapasTokenizer(BertTokenizer):
 
                 features_examples[position] = features
             else:
-                raise ValueError(
-                    "Query is not valid. Should be a string."
-                )
+                raise ValueError("Query is not valid. Should be a string.")
 
         # Build output dictionnary
         encoded_inputs["input_ids"] = [features_examples[position]["input_ids"] for position in range(len(queries))]
-        encoded_inputs["attention_mask"] = [features_examples[position]["attention_mask"] for position in range(len(queries))]
-        
-        token_types = ["segment_ids", "column_ids", "row_ids", "prev_label_ids", "column_ranks",
-                            "inv_column_ranks", "numeric_relations"]
+        encoded_inputs["attention_mask"] = [
+            features_examples[position]["attention_mask"] for position in range(len(queries))
+        ]
+
+        token_types = [
+            "segment_ids",
+            "column_ids",
+            "row_ids",
+            "prev_label_ids",
+            "column_ranks",
+            "inv_column_ranks",
+            "numeric_relations",
+        ]
         token_type_ids = []
         for position in range(len(queries)):
             token_type_ids_example = []
@@ -1068,19 +1056,25 @@ class TapasTokenizer(BertTokenizer):
 
         if return_token_type_ids:
             encoded_inputs["token_type_ids"] = token_type_ids
-        
+
         if add_loss_variables:
-            encoded_inputs["label_ids"] = [features_examples[position]["label_ids"] for position in range(len(queries))]
-            encoded_inputs["numeric_values"] = [features_examples[position]["numeric_values"] for position in range(len(queries))]
-            encoded_inputs["numeric_values_scale"] = [features_examples[position]["numeric_values_scale"] for position in range(len(queries))]
+            encoded_inputs["label_ids"] = [
+                features_examples[position]["label_ids"] for position in range(len(queries))
+            ]
+            encoded_inputs["numeric_values"] = [
+                features_examples[position]["numeric_values"] for position in range(len(queries))
+            ]
+            encoded_inputs["numeric_values_scale"] = [
+                features_examples[position]["numeric_values_scale"] for position in range(len(queries))
+            ]
             # to do: add aggregation function id, classification class index and answer (or should people prepare this themselves?)
-        
+
         if return_special_tokens_mask:
             raise ValueError("Special tokens mask is currently not supported")
 
         if return_length:
             encoded_inputs["length"] = len(encoded_inputs["input_ids"])
-        
+
         batch_outputs = BatchEncoding(encoded_inputs, tensor_type=return_tensors)
 
         return batch_outputs
@@ -1097,23 +1091,22 @@ class TapasTokenizer(BertTokenizer):
 
     def _get_mean_cell_probs(self, probabilities, segment_ids, row_ids, column_ids):
         """Computes average probability per cell, aggregating over tokens."""
-        coords_to_probs = collections.defaultdict(list)  
+        coords_to_probs = collections.defaultdict(list)
         for i, prob in self._get_cell_token_probs(probabilities, segment_ids, row_ids, column_ids):
             col = column_ids[i] - 1
             row = row_ids[i] - 1
             coords_to_probs[(col, row)].append(prob)
-        return {
-            coords: torch.as_tensor(cell_probs).mean()
-            for coords, cell_probs in coords_to_probs.items()
-        }
+        return {coords: torch.as_tensor(cell_probs).mean() for coords, cell_probs in coords_to_probs.items()}
 
     def _parse_coordinates(self, raw_coordinates):
         """Parses cell coordinates from text."""
         return [ast.literal_eval(x) for x in raw_coordinates]
 
-    def convert_logits_to_predictions(self, data, logits, logits_agg=None, logits_cls=None, cell_classification_threshold=0.5):
+    def convert_logits_to_predictions(
+        self, data, logits, logits_agg=None, logits_cls=None, cell_classification_threshold=0.5
+    ):
         """Converts logits to actual predictions.
-        
+
         Args:
             data (:obj:`dict`):
                 Dictionary mapping features to actual values. Should be created using :class:`~transformers.TapasTokenizer`.
@@ -1129,32 +1122,39 @@ class TapasTokenizer(BertTokenizer):
             :obj:`tuple` comprising various elements depending on the inputs:
             answer_coordinates_batch (``List[List[[tuple]]``) of length ``batch_size``:
                 Answer coordinates as a list of lists of tuples. Each element in the list contains the predicted answer coordinates of a single example in the batch, as a list of tuples.
-                Each tuple is a cell (row, column pair). 
+                Each tuple is a cell (row, column pair).
             aggregation_predictions (`optional`, returned when ``logits_aggregation`` is provided) ``List[int]`` of length ``batch_size``:
-                Prediction indices of the aggregation head. 
+                Prediction indices of the aggregation head.
             classification_predictions (`optional`, returned when ``logits_cls`` is provided) ``List[int]`` of length ``batch_size``:
-                Prediction indices of the classification head. 
+                Prediction indices of the classification head.
         """
         # compute probabilities from token logits
         dist_per_token = torch.distributions.Bernoulli(logits=logits)
-        probabilities = dist_per_token.probs * data["attention_mask"].type(torch.float32).to(dist_per_token.probs.device)
-        
-        token_types = ["segment_ids", "column_ids", "row_ids", "prev_label_ids", "column_ranks",
-                                    "inv_column_ranks", "numeric_relations"] 
-        
+        probabilities = dist_per_token.probs * data["attention_mask"].type(torch.float32).to(
+            dist_per_token.probs.device
+        )
+
+        token_types = [
+            "segment_ids",
+            "column_ids",
+            "row_ids",
+            "prev_label_ids",
+            "column_ranks",
+            "inv_column_ranks",
+            "numeric_relations",
+        ]
+
         # collect input_ids, segment ids, row ids and column ids of batch. Shape (batch_size, seq_len)
         input_ids = data["input_ids"]
-        segment_ids = data["token_type_ids"][:,:,token_types.index("segment_ids")]
-        row_ids = data["token_type_ids"][:,:,token_types.index("row_ids")]
-        column_ids = data["token_type_ids"][:,:,token_types.index("column_ids")]
+        segment_ids = data["token_type_ids"][:, :, token_types.index("segment_ids")]
+        row_ids = data["token_type_ids"][:, :, token_types.index("row_ids")]
+        column_ids = data["token_type_ids"][:, :, token_types.index("column_ids")]
 
         # next, get answer coordinates for every example in the batch
         num_batch = input_ids.shape[0]
-        answers_batch = []
         answer_coordinates_batch = []
         for i in range(num_batch):
             probabilities_example = probabilities[i].tolist()
-            input_ids_example = input_ids[i].tolist()
             segment_ids_example = segment_ids[i]
             row_ids_example = row_ids[i]
             column_ids_example = column_ids[i]
@@ -1162,14 +1162,16 @@ class TapasTokenizer(BertTokenizer):
             max_width = column_ids_example.max()
             max_height = row_ids_example.max()
 
-            if (max_width == 0 and max_height == 0):
+            if max_width == 0 and max_height == 0:
                 continue
-            
-            cell_coords_to_prob = self._get_mean_cell_probs(probabilities_example, 
-                                                    segment_ids_example.tolist(), 
-                                                    row_ids_example.tolist(), 
-                                                    column_ids_example.tolist())
-        
+
+            cell_coords_to_prob = self._get_mean_cell_probs(
+                probabilities_example,
+                segment_ids_example.tolist(),
+                row_ids_example.tolist(),
+                column_ids_example.tolist(),
+            )
+
             # Select the answers above the classification threshold.
             answer_coordinates = []
             for col in range(max_width):
@@ -1182,7 +1184,7 @@ class TapasTokenizer(BertTokenizer):
             answer_coordinates_batch.append(answer_coordinates)
 
         output = answer_coordinates_batch
-        
+
         if logits_agg is not None:
             aggregation_predictions = logits_agg.argmax(dim=-1)
             output = (output, aggregation_predictions.tolist())
@@ -1190,9 +1192,7 @@ class TapasTokenizer(BertTokenizer):
         if logits_cls is not None:
             classification_predictions = logits_cls.argmax(dim=-1)
             output = output + (classification_predictions.tolist())
-        
+
         return output
 
     #### End of everything related to converting logits to predictions ####
-
-            

@@ -20,7 +20,7 @@ import logging
 
 import torch
 
-from transformers import TapasConfig, TapasForMaskedLM, TapasForQuestionAnswering, load_tf_weights_in_tapas
+from transformers import TapasConfig, TapasForQuestionAnswering, load_tf_weights_in_tapas
 
 
 logging.basicConfig(level=logging.INFO)
@@ -28,10 +28,10 @@ logging.basicConfig(level=logging.INFO)
 
 def convert_tf_checkpoint_to_pytorch(tf_checkpoint_path, tapas_config_file, pytorch_dump_path):
     # Initialise PyTorch model
-    #config = TapasConfig.from_json_file(tapas_config_file)
-    config = TapasConfig(task="WTQ")
+    # config = TapasConfig.from_json_file(tapas_config_file)
+    config = TapasConfig()
     print("Building PyTorch model from configuration: {}".format(str(config)))
-    #model = TapasForMaskedLM(config)
+    # model = TapasForMaskedLM(config)
     model = TapasForQuestionAnswering(config)
 
     # Load weights from tf checkpoint

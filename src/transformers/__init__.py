@@ -551,9 +551,9 @@ if is_torch_available():
     )
     from .modeling_tapas import (
         TAPAS_PRETRAINED_MODEL_ARCHIVE_LIST,
-        TapasModel,
         TapasForMaskedLM,
         TapasForQuestionAnswering,
+        TapasModel,
     )
     from .modeling_transfo_xl import (
         TRANSFO_XL_PRETRAINED_MODEL_ARCHIVE_LIST,

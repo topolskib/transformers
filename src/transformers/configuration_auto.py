@@ -173,8 +173,11 @@ MODEL_NAMES_MAPPING = OrderedDict(
         ("layoutlm", "LayoutLM"),
         ("dpr", "DPR"),
         ("rag", "RAG"),
+<<<<<<< HEAD
         ("xlm-prophetnet", "XLMProphetNet"),
         ("prophetnet", "ProphetNet"),
+=======
+>>>>>>> 891876c8... Black formatting and quality tests
         ("tapas", "TAPAS"),
     ]
 )

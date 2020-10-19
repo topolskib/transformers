@@ -15,13 +15,11 @@
 """PyTorch TAPAS model. """
 
 
-import math
 import logging
-import warnings
+import math
 import os
 from dataclasses import dataclass
 from typing import Optional, Tuple
-
 
 import torch
 import torch.nn as nn
@@ -29,26 +27,17 @@ from torch.nn import CrossEntropyLoss
 
 from transformers import modeling_tapas_utilities as utils
 
+from .activations import ACT2FN
 from .configuration_tapas import TapasConfig
-from .activations import ACT2FN, gelu
-from .file_utils import (
-    ModelOutput,
-    add_code_sample_docstrings,
-    add_start_docstrings,
-    add_start_docstrings_to_callable,
-    replace_return_docstrings,
-)
-from .modeling_outputs import (
-    BaseModelOutput,
-    BaseModelOutputWithPooling,
-    MaskedLMOutput
-)
+from .file_utils import ModelOutput, add_code_sample_docstrings, add_start_docstrings, add_start_docstrings_to_callable
+from .modeling_outputs import BaseModelOutput, BaseModelOutputWithPooling, MaskedLMOutput
 from .modeling_utils import (
     PreTrainedModel,
     apply_chunking_to_forward,
     find_pruneable_heads_and_indices,
     prune_linear_layer,
 )
+
 
 logger = logging.getLogger(__name__)
 
@@ -75,9 +64,9 @@ class TableQuestionAnsweringOutput(ModelOutput):
         logits (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length)`):
             Prediction scores of the cell selection head, for every token.
         logits_aggregation (:obj:`torch.FloatTensor`, `optional`, of shape :obj:`(batch_size, num_aggregation_labels)`):
-            Prediction scores of the aggregation head, for every aggregation operator (including NONE). 
+            Prediction scores of the aggregation head, for every aggregation operator (including NONE).
         logits_cls (:obj:`torch.FloatTensor`, `optional`, of shape :obj:`(batch_size, num_classification_labels)`):
-            Prediction scores of the classification head, for every class index. 
+            Prediction scores of the classification head, for every class index.
         hidden_states (:obj:`tuple(torch.FloatTensor)`, `optional`, returned when ``output_hidden_states=True`` is passed or when ``config.output_hidden_states=True``):
             Tuple of :obj:`torch.FloatTensor` (one for the output of the embeddings + one for the output of each layer)
             of shape :obj:`(batch_size, sequence_length, hidden_size)`.
@@ -98,9 +87,9 @@ class TableQuestionAnsweringOutput(ModelOutput):
 
 
 def load_tf_weights_in_tapas(model, config, tf_checkpoint_path):
-    """ Load tf checkpoints in a PyTorch model. This is an adaptation from load_tf_weights_in_bert
-        - add cell selection and aggregation heads
-        - take into account additional token type embedding layers
+    """Load tf checkpoints in a PyTorch model. This is an adaptation from load_tf_weights_in_bert
+    - add cell selection and aggregation heads
+    - take into account additional token type embedding layers
     """
     try:
         import re
@@ -130,7 +119,15 @@ def load_tf_weights_in_tapas(model, config, tf_checkpoint_path):
         # adam_v and adam_m are variables used in AdamWeightDecayOptimizer to calculate m and v
         # which are not required for using pretrained model
         if any(
-            n in ["adam_v", "adam_m", "AdamWeightDecayOptimizer", "AdamWeightDecayOptimizer_1", "global_step", "seq_relationship"]
+            n
+            in [
+                "adam_v",
+                "adam_m",
+                "AdamWeightDecayOptimizer",
+                "AdamWeightDecayOptimizer_1",
+                "global_step",
+                "seq_relationship",
+            ]
             for n in name
         ):
             logger.info("Skipping {}".format("/".join(name)))
@@ -175,7 +172,15 @@ def load_tf_weights_in_tapas(model, config, tf_checkpoint_path):
                 pointer = pointer[num]
         if m_name[-11:] == "_embeddings":
             pointer = getattr(pointer, "weight")
-        elif m_name[-13:] in ["_embeddings_0", "_embeddings_1", "_embeddings_2", "_embeddings_3", "_embeddings_4", "_embeddings_5", "_embeddings_6"]:
+        elif m_name[-13:] in [
+            "_embeddings_0",
+            "_embeddings_1",
+            "_embeddings_2",
+            "_embeddings_3",
+            "_embeddings_4",
+            "_embeddings_5",
+            "_embeddings_6",
+        ]:
             pointer = getattr(pointer, "weight")
         elif m_name == "kernel":
             array = np.transpose(array)
@@ -192,7 +197,7 @@ def load_tf_weights_in_tapas(model, config, tf_checkpoint_path):
             array = np.array(array)
         pointer.data = torch.from_numpy(array)
     return model
-    
+
 
 class TapasEmbeddings(nn.Module):
     """
@@ -209,12 +214,12 @@ class TapasEmbeddings(nn.Module):
         self.position_embeddings = nn.Embedding(config.max_position_embeddings, config.hidden_size)
         # token type embeddings
         token_type_embedding_name = "token_type_embeddings"
-        
-        for i, type_vocab_size in enumerate(config.type_vocab_size):
-            name="%s_%d" % (token_type_embedding_name, i)
-            setattr(self, name, nn.Embedding(type_vocab_size, config.hidden_size)) 
 
-        self.number_of_token_type_embeddings = len(config.type_vocab_size) 
+        for i, type_vocab_size in enumerate(config.type_vocab_size):
+            name = "%s_%d" % (token_type_embedding_name, i)
+            setattr(self, name, nn.Embedding(type_vocab_size, config.hidden_size))
+
+        self.number_of_token_type_embeddings = len(config.type_vocab_size)
 
         # self.LayerNorm is not snake-cased to stick with TensorFlow model variable name and be able to load
         # any TensorFlow checkpoint file
@@ -231,41 +236,54 @@ class TapasEmbeddings(nn.Module):
 
         seq_length = input_shape[1]
         device = input_ids.device if input_ids is not None else inputs_embeds.device
-        
+
         if position_ids is None:
             # create absolute position embeddings
             position_ids = torch.arange(seq_length, dtype=torch.long, device=device)
             position_ids = position_ids.unsqueeze(0).expand(input_shape)
             # when self.config.reset_position_index_per_cell is set to True, create relative position embeddings
             if self.config.reset_position_index_per_cell:
-                col_index = utils.IndexMap(token_type_ids[:,:,1], self.config.type_vocab_size[1], batch_dims=1) # shape (batch_size, seq_len)
-                row_index = utils.IndexMap(token_type_ids[:,:,2], self.config.type_vocab_size[2], batch_dims=1) # shape (batch_size, seq_len)
-                full_index = utils.ProductIndexMap(col_index, row_index) # shape (batch_size, seq_len)
-                
-                first_position_per_segment = utils.reduce_min(position_ids, full_index)[0] # shape (max_rows * max_columns,). First absolute position for every cell
-                first_position = utils.gather(first_position_per_segment, full_index) # ? shape (batch_size, seq_len). First absolute position of the cell for every token
-                position = torch.arange(seq_length, dtype=torch.long, device=device).unsqueeze(0) # shape (1, seq_len)
-                position_ids = torch.min(torch.as_tensor(self.config.max_position_embeddings - 1, device=device), position - first_position)
-        
+                col_index = utils.IndexMap(
+                    token_type_ids[:, :, 1], self.config.type_vocab_size[1], batch_dims=1
+                )  # shape (batch_size, seq_len)
+                row_index = utils.IndexMap(
+                    token_type_ids[:, :, 2], self.config.type_vocab_size[2], batch_dims=1
+                )  # shape (batch_size, seq_len)
+                full_index = utils.ProductIndexMap(col_index, row_index)  # shape (batch_size, seq_len)
+
+                first_position_per_segment = utils.reduce_min(position_ids, full_index)[
+                    0
+                ]  # shape (max_rows * max_columns,). First absolute position for every cell
+                first_position = utils.gather(
+                    first_position_per_segment, full_index
+                )  # ? shape (batch_size, seq_len). First absolute position of the cell for every token
+                position = torch.arange(seq_length, dtype=torch.long, device=device).unsqueeze(0)  # shape (1, seq_len)
+                position_ids = torch.min(
+                    torch.as_tensor(self.config.max_position_embeddings - 1, device=device), position - first_position
+                )
+
         if token_type_ids is None:
-            token_type_ids = torch.zeros((*input_shape, self.number_of_token_type_embeddings), dtype=torch.long, device=device)
+            token_type_ids = torch.zeros(
+                (*input_shape, self.number_of_token_type_embeddings), dtype=torch.long, device=device
+            )
 
         if inputs_embeds is None:
             inputs_embeds = self.word_embeddings(input_ids)
 
         position_embeddings = self.position_embeddings(position_ids)
-        
+
         embeddings = inputs_embeds + position_embeddings
-        
+
         token_type_embedding_name = "token_type_embeddings"
-        
+
         for i in range(self.number_of_token_type_embeddings):
-            name="%s_%d" % (token_type_embedding_name, i)
-            embeddings += getattr(self, name)(token_type_ids[:,:,i])
+            name = "%s_%d" % (token_type_embedding_name, i)
+            embeddings += getattr(self, name)(token_type_ids[:, :, i])
 
         embeddings = self.LayerNorm(embeddings)
         embeddings = self.dropout(embeddings)
         return embeddings
+
 
 # Copied from transformers.modeling_bert.BertSelfAttention with Bert->Tapas
 class TapasSelfAttention(nn.Module):
@@ -439,6 +457,7 @@ class TapasOutput(nn.Module):
         hidden_states = self.LayerNorm(hidden_states + input_tensor)
         return hidden_states
 
+
 # Copied from transformers.modeling_bert.BertLayer with Bert->Tapas
 class TapasLayer(nn.Module):
     def __init__(self, config):
@@ -497,6 +516,7 @@ class TapasLayer(nn.Module):
         intermediate_output = self.intermediate(attention_output)
         layer_output = self.output(intermediate_output, attention_output)
         return layer_output
+
 
 # Copied from transformers.modeling_bert.BertEncoder with Bert->Tapas
 class TapasEncoder(nn.Module):
@@ -561,6 +581,7 @@ class TapasEncoder(nn.Module):
         return BaseModelOutput(
             last_hidden_state=hidden_states, hidden_states=all_hidden_states, attentions=all_attentions
         )
+
 
 # Copied from transformers.modeling_bert.BertPooler
 class TapasPooler(nn.Module):
@@ -674,13 +695,13 @@ TAPAS_INPUTS_DOCSTRING = r"""
 class TapasModel(TapasPreTrainedModel):
     """
     This class is a small change compared to :class:`~transformers.BertModel`, taking into account the additional token type ids.
-    
+
     The model can behave as an encoder (with only self-attention) as well
     as a decoder, in which case a layer of cross-attention is added between
     the self-attention layers, following the architecture described in `Attention is all you need
     <https://arxiv.org/abs/1706.03762>`__ by Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones,
     Aidan N. Gomez, Lukasz Kaiser and Illia Polosukhin.
-    
+
     To behave as an decoder the model needs to be initialized with the
     :obj:`is_decoder` argument of the configuration set to :obj:`True`.
     To be used in a Seq2Seq model, the model needs to initialized with both :obj:`is_decoder`
@@ -708,9 +729,9 @@ class TapasModel(TapasPreTrainedModel):
         self.embeddings.word_embeddings = value
 
     def _prune_heads(self, heads_to_prune):
-        """ Prunes heads of the model.
-            heads_to_prune: dict of {layer_num: list of heads to prune in this layer}
-            See base class PreTrainedModel
+        """Prunes heads of the model.
+        heads_to_prune: dict of {layer_num: list of heads to prune in this layer}
+        See base class PreTrainedModel
         """
         for layer, heads in heads_to_prune.items():
             self.encoder.layer[layer].attention.prune_heads(heads)
@@ -746,7 +767,7 @@ class TapasModel(TapasPreTrainedModel):
             Mask values selected in ``[0, 1]``:
             - 1 for tokens that are **not masked**,
             - 0 for tokens that are **masked**.
-        """ 
+        """
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
@@ -767,7 +788,9 @@ class TapasModel(TapasPreTrainedModel):
         if attention_mask is None:
             attention_mask = torch.ones(input_shape, device=device)
         if token_type_ids is None:
-            token_type_ids = torch.zeros((*input_shape, len(self.config.type_vocab_size)), dtype=torch.long, device=device)
+            token_type_ids = torch.zeros(
+                (*input_shape, len(self.config.type_vocab_size)), dtype=torch.long, device=device
+            )
 
         # We can provide a self-attention mask of dimensions [batch_size, from_seq_length, to_seq_length]
         # ourselves in which case we just need to make it broadcastable to all heads.
@@ -931,7 +954,7 @@ class TapasLMHead(nn.Module):
     TAPAS_START_DOCSTRING,
 )
 class TapasForQuestionAnswering(TapasPreTrainedModel):
-    def __init__(self, config):   
+    def __init__(self, config):
         super().__init__(config)
 
         # base model
@@ -939,31 +962,39 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
 
         # dropout (only used when training)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
-        
+
         # cell selection heads
-        if config.init_cell_selection_weights_to_zero: 
-            #init_cell_selection_weights_to_zero: Whether the initial weights should be
-            #set to 0. This ensures that all tokens have the same prior probability.
-            self.output_weights = nn.Parameter(torch.zeros(config.hidden_size)) 
+        if config.init_cell_selection_weights_to_zero:
+            # init_cell_selection_weights_to_zero: Whether the initial weights should be
+            # set to 0. This ensures that all tokens have the same prior probability.
+            self.output_weights = nn.Parameter(torch.zeros(config.hidden_size))
             self.column_output_weights = nn.Parameter(torch.zeros(config.hidden_size))
         else:
             self.output_weights = nn.Parameter(torch.empty(config.hidden_size))
-            nn.init.normal_(self.output_weights, std=0.02) # here, a truncated normal is used in the original implementation
+            nn.init.normal_(
+                self.output_weights, std=0.02
+            )  # here, a truncated normal is used in the original implementation
             self.column_output_weights = nn.Parameter(torch.empty(config.hidden_size))
-            nn.init.normal_(self.column_output_weights, std=0.02) # here, a truncated normal is used in the original implementation
+            nn.init.normal_(
+                self.column_output_weights, std=0.02
+            )  # here, a truncated normal is used in the original implementation
         self.output_bias = nn.Parameter(torch.zeros([]))
         self.column_output_bias = nn.Parameter(torch.zeros([]))
 
         # aggregation head
         if config.num_aggregation_labels > 0:
             self.output_weights_agg = nn.Parameter(torch.empty([config.num_aggregation_labels, config.hidden_size]))
-            nn.init.normal_(self.output_weights_agg, std=0.02) # here, a truncated normal is used in the original implementation
+            nn.init.normal_(
+                self.output_weights_agg, std=0.02
+            )  # here, a truncated normal is used in the original implementation
             self.output_bias_agg = nn.Parameter(torch.zeros([config.num_aggregation_labels]))
 
         # classification head
         if config.num_classification_labels > 0:
             self.output_weights_cls = nn.Parameter(torch.empty([config.num_classification_labels, config.hidden_size]))
-            nn.init.normal_(self.output_weights_cls, std=0.02) # here, a truncated normal is used in the original implementation
+            nn.init.normal_(
+                self.output_weights_cls, std=0.02
+            )  # here, a truncated normal is used in the original implementation
             self.output_bias_cls = nn.Parameter(torch.zeros([config.num_classification_labels]))
 
         self.init_weights()
@@ -983,7 +1014,7 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
         position_ids=None,
         head_mask=None,
         inputs_embeds=None,
-        table_mask=None, 
+        table_mask=None,
         label_ids=None,
         aggregation_function_id=None,
         answer=None,
@@ -995,23 +1026,23 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
         return_dict=None,
     ):
         r"""
-        table_mask (:obj:`torch.LongTensor` of shape :obj:`(batch_size, seq_length)`, `optional`): 
+        table_mask (:obj:`torch.LongTensor` of shape :obj:`(batch_size, seq_length)`, `optional`):
             Mask for the table. Indicates which tokens belong to the table (1). Question tokens, table headers and padding are 0.
         label_ids (:obj:`torch.LongTensor` of shape :obj:`(batch_size, seq_length)`, `optional`):
             Labels per token.
         aggregation_function_id (:obj:`torch.LongTensor` of shape :obj:`(batch_size, )`, `optional`):
-            Aggregation function id for every example in the batch. 
+            Aggregation function id for every example in the batch.
         answer (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, )`, `optional`):
             Answer for every example in the batch. Nan if there is no scalar answer.
         numeric_values (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, seq_length)`, `optional`):
             Numeric values of every token. Nan for tokens which are not numeric values.
         numeric_values_scale (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, seq_length)`, `optional`):
-            Scale of the numeric values of every token. 
+            Scale of the numeric values of every token.
         classification_class_index (:obj:`torch.LongTensor` of shape :obj:`(batch_size, )`, `optional`):
-            Classification class index for every example in the batch. 
+            Classification class index for every example in the batch.
         """
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-        
+
         outputs = self.tapas(
             input_ids,
             attention_mask=attention_mask,
@@ -1036,27 +1067,38 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
             input_shape = inputs_embeds.size()[:-1]
 
         device = input_ids.device if input_ids is not None else inputs_embeds.device
-        
+
         # Construct indices for the table.
         if token_type_ids is None:
-            token_type_ids = torch.zeros((*input_shape, len(self.config.type_vocab_size)), dtype=torch.long, device=device)
-        
-        token_types = ["segment_ids", "column_ids", "row_ids", "prev_label_ids", "column_ranks",
-                            "inv_column_ranks", "numeric_relations"]
-        
-        row_ids = token_type_ids[:,:,token_types.index("row_ids")]
-        column_ids = token_type_ids[:,:,token_types.index("column_ids")]
-        
+            token_type_ids = torch.zeros(
+                (*input_shape, len(self.config.type_vocab_size)), dtype=torch.long, device=device
+            )
+
+        token_types = [
+            "segment_ids",
+            "column_ids",
+            "row_ids",
+            "prev_label_ids",
+            "column_ranks",
+            "inv_column_ranks",
+            "numeric_relations",
+        ]
+
+        row_ids = token_type_ids[:, :, token_types.index("row_ids")]
+        column_ids = token_type_ids[:, :, token_types.index("column_ids")]
+
         row_index = utils.IndexMap(
             indices=torch.min(row_ids, torch.as_tensor(self.config.max_num_rows - 1, device=row_ids.device)),
             num_segments=self.config.max_num_rows,
-            batch_dims=1)
+            batch_dims=1,
+        )
         col_index = utils.IndexMap(
             indices=torch.min(column_ids, torch.as_tensor(self.config.max_num_columns - 1, device=column_ids.device)),
             num_segments=self.config.max_num_columns,
-            batch_dims=1)
+            batch_dims=1,
+        )
         cell_index = utils.ProductIndexMap(row_index, col_index)
-        
+
         # Masks.
         input_shape = input_ids.size() if input_ids is not None else inputs_embeds.size()[:-1]
         device = input_ids.device if input_ids is not None else inputs_embeds.device
@@ -1064,8 +1106,7 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
             attention_mask = torch.ones(input_shape, device=device)
         # Table cells only, without question tokens and table headers.
         if table_mask is None:
-            table_mask = torch.where(row_ids > 0, torch.ones_like(row_ids),
-                                    torch.zeros_like(row_ids))
+            table_mask = torch.where(row_ids > 0, torch.ones_like(row_ids), torch.zeros_like(row_ids))
         # torch.FloatTensor[batch_size, seq_length] there's probably a more elegant way to do the 4 lines below
         input_mask_float = attention_mask.type(torch.FloatTensor).to(device)
         table_mask_float = table_mask.type(torch.FloatTensor).to(device)
@@ -1073,10 +1114,9 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
         cell_mask, _ = utils.reduce_mean(input_mask_float, cell_index)
 
         # Compute logits per token. These are used to select individual cells.
-        logits = utils.compute_token_logits(sequence_output, 
-                                            self.config.temperature,
-                                            self.output_weights,
-                                            self.output_bias)
+        logits = utils.compute_token_logits(
+            sequence_output, self.config.temperature, self.output_weights, self.output_bias
+        )
 
         # Compute logits per column. These are used to select a column.
         column_logits = None
@@ -1087,22 +1127,22 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
                 self.column_output_bias,
                 cell_index,
                 cell_mask,
-                self.config.allow_empty_column_selection
+                self.config.allow_empty_column_selection,
             )
 
         ########## Classification logits ###########
         logits_cls = None
         if self.config.num_classification_labels > 0:
-            logits_cls = utils.compute_classification_logits(pooled_output,
-                                                                self.output_weights_cls,
-                                                                self.output_bias_cls) 
+            logits_cls = utils.compute_classification_logits(
+                pooled_output, self.output_weights_cls, self.output_bias_cls
+            )
 
         ########## Aggregation logits ##############
         logits_aggregation = None
         if self.config.num_aggregation_labels > 0:
-            logits_aggregation = utils._calculate_aggregation_logits(pooled_output, 
-                                                                    self.output_weights_agg,
-                                                                    self.output_bias_agg)
+            logits_aggregation = utils._calculate_aggregation_logits(
+                pooled_output, self.output_weights_agg, self.output_bias_agg
+            )
 
         # Total loss calculation
         total_loss = 0.0
@@ -1131,9 +1171,9 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
                     self.config.cell_select_pref,
                     label_ids,
                     self.output_weights_agg,
-                    self.output_bias_agg
+                    self.output_bias_agg,
                 )
-                
+
             ### Cell selection log-likelihood
             #################################
 
@@ -1146,38 +1186,39 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
             selection_loss_per_example = None
             if not self.config.select_one_column:
                 weight = torch.where(
-                            label_ids == 0, 
-                            torch.ones_like(label_ids, dtype=torch.float32),
-                            self.config.positive_weight * torch.ones_like(label_ids, dtype=torch.float32))
+                    label_ids == 0,
+                    torch.ones_like(label_ids, dtype=torch.float32),
+                    self.config.positive_weight * torch.ones_like(label_ids, dtype=torch.float32),
+                )
                 selection_loss_per_token = -dist_per_token.log_prob(label_ids) * weight
-                selection_loss_per_example = (
-                    torch.sum(selection_loss_per_token * input_mask_float, dim=1) /
-                    (torch.sum(input_mask_float, dim=1) + utils.EPSILON_ZERO_DIVISION))
+                selection_loss_per_example = torch.sum(selection_loss_per_token * input_mask_float, dim=1) / (
+                    torch.sum(input_mask_float, dim=1) + utils.EPSILON_ZERO_DIVISION
+                )
             else:
-                selection_loss_per_example, logits = utils._single_column_cell_selection_loss(logits, column_logits, label_ids,
-                                                                                            cell_index, col_index, cell_mask)
+                selection_loss_per_example, logits = utils._single_column_cell_selection_loss(
+                    logits, column_logits, label_ids, cell_index, col_index, cell_mask
+                )
                 dist_per_token = torch.distributions.Bernoulli(logits=logits)
-            
+
             ### Classification loss
             #######################
             if self.config.num_classification_labels > 0:
                 if classification_class_index is not None:
                     assert label_ids.shape[0] == classification_class_index.shape[0]
-                    one_hot_labels = torch.nn.functional.one_hot(classification_class_index,
-                                                                num_classes=self.config.num_classification_labels).type(torch.float32)
+                    one_hot_labels = torch.nn.functional.one_hot(
+                        classification_class_index, num_classes=self.config.num_classification_labels
+                    ).type(torch.float32)
                     log_probs = torch.nn.functional.log_softmax(logits_cls, dim=-1)
 
                     per_example_classification_intermediate = -torch.sum(one_hot_labels * log_probs, dim=-1)
 
                     cls_loss = torch.mean(per_example_classification_intermediate)
-                    total_loss += cls_loss  
+                    total_loss += cls_loss
                 else:
                     raise ValueError("You have to specify classification class indices")
-            
+
             ### Supervised cell selection
             #############################
-            span_indexes = None
-            span_logits = None
             if self.config.span_prediction != "none":
                 raise NotImplementedError("Span prediction is not supported right now.")
             elif self.config.disable_per_token_loss:
@@ -1186,9 +1227,8 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
                 total_loss += torch.mean(selection_loss_per_example)
             else:
                 # For the not supervised case, do not assign loss for cell selection
-                total_loss += torch.mean(selection_loss_per_example *
-                                            (1.0 - aggregate_mask))
-            
+                total_loss += torch.mean(selection_loss_per_example * (1.0 - aggregate_mask))
+
             ### Semi-supervised regression loss and supervised loss for aggregations
             ######################f###################################################
             if self.config.num_aggregation_labels > 0:
@@ -1196,7 +1236,8 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
                 if aggregation_function_id is not None:
                     assert label_ids.shape[0] == aggregation_function_id.shape[0]
                     per_example_additional_loss = utils._calculate_aggregation_loss(
-                    logits_aggregation, aggregate_mask, aggregation_function_id, self.config)
+                        logits_aggregation, aggregate_mask, aggregation_function_id, self.config
+                    )
                 else:
                     raise ValueError("You have to specify aggregation function ids")
 
@@ -1204,8 +1245,15 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
                     if numeric_values is not None and numeric_values_scale is not None:
                         # Add regression loss for numeric answers which require aggregation.
                         answer_loss, large_answer_loss_mask = utils._calculate_regression_loss(
-                            answer, aggregate_mask, dist_per_token, numeric_values,
-                            numeric_values_scale, table_mask_float, logits_aggregation, self.config)
+                            answer,
+                            aggregate_mask,
+                            dist_per_token,
+                            numeric_values,
+                            numeric_values_scale,
+                            table_mask_float,
+                            logits_aggregation,
+                            self.config,
+                        )
                         per_example_additional_loss += answer_loss
                         # Zero loss for examples with answer_loss > cutoff.
                         per_example_additional_loss *= large_answer_loss_mask
@@ -1213,12 +1261,13 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
                         raise ValueError("You have to specify numeric values and numeric values scale")
 
                 total_loss += torch.mean(per_example_additional_loss)
-        
+
         else:
             # if no label ids provided, set them to zeros in order to properly compute logits
             label_ids = torch.zeros_like(logits)
-            _, logits = utils._single_column_cell_selection_loss(logits, column_logits, label_ids,
-                                                                                            cell_index, col_index, cell_mask)
+            _, logits = utils._single_column_cell_selection_loss(
+                logits, column_logits, label_ids, cell_index, col_index, cell_mask
+            )
         if not return_dict:
             output = (logits, logits_aggregation, logits_cls) + outputs[2:]
             return ((total_loss,) + output) if calculate_loss else output

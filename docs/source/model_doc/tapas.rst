@@ -41,11 +41,17 @@ state-of-the-art on TabFact, a large-scale dataset with 16k Wikipedia tables for
 For more details, see their new paper: `Understanding tables with intermediate pre-training <https://arxiv.org/abs/2010.00571>`__ 
 by Julian Martin Eisenschlos, Syrine Krichene and Thomas Müller.
 
+<<<<<<< HEAD
 The original code can be found `here <https://github.com/google-research/tapas>`__.
 
 Tips:
 
 - TAPAS is a model that uses relative position embeddings by default (restarting the position embeddings at every cell). According to
+=======
+Tips:
+
+- TAPAS is a model that uses relative position embeddings by default (restarting the position ids at every cell). According to
+>>>>>>> 891876c8... Black formatting and quality tests
   the authors, this usually results in a slightly better performance, and allows you to encode longer sequences without running out 
   of embeddings.
   If you don't want this, set the `reset_position_index_per_cell` parameter of :class:`~transformers.TapasConfig` to False, and make 
@@ -59,6 +65,10 @@ Tips:
   It is therefore efficient at predicting masked tokens and at NLU in general, but is not optimal for
   text generation. Models trained with a causal language modeling (CLM) objective are better in that regard.
 
+<<<<<<< HEAD
+=======
+The original code can be found `here <https://github.com/google-research/tapas>`__.
+>>>>>>> 891876c8... Black formatting and quality tests
 
 Usage
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
