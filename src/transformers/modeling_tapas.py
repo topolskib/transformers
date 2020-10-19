@@ -25,15 +25,11 @@ import torch
 import torch.nn as nn
 from torch.nn import CrossEntropyLoss
 
+from transformers import modeling_tapas_utilities as utils
+
 from .activations import ACT2FN
 from .configuration_tapas import TapasConfig
-from .file_utils import (ModelOutput, 
-                        add_code_sample_docstrings, 
-                        add_start_docstrings, 
-                        add_start_docstrings_to_callable,
-                        is_scatter_available,
-                        requires_scatter,
-)
+from .file_utils import ModelOutput, add_code_sample_docstrings, add_start_docstrings, add_start_docstrings_to_callable
 from .modeling_outputs import BaseModelOutput, BaseModelOutputWithPooling, MaskedLMOutput
 from .modeling_utils import (
     PreTrainedModel,
@@ -41,10 +37,6 @@ from .modeling_utils import (
     find_pruneable_heads_and_indices,
     prune_linear_layer,
 )
-
-# soft dependency
-if is_scatter_available():
-    from transformers import modeling_tapas_utilities as utils
 
 
 logger = logging.getLogger(__name__)
@@ -66,11 +58,7 @@ class TableQuestionAnsweringOutput(ModelOutput):
 
     Args:
         loss (:obj:`torch.FloatTensor` of shape :obj:`(1,)`, `optional`, returned when :obj:`label_ids` and :obj:`answer` (and possibly :obj:`classification_class_index`,
-<<<<<<< HEAD
         `:obj:`aggregation_function_id`, :obj:`numeric_values` and :obj:`numeric_values_scale` are provided):
-=======
-            :obj:`aggregation_function_id`, :obj:`numeric_values` and :obj:`numeric_values_scale` are provided):
->>>>>>> e0c01a75... Docs improvements
             Total loss as the sum of the hierarchical cell selection log-likelihood loss, (optionally) classification loss, (optionally) supervised cell selection
             loss and (optionally) the semi-supervised regression loss and (optionally) supervised loss for aggregations.
         logits (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length)`):
@@ -725,7 +713,6 @@ class TapasModel(TapasPreTrainedModel):
     base_model_prefix = "tapas"
 
     def __init__(self, config):
-        requires_scatter(self)
         super().__init__(config)
         self.config = config
 
