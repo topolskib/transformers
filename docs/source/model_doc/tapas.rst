@@ -73,7 +73,7 @@ The original code can be found `here <https://github.com/google-research/tapas>`
 Usage
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-If you just want to perform inference (i.e. making predictions), you can do the following:
+If you just want to perform inference (i.e. making predictions) in a non-conversational setup, you can do the following:
 
         >>> from transformers import TapasTokenizer, TapasForQuestionAnswering
         >>> import pandas as pd 
@@ -113,6 +113,13 @@ If you just want to perform inference (i.e. making predictions), you can do the 
         >>>     print("Predicted answer: " + answer)
         >>>   else:
         >>>     print("Predicted answer: " + predicted_agg + " > " + answer)    
+
+
+Tapas specific outputs
+~~~~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: transformers.modeling_tapas.TableQuestionAnsweringOutput
+    :members:
 
 
 TapasConfig
