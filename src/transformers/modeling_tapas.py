@@ -58,13 +58,17 @@ class TableQuestionAnsweringOutput(ModelOutput):
 
     Args:
         loss (:obj:`torch.FloatTensor` of shape :obj:`(1,)`, `optional`, returned when :obj:`label_ids` and :obj:`answer` (and possibly :obj:`classification_class_index`,
+<<<<<<< HEAD
         `:obj:`aggregation_function_id`, :obj:`numeric_values` and :obj:`numeric_values_scale` are provided):
+=======
+            :obj:`aggregation_function_id`, :obj:`numeric_values` and :obj:`numeric_values_scale` are provided):
+>>>>>>> e0c01a75... Docs improvements
             Total loss as the sum of the hierarchical cell selection log-likelihood loss, (optionally) classification loss, (optionally) supervised cell selection
             loss and (optionally) the semi-supervised regression loss and (optionally) supervised loss for aggregations.
         logits (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length)`):
             Prediction scores of the cell selection head, for every token.
         logits_aggregation (:obj:`torch.FloatTensor`, `optional`, of shape :obj:`(batch_size, num_aggregation_labels)`):
-            Prediction scores of the aggregation head, for every aggregation operator (including NONE).
+            Prediction scores of the aggregation head, for every aggregation operator.
         logits_cls (:obj:`torch.FloatTensor`, `optional`, of shape :obj:`(batch_size, num_classification_labels)`):
             Prediction scores of the classification head, for every class index.
         hidden_states (:obj:`tuple(torch.FloatTensor)`, `optional`, returned when ``output_hidden_states=True`` is passed or when ``config.output_hidden_states=True``):
