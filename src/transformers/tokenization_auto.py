@@ -85,7 +85,6 @@ from .tokenization_rag import RagTokenizer
 from .tokenization_retribert import RetriBertTokenizer
 from .tokenization_roberta import RobertaTokenizer
 from .tokenization_squeezebert import SqueezeBertTokenizer
-from .tokenization_t5 import T5Tokenizer
 from .tokenization_tapas import TapasTokenizer
 from .tokenization_transfo_xl import TransfoXLTokenizer
 from .tokenization_xlm import XLMTokenizer
