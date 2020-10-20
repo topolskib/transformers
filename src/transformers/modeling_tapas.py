@@ -29,8 +29,24 @@ from transformers import modeling_tapas_utilities as utils
 
 from .activations import ACT2FN
 from .configuration_tapas import TapasConfig
+<<<<<<< HEAD
 from .file_utils import ModelOutput, add_code_sample_docstrings, add_start_docstrings, add_start_docstrings_to_callable
 from .modeling_outputs import BaseModelOutput, BaseModelOutputWithPooling, MaskedLMOutput
+=======
+from .file_utils import (ModelOutput, 
+                        add_code_sample_docstrings, 
+                        add_start_docstrings, 
+                        add_start_docstrings_to_callable,
+                        replace_return_docstrings,
+                        is_scatter_available,
+                        requires_scatter,
+)
+from .modeling_outputs import (
+    BaseModelOutput, 
+    BaseModelOutputWithPooling, 
+    MaskedLMOutput,
+)
+>>>>>>> 3340b29d... Formatting
 from .modeling_utils import (
     PreTrainedModel,
     apply_chunking_to_forward,
