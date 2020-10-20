@@ -209,11 +209,7 @@ class TapasTokenizer(BertTokenizer):
 
     def _get_token_budget(self, question_tokens):
         return self.model_max_length - self._question_encoding_cost(question_tokens)
-<<<<<<< HEAD
     
-=======
-
->>>>>>> 891876c8... Black formatting and quality tests
     def _get_table_values(self, table, num_columns, num_rows, num_tokens):
         """Iterates over partial table and returns token, column and row indexes."""
         for tc in table.selected_tokens:

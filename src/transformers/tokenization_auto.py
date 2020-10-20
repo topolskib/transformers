@@ -210,11 +210,8 @@ TOKENIZER_MAPPING = OrderedDict(
         (BertGenerationConfig, (BertGenerationTokenizer, None)),
         (DebertaConfig, (DebertaTokenizer, None)),
         (RagConfig, (RagTokenizer, None)),
-<<<<<<< HEAD
         (XLMProphetNetConfig, (XLMProphetNetTokenizer, None)),
         (ProphetNetConfig, (ProphetNetTokenizer, None)),
-=======
->>>>>>> e7dc7c15... Added tapas to auto files
         (TapasConfig, (TapasTokenizer, None)),
     ]
 )
