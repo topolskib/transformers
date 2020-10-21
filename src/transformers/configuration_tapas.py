@@ -12,15 +12,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-""" TAPAS configuration. """
+""" TAPAS configuration. Inherits from BERT configuration and adds additional hyperparameters."""
 
-
-import logging
 
 from .configuration_bert import BertConfig
-
-
-logger = logging.getLogger(__name__)
 
 TAPAS_PRETRAINED_CONFIG_ARCHIVE_MAP = {"tapas-base": "", "tapas-large": ""}  # to be added  # to be added
 

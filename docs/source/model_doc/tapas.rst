@@ -63,7 +63,7 @@ Tips:
 Usage
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-If you just want to perform inference (i.e. making predictions), you can do the following:
+If you just want to perform inference (i.e. making predictions) in a non-conversational setup, you can do the following:
 
         >>> from transformers import TapasTokenizer, TapasForQuestionAnswering
         >>> import pandas as pd 

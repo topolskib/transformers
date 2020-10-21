@@ -384,7 +384,7 @@ installation page: https://github.com/google/flax and follow the ones that match
 """
 
 SCATTER_IMPORT_ERROR = """
-{0} requires the torch-scatter library but it was not found in your enviromnent. You can install it with pip as
+{0} requires the torch-scatter library but it was not found in your environment. You can install it with pip as
 explained here: https://github.com/rusty1s/pytorch_scatter.
 
 """
@@ -436,6 +436,8 @@ def requires_sentencepiece(obj):
     name = obj.__name__ if hasattr(obj, "__name__") else obj.__class__.__name__
     if not is_sentencepiece_available():
         raise ImportError(SENTENCEPIECE_IMPORT_ERROR.format(name))
+
+
 def requires_scatter(obj):
     name = obj.__name__ if hasattr(obj, "__name__") else obj.__class__.__name__
     if not is_scatter_available():

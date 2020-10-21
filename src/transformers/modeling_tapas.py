@@ -24,8 +24,6 @@ import torch
 import torch.nn as nn
 from torch.nn import CrossEntropyLoss
 
-from transformers import modeling_tapas_utilities as utils
-
 from .activations import ACT2FN
 from .configuration_tapas import TapasConfig
 from .file_utils import (ModelOutput, 
@@ -48,6 +46,10 @@ from .modeling_utils import (
     prune_linear_layer,
 )
 from .utils import logging
+
+# soft dependency
+if is_scatter_available():
+    from transformers import modeling_tapas_utilities as utils
 
 
 logger = logging.get_logger(__name__)
@@ -724,6 +726,7 @@ class TapasModel(TapasPreTrainedModel):
     base_model_prefix = "tapas"
 
     def __init__(self, config):
+        requires_scatter(self)
         super().__init__(config)
         self.config = config
 
@@ -748,12 +751,7 @@ class TapasModel(TapasPreTrainedModel):
             self.encoder.layer[layer].attention.prune_heads(heads)
 
     @add_start_docstrings_to_callable(TAPAS_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
-    @add_code_sample_docstrings(
-        tokenizer_class=_TOKENIZER_FOR_DOC,
-        checkpoint="tapas-base-finetuned-sqa",
-        output_type=BaseModelOutputWithPooling,
-        config_class=_CONFIG_FOR_DOC,
-    )
+    @replace_return_docstrings(output_type=BaseModelOutputWithPooling, config_class=_CONFIG_FOR_DOC)
     def forward(
         self,
         input_ids=None,
@@ -769,15 +767,23 @@ class TapasModel(TapasPreTrainedModel):
         return_dict=None,
     ):
         r"""
-        encoder_hidden_states  (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length, hidden_size)`, `optional`):
-            Sequence of hidden-states at the output of the last layer of the encoder. Used in the cross-attention
-            if the model is configured as a decoder.
-        encoder_attention_mask (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length)`, `optional`):
-            Mask to avoid performing attention on the padding token indices of the encoder input. This mask
-            is used in the cross-attention if the model is configured as a decoder.
-            Mask values selected in ``[0, 1]``:
-            - 1 for tokens that are **not masked**,
-            - 0 for tokens that are **masked**.
+        Returns:
+
+        Examples::
+            >>> from transformers import TapasModel, TapasTokenizer
+            >>> import pandas as pd
+
+            >>> model = TapasModel.from_pretrained('tapas-base-finetuned-wtq', return_dict=True)
+            >>> tokenizer = TapasTokenizer.from_pretrained('tapas-base-finetuned-wtq')
+
+            >>> data = {'Actors': ["Brad Pitt", "Leonardo Di Caprio", "George Clooney"], 'Age': ["56", "45", "59"], 'Number of movies': ["87", "53", "69"]}
+            >>> table = pd.DataFrame.from_dict(data)
+            >>> queries = ["How many movies has George Clooney played in?", "How old is he?"]
+
+            >>> inputs = tokenizer(table, queries, return_tensors="pt)
+            >>> outputs = model(**inputs)
+
+            >>> last_hidden_states = outputs.last_hidden_state
         """
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
@@ -853,6 +859,12 @@ class TapasModel(TapasPreTrainedModel):
 
 
 @add_start_docstrings("""Tapas Model with a `language modeling` head on top. """, TAPAS_START_DOCSTRING)
+@add_code_sample_docstrings(
+        tokenizer_class=_TOKENIZER_FOR_DOC,
+        checkpoint="tapas-base-finetuned-wtq",
+        output_type=MaskedLMOutput,
+        config_class=_CONFIG_FOR_DOC,
+    )
 class TapasForMaskedLM(TapasPreTrainedModel):
     config_class = TapasConfig
     base_model_prefix = "tapas"
@@ -869,12 +881,6 @@ class TapasForMaskedLM(TapasPreTrainedModel):
         return self.lm_head
 
     @add_start_docstrings_to_callable(TAPAS_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
-    @add_code_sample_docstrings(
-        tokenizer_class=_TOKENIZER_FOR_DOC,
-        checkpoint="tapas-base-finetuned-sqa",
-        output_type=MaskedLMOutput,
-        config_class=_CONFIG_FOR_DOC,
-    )
     def forward(
         self,
         input_ids=None,
@@ -1011,12 +1017,7 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
         self.init_weights()
 
     @add_start_docstrings_to_callable(TAPAS_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
-    @add_code_sample_docstrings(
-        tokenizer_class=_TOKENIZER_FOR_DOC,
-        checkpoint="tapas-base-finetuned-sqa",
-        output_type=TableQuestionAnsweringOutput,
-        config_class=_CONFIG_FOR_DOC,
-    )
+    @replace_return_docstrings(output_type=TableQuestionAnsweringOutput, config_class=_CONFIG_FOR_DOC)
     def forward(
         self,
         input_ids=None,
@@ -1051,6 +1052,25 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
             Scale of the numeric values of every token.
         classification_class_index (:obj:`torch.LongTensor` of shape :obj:`(batch_size, )`, `optional`):
             Classification class index for every example in the batch.
+
+        Returns:
+        
+        Examples::
+            >>> from transformers import TapasForQuestionAnswering, TapasTokenizer
+            >>> import pandas as pd
+
+            >>> model = TapasForQuestionAnswering.from_pretrained('tapas-base-finetuned-wtq', return_dict=True)
+            >>> tokenizer = TapasTokenizer.from_pretrained('tapas-base-finetuned-wtq')
+
+            >>> data = {'Actors': ["Brad Pitt", "Leonardo Di Caprio", "George Clooney"], 'Age': ["56", "45", "59"], 'Number of movies': ["87", "53", "69"]}
+            >>> table = pd.DataFrame.from_dict(data)
+            >>> queries = ["How many movies has George Clooney played in?", "How old is he?"]
+
+            >>> inputs = tokenizer(table, queries, return_tensors="pt)
+            >>> outputs = model(**inputs)
+
+            >>> logits = outputs.logits
+            >>> logits_aggregation = outputs.logits_aggregation
         """
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
