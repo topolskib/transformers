@@ -664,18 +664,7 @@ TAPAS_INPUTS_DOCSTRING = r"""
             - 0 for tokens that are **masked**.
             `What are attention masks? <../glossary.html#attention-mask>`__
         token_type_ids (:obj:`torch.LongTensor` of shape :obj:`({0}, 7)`, `optional`):
-            Token indices that encode tabular structure. 
-            Indices can be obtained using :class:`~transformers.TapasTokenizer`. 
-            Tapas expects 7 token type ids, in the following order:
-            - segment_ids: indicate whether a token belongs to the question (0) or the table (1). 0 for special tokens and padding.
-            - column_ids: indicate to which column of the table a token belongs (starting from 1). Is 0 for all question tokens, special tokens and padding.
-            - row_ids: indicate to which row of the table a token belongs (starting from 1). Is 0 for all question tokens, special tokens and padding. Tokens of column headers are also 0.
-            - prev_label_ids: indicate whether a token was (part of) an answer to the previous question (1) or not (0). Useful in a conversational setup (such as SQA).
-            - column_ranks: indicate the rank of a table token relative to a column, if applicable. For example, if you have a column "number of movies" with values 87,
-            53 and 69, then the column ranks of these tokens are 3, 1 and 2 respectively. 0 for all question tokens, special tokens and padding.
-            - inv_column_ranks: indicate the inverse rank of a table token relative to a column, if applicable. For example, if you have a column "number of movies" with values 87,
-            53 and 69, then the inverse column ranks of these tokens are 1, 3 and 2 respectively. 0 for all question tokens, special tokens and padding.
-            - numeric_relations: indicate numeric relations between the question and the tokens of the table. 0 for all question tokens, special tokens and padding
+            Token indices that encode tabular structure. Indices can be obtained using :class:`~transformers.TapasTokenizer`. See this class for more info. 
             `What are token type IDs? <../glossary.html#token-type-ids>`_
         position_ids (:obj:`torch.LongTensor` of shape :obj:`({0})`, `optional`):
             Indices of positions of each input sequence tokens in the position embeddings.
@@ -770,6 +759,7 @@ class TapasModel(TapasPreTrainedModel):
         Returns:
 
         Examples::
+
             >>> from transformers import TapasModel, TapasTokenizer
             >>> import pandas as pd
 
@@ -1056,6 +1046,7 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
         Returns:
         
         Examples::
+
             >>> from transformers import TapasForQuestionAnswering, TapasTokenizer
             >>> import pandas as pd
 
