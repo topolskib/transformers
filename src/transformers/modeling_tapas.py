@@ -15,6 +15,10 @@
 """PyTorch TAPAS model. """
 
 
+<<<<<<< HEAD
+=======
+import logging
+>>>>>>> 21648239138c5f01b194c526920820356c1ca851
 import math
 import os
 from dataclasses import dataclass
@@ -47,10 +51,16 @@ from .modeling_utils import (
     find_pruneable_heads_and_indices,
     prune_linear_layer,
 )
+<<<<<<< HEAD
 from .utils import logging
 
 
 logger = logging.get_logger(__name__)
+=======
+
+
+logger = logging.getLogger(__name__)
+>>>>>>> 21648239138c5f01b194c526920820356c1ca851
 
 _CONFIG_FOR_DOC = "TapasConfig"
 _TOKENIZER_FOR_DOC = "TapasTokenizer"
