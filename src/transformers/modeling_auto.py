@@ -49,6 +49,7 @@ from .configuration_auto import (
     RobertaConfig,
     SqueezeBertConfig,
     T5Config,
+    TapasConfig,
     TransfoXLConfig,
     XLMConfig,
     XLMProphetNetConfig,
@@ -192,6 +193,7 @@ from .modeling_squeezebert import (
     SqueezeBertModel,
 )
 from .modeling_t5 import T5ForConditionalGeneration, T5Model
+from .modeling_tapas import TapasForMaskedLM, TapasForQuestionAnswering, TapasModel
 from .modeling_transfo_xl import TransfoXLLMHeadModel, TransfoXLModel
 from .modeling_xlm import (
     XLMForMultipleChoice,
@@ -236,6 +238,7 @@ MODEL_MAPPING = OrderedDict(
         # Base model mapping
         (RetriBertConfig, RetriBertModel),
         (T5Config, T5Model),
+        (TapasConfig, TapasModel),
         (DistilBertConfig, DistilBertModel),
         (AlbertConfig, AlbertModel),
         (CamembertConfig, CamembertModel),
@@ -273,6 +276,7 @@ MODEL_FOR_PRETRAINING_MAPPING = OrderedDict(
         (LayoutLMConfig, LayoutLMForMaskedLM),
         (RetriBertConfig, RetriBertModel),
         (T5Config, T5ForConditionalGeneration),
+        (TapasConfig, TapasForMaskedLM),
         (DistilBertConfig, DistilBertForMaskedLM),
         (AlbertConfig, AlbertForPreTraining),
         (CamembertConfig, CamembertForMaskedLM),
@@ -302,6 +306,7 @@ MODEL_WITH_LM_HEAD_MAPPING = OrderedDict(
         # Model with LM heads mapping
         (LayoutLMConfig, LayoutLMForMaskedLM),
         (T5Config, T5ForConditionalGeneration),
+        (TapasConfig, TapasForMaskedLM),
         (DistilBertConfig, DistilBertForMaskedLM),
         (AlbertConfig, AlbertForMaskedLM),
         (CamembertConfig, CamembertForMaskedLM),
@@ -363,6 +368,7 @@ MODEL_FOR_MASKED_LM_MAPPING = OrderedDict(
         (LongformerConfig, LongformerForMaskedLM),
         (RobertaConfig, RobertaForMaskedLM),
         (SqueezeBertConfig, SqueezeBertForMaskedLM),
+        (TapasConfig, TapasForMaskedLM),
         (BertConfig, BertForMaskedLM),
         (MobileBertConfig, MobileBertForMaskedLM),
         (FlaubertConfig, FlaubertWithLMHeadModel),
@@ -426,6 +432,7 @@ MODEL_FOR_QUESTION_ANSWERING_MAPPING = OrderedDict(
         (RobertaConfig, RobertaForQuestionAnswering),
         (SqueezeBertConfig, SqueezeBertForQuestionAnswering),
         (BertConfig, BertForQuestionAnswering),
+        (TapasConfig, TapasForQuestionAnswering),
         (XLNetConfig, XLNetForQuestionAnsweringSimple),
         (FlaubertConfig, FlaubertForQuestionAnsweringSimple),
         (MobileBertConfig, MobileBertForQuestionAnswering),
