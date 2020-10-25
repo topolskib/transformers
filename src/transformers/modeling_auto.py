@@ -193,7 +193,7 @@ from .modeling_squeezebert import (
     SqueezeBertModel,
 )
 from .modeling_t5 import T5ForConditionalGeneration, T5Model
-from .modeling_tapas import TapasForMaskedLM, TapasForQuestionAnswering, TapasModel
+from .modeling_tapas import TapasForMaskedLM, TapasForQuestionAnswering, TapasForSequenceClassification, TapasModel
 from .modeling_transfo_xl import TransfoXLLMHeadModel, TransfoXLModel
 from .modeling_xlm import (
     XLMForMultipleChoice,
@@ -417,6 +417,7 @@ MODEL_FOR_SEQUENCE_CLASSIFICATION_MAPPING = OrderedDict(
         (GPT2Config, GPT2ForSequenceClassification),
         (OpenAIGPTConfig, OpenAIGPTForSequenceClassification),
         (ReformerConfig, ReformerForSequenceClassification),
+        (TapasConfig, TapasForSequenceClassification),
     ]
 )
 

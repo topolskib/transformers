@@ -568,6 +568,7 @@ if is_torch_available():
         TapasModel,
         TapasForMaskedLM,
         TapasForQuestionAnswering,
+        TapasForSequenceClassification,
         load_tf_weights_in_tapas,
     )
     from .modeling_transfo_xl import (
