@@ -294,6 +294,7 @@ if is_torch_available():
         GlueDataset,
         GlueDataTrainingArguments,
         LineByLineTextDataset,
+        LineByLineWithRefDataset,
         LineByLineWithSOPTextDataset,
         SquadDataset,
         SquadDataTrainingArguments,
