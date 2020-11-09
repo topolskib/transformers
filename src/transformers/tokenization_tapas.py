@@ -698,7 +698,7 @@ class TapasTokenizer(PreTrainedTokenizer):
 
         return features
 
-    def _add_numeric_values(self, table, token_ids_dict, features, columns_to_numeric_values):
+    def _add_numeric_values(self, table, token_ids_dict, features):
         """Adds numeric values for computation of answer loss."""
 
         numeric_values = [float("nan")] * self.model_max_length
@@ -712,7 +712,7 @@ class TapasTokenizer(PreTrainedTokenizer):
                     continue
                 else:
                     for row_index in range(num_rows):
-                        numeric_value = columns_to_numeric_values[col_index][row_index]
+                        numeric_value = table.iloc[row_index, col_index].numeric_value
                         if numeric_value.float_value is None:
                             continue
 
@@ -817,7 +817,7 @@ class TapasTokenizer(PreTrainedTokenizer):
         # finally, add numeric values and numeric values scale (only needed in case of regression loss calculation)
         # so they should only be returned in case answer_coordinates + answer_texts are provided
 
-        features = self._add_numeric_values(table, token_ids_dict, features, columns_to_numeric_values)
+        features = self._add_numeric_values(table, token_ids_dict, features)
 
         features = self._add_numeric_values_scale(table, token_ids_dict, features)
 
