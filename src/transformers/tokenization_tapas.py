@@ -715,8 +715,6 @@ class TapasTokenizer(PreTrainedTokenizer):
                     continue
                 else:
                     for row_index in range(num_rows):
-                        print(col_index)
-                        print(row_index)
                         numeric_value = columns_to_numeric_values[col_index][row_index]
                         if numeric_value.float_value is None:
                             continue
@@ -2144,8 +2142,8 @@ def _consolidate_numeric_values(
     return {}
   max_count = max(type_counts.values())
   if max_count < len(row_index_to_values) * min_consolidation_fraction:
-    logging.log_every_n(logging.INFO, 'Can\'t consolidate types: %s %s %d', 100,
-                        debug_info, row_index_to_values, max_count)
+    # logging.log_every_n(logging.INFO, 'Can\'t consolidate types: %s %s %d', 100,
+    #                     debug_info, row_index_to_values, max_count)
     return {}
 
   valid_types = set()
@@ -2187,8 +2185,6 @@ def add_numeric_table_values(table,
     for col_index, cell in enumerate(row):
       table.iloc[row_index, col_index] = Cell(text=cell)
   
-  print(table.head())
-  
   # Third, add numeric_value attributes to these Cell objects
   for col_index, column in enumerate(table.columns):
     column_values = _consolidate_numeric_values(
@@ -2196,6 +2192,5 @@ def add_numeric_table_values(table,
         min_consolidation_fraction=min_consolidation_fraction,
         debug_info=(debug_info, column))
 
-    print(column_values)
     for row_index, numeric_value in column_values.items():
       table.iloc[row_index, col_index].numeric_value = numeric_value
