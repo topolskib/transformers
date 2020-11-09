@@ -2053,6 +2053,7 @@ def _get_column_values(table, col_index):
       col_index: integer, indicating the index of the column to get the numeric values of
     """
     index_to_values = {}
+    print(table.head())
     for row_index, row in table.iterrows():
         text = normalize_for_match(row[col_index].text)
         index_to_values[row_index] = list(_get_numeric_values(text))
