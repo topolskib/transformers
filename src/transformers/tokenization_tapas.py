@@ -2181,10 +2181,14 @@ def add_numeric_table_values(table,
   """
   # First, filter table on invalid unicode
   filter_invalid_unicode_from_table(table)
+  
   # Second, replace cell values by Cell objects
   for row_index, row in table.iterrows():
     for col_index, cell in enumerate(row):
       table.iloc[row_index, col_index] = Cell(text=cell)
+  
+  print(table.head())
+  
   # Third, add numeric_value attributes to these Cell objects
   for col_index, column in enumerate(table.columns):
     column_values = _consolidate_numeric_values(
@@ -2192,6 +2196,7 @@ def add_numeric_table_values(table,
         min_consolidation_fraction=min_consolidation_fraction,
         debug_info=(debug_info, column))
 
+    print(column_values)
     for row_index, numeric_value in column_values.items():
       table.iloc[row_index, col_index].numeric_value.CopyFrom(
           numeric_value)
