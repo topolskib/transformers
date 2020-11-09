@@ -710,17 +710,18 @@ class TapasTokenizer(PreTrainedTokenizer):
             for col_index in range(num_columns):
                 for row_index in range(num_rows):
                     numeric_value = table.iloc[row_index, col_index].numeric_value
-                    if numeric_value.float_value is None:
-                        continue
+                    if numeric_value is not None:
+                        if numeric_value.float_value is None:
+                            continue
 
-                    float_value = numeric_value.float_value
-                    if float_value == float("inf"):
-                        continue
+                        float_value = numeric_value.float_value
+                        if float_value == float("inf"):
+                            continue
 
-                    for index in self._get_cell_token_indexes(
-                        token_ids_dict["column_ids"], token_ids_dict["row_ids"], col_index, row_index
-                    ):
-                        numeric_values[index] = float_value
+                        for index in self._get_cell_token_indexes(
+                            token_ids_dict["column_ids"], token_ids_dict["row_ids"], col_index, row_index
+                        ):
+                            numeric_values[index] = float_value
 
         features["numeric_values"] = numeric_values
 
@@ -796,8 +797,6 @@ class TapasTokenizer(PreTrainedTokenizer):
         ### FIRST: parse both the table and question in terms of numeric values
         add_numeric_table_values(table)
         question = add_numeric_values_to_question(question)
-
-        print(table.head())
 
         ### SECOND: add numeric-related features (and not parse them in these functions):
 
