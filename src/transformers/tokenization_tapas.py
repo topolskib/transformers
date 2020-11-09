@@ -1237,6 +1237,9 @@ class TapasTokenizer(PreTrainedTokenizer):
                     row_ids = serialized_example.row_ids
 
                     # create label ids from answer texts and coordinates
+                    print(query)
+                    print(answer_texts[position])
+                    print(answer_coordinates[position])
                     label_ids = self.get_answer_ids(
                         column_ids,
                         row_ids,
