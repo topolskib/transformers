@@ -705,15 +705,17 @@ class TapasTokenizer(PreTrainedTokenizer):
             num_rows = table.shape[0]
             num_columns = table.shape[1]
 
+            print(num_rows)
+            print(num_columns)
+            print(columns_to_numeric_values)
+
             for col_index in range(num_columns):
                 if not columns_to_numeric_values[col_index]:
                     continue
                 else:
                     for row_index in range(num_rows):
-                        print(num_rows)
-                        print(num_columns)
-                        print(columns_to_numeric_values)
-                        print(columns_to_numeric_values.keys())
+                        print(col_index)
+                        print(row_index)
                         numeric_value = columns_to_numeric_values[col_index][row_index]
                         if numeric_value.float_value is None:
                             continue
