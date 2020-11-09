@@ -797,6 +797,8 @@ class TapasTokenizer(PreTrainedTokenizer):
         add_numeric_table_values(table)
         question = add_numeric_values_to_question(question)
 
+        print(table.head())
+
         ### SECOND: add numeric-related features (and not parse them in these functions):
 
         features = self._add_numeric_column_ranks(
@@ -2187,3 +2189,4 @@ def add_numeric_table_values(table,
 
     for row_index, numeric_value in column_values.items():
       table.iloc[row_index, col_index].numeric_value = numeric_value
+
