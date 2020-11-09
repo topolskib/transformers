@@ -2061,7 +2061,7 @@ def _get_column_values(table, col_index):
     """
     index_to_values = {}
     for row_index, row in table.iterrows():
-        text = normalize_for_match(row[col_index])
+        text = normalize_for_match(row[col_index].text)
         index_to_values[row_index] = list(_get_numeric_values(text))
     return index_to_values
 
