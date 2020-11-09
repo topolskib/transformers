@@ -2185,7 +2185,7 @@ def add_numeric_table_values(table,
   # Second, replace cell values by Cell objects
   for row_index, row in table.iterrows():
     for col_index, cell in enumerate(row):
-      table.iloc[row_index, col_index] = Cell(text=cell, numeric_value=None)
+      table.iloc[row_index, col_index] = Cell(text=cell)
   
   print(table.head())
   
@@ -2198,5 +2198,4 @@ def add_numeric_table_values(table,
 
     print(column_values)
     for row_index, numeric_value in column_values.items():
-      table.iloc[row_index, col_index].numeric_value.CopyFrom(
-          numeric_value)
+      table.iloc[row_index, col_index].numeric_value = numeric_value
