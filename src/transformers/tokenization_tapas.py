@@ -2074,7 +2074,7 @@ def add_numeric_values_to_question(question):
 
     return Question(original_text=original_text, 
                     text=question, 
-                    numeric_spans==numeric_spans)
+                    numeric_spans=numeric_spans)
 
 
 def get_numeric_relation(value, other_value, sort_key_fn):
