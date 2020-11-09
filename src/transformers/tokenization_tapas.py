@@ -705,7 +705,10 @@ class TapasTokenizer(PreTrainedTokenizer):
             num_rows = table.shape[0]
             num_columns = table.shape[1]
 
+            print(num_rows)
+            print(num_columns)
             print(columns_to_numeric_values)
+            print(columns_to_numeric_values.keys())
 
             for col_index in range(num_columns):
                 if not columns_to_numeric_values[col_index]:
