@@ -795,8 +795,7 @@ class TapasTokenizer(PreTrainedTokenizer):
             features[key] = values
 
         ### FIRST: parse both the table and question in terms of numeric values
-        add_numeric_table_values(table)
-        print(table.head())
+        table = add_numeric_table_values(table)
         question = add_numeric_values_to_question(question)
 
         ### SECOND: add numeric-related features (and not parse them in these functions):
@@ -2173,6 +2172,7 @@ def add_numeric_table_values(table,
      consolidated value.
    debug_info: Additional information used for logging.
   """
+  table = table.copy()
   # First, filter table on invalid unicode
   filter_invalid_unicode_from_table(table)
   
@@ -2190,3 +2190,5 @@ def add_numeric_table_values(table,
 
     for row_index, numeric_value in column_values.items():
       table.iloc[row_index, col_index].numeric_value = numeric_value
+
+  return table
