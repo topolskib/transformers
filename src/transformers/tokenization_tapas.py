@@ -605,13 +605,10 @@ class TapasTokenizer(PreTrainedTokenizer):
         ranks = [0] * len(column_ids)
         inv_ranks = [0] * len(column_ids)
 
-        # original code from number_annotations_utils.py of the original implementation
-        columns_to_numeric_values = {}
+        # original code from tf_example_utils.py of the original implementation
         if table is not None:
             for col_index in range(len(table.columns)):
-                table_numeric_values = self._get_column_values(table_numeric_values)
-                # we add the numeric values to a dictionary, to be used in _add_numeric_relations
-                columns_to_numeric_values[col_index] = table_numeric_values
+                table_numeric_values = self._get_column_values(table, col_index)
                 if not table_numeric_values:
                     continue
 
@@ -637,7 +634,7 @@ class TapasTokenizer(PreTrainedTokenizer):
         features["column_ranks"] = ranks
         features["inv_column_ranks"] = inv_ranks
 
-        return features, columns_to_numeric_values
+        return features
 
     def _get_numeric_sort_key_fn(self, table_numeric_values, value):
         """Returns the sort key function for comparing value to table values.
@@ -658,7 +655,7 @@ class TapasTokenizer(PreTrainedTokenizer):
         except ValueError:
             return None
 
-    def _add_numeric_relations(self, question, column_ids, row_ids, table, features, columns_to_numeric_values):
+    def _add_numeric_relations(self, question, column_ids, row_ids, table, features):
         """Adds numeric relation embeddings to 'features'.
         Args:
             question: Question object. 
@@ -679,7 +676,7 @@ class TapasTokenizer(PreTrainedTokenizer):
             for numeric_value_span in question.numeric_spans:
                 for value in numeric_value_span.values:
                     for column_index in range(len(table.columns)):
-                        table_numeric_values = columns_to_numeric_values[column_index]
+                        table_numeric_values = self._get_column_values(table, column_index)
                         sort_key_fn = self._get_numeric_sort_key_fn(table_numeric_values, value)
                         if sort_key_fn is None:
                             continue
@@ -805,7 +802,7 @@ class TapasTokenizer(PreTrainedTokenizer):
 
         ### SECOND: add numeric-related features (and not parse them in these functions):
 
-        features, columns_to_numeric_values = self._add_numeric_column_ranks(
+        features = self._add_numeric_column_ranks(
             token_ids_dict["column_ids"], token_ids_dict["row_ids"], table, features
         )
 
@@ -815,7 +812,6 @@ class TapasTokenizer(PreTrainedTokenizer):
             token_ids_dict["row_ids"],
             table,
             features,
-            columns_to_numeric_values,
         )
 
         # finally, add numeric values and numeric values scale (only needed in case of regression loss calculation)
