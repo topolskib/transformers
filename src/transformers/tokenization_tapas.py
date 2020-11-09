@@ -897,6 +897,7 @@ class TapasTokenizer(PreTrainedTokenizer):
         Here, we swap column and row coordinates. In the TSV format, the coordinates
         are given as (row, column) tuples. Here, we swap them to (column, row) format.
         """
+        answer_coordinates = self._parse_coordinates(answer_coordinates)
 
         def _to_coordinates(question, answer_coordinates_question):
             return [(coords[1], coords[0]) for coords in answer_coordinates_question]
@@ -1240,9 +1241,6 @@ class TapasTokenizer(PreTrainedTokenizer):
                     row_ids = serialized_example.row_ids
 
                     # create label ids from answer texts and coordinates
-                    print(query)
-                    print(answer_texts[position])
-                    print(answer_coordinates[position])
                     label_ids = self.get_answer_ids(
                         column_ids,
                         row_ids,
