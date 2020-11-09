@@ -590,7 +590,7 @@ class TapasTokenizer(PreTrainedTokenizer):
         table_numeric_values = {}
         for row_index, row in table.iterrows():
             cell = row[col_index]
-            if cell.HasField('numeric_value'):
+            if cell.numeric_value is not None:
                 table_numeric_values[row_index] = cell.numeric_value
         return table_numeric_values
 
