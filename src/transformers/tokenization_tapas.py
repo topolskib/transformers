@@ -1230,6 +1230,8 @@ class TapasTokenizer(PreTrainedTokenizer):
                     drop_rows_to_fit=self.drop_rows_to_fit,
                 )
 
+                print(features)
+                
                 if add_loss_variables:
                     column_ids = serialized_example.column_ids
                     row_ids = serialized_example.row_ids
