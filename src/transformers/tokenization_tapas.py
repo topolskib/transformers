@@ -802,7 +802,7 @@ class TapasTokenizer(PreTrainedTokenizer):
             features[key] = values
 
         ### FIRST: parse both the table and question in terms of numeric values
-        table = add_numeric_table_values(table)
+        add_numeric_table_values(table)
         question = add_numeric_values_to_question(question)
 
         ### SECOND: add numeric-related features (and not parse them in these functions):
@@ -2184,7 +2184,7 @@ def add_numeric_table_values(table,
   # Second, replace cell values by Cell objects
   for row_index, row in table.iterrows():
     for col_index, cell in enumerate(row):
-      cell = Cell(text=cell)
+      table.iloc[row_index, col_index] = Cell(text=cell)
   # Third, add numeric_value attributes to these Cell objects
   for col_index, column in enumerate(table.columns):
     column_values = _consolidate_numeric_values(
