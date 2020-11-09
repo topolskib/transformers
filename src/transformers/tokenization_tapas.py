@@ -573,18 +573,26 @@ class TapasTokenizer(PreTrainedTokenizer):
             row_ids=row_ids,
         )
 
-    def _get_column_values(self, table_numeric_values):
-        """This is an adaptation from _get_column_values in tf_example_utils.py of the original implementation.
-        Given table_numeric_values, a dictionary that maps row indices of a certain column
-        of a Pandas dataframe to either an empty list (no numeric value) or a list containing
-        a NumericValue object, it returns the same dictionary, but only for the row indices that
-        have a corresponding NumericValue object.
-        """
-        table_numeric_values_without_empty_lists = {}
-        for row_index, value in table_numeric_values.items():
-            if len(value) != 0:
-                table_numeric_values_without_empty_lists[row_index] = value[0]
-        return table_numeric_values_without_empty_lists
+    # def _get_column_values(self, table_numeric_values):
+    #     """This is an adaptation from _get_column_values in tf_example_utils.py of the original implementation.
+    #     Given table_numeric_values, a dictionary that maps row indices of a certain column
+    #     of a Pandas dataframe to either an empty list (no numeric value) or a list containing
+    #     a NumericValue object, it returns the same dictionary, but only for the row indices that
+    #     have a corresponding NumericValue object.
+    #     """
+    #     table_numeric_values_without_empty_lists = {}
+    #     for row_index, value in table_numeric_values.items():
+    #         if len(value) != 0:
+    #             table_numeric_values_without_empty_lists[row_index] = value[0]
+    #     return table_numeric_values_without_empty_lists
+
+    def _get_column_values(self, table, col_index):
+        table_numeric_values = {}
+        for row_index, row in table.iterrows():
+            cell = row[col_index]
+            if cell.HasField('numeric_value'):
+                table_numeric_values[row_index] = cell.numeric_value
+        return table_numeric_values
 
     def _get_cell_token_indexes(self, column_ids, row_ids, column_id, row_id):
         for index in range(len(column_ids)):
@@ -601,8 +609,6 @@ class TapasTokenizer(PreTrainedTokenizer):
         columns_to_numeric_values = {}
         if table is not None:
             for col_index in range(len(table.columns)):
-                table_numeric_values = _parse_column_values(table, col_index)
-                # we remove row indices for which no numeric value was found
                 table_numeric_values = self._get_column_values(table_numeric_values)
                 # we add the numeric values to a dictionary, to be used in _add_numeric_relations
                 columns_to_numeric_values[col_index] = table_numeric_values
@@ -655,7 +661,7 @@ class TapasTokenizer(PreTrainedTokenizer):
     def _add_numeric_relations(self, question, column_ids, row_ids, table, features, columns_to_numeric_values):
         """Adds numeric relation embeddings to 'features'.
         Args:
-            question: The question, numeric values are used.
+            question: Question object. 
             column_ids: Maps word piece position to column id.
             row_ids: Maps word piece position to row id.
             table: The table containing the numeric cell values.
@@ -670,8 +676,7 @@ class TapasTokenizer(PreTrainedTokenizer):
         # this cell has with any value in the question.
         cell_indices_to_relations = collections.defaultdict(set)
         if question is not None and table is not None:
-            question, numeric_spans = add_numeric_values_to_question(question)
-            for numeric_value_span in numeric_spans:
+            for numeric_value_span in question.numeric_spans:
                 for value in numeric_value_span.values:
                     for column_index in range(len(table.columns)):
                         table_numeric_values = columns_to_numeric_values[column_index]
@@ -704,10 +709,6 @@ class TapasTokenizer(PreTrainedTokenizer):
         if table is not None:
             num_rows = table.shape[0]
             num_columns = table.shape[1]
-
-            print(num_rows)
-            print(num_columns)
-            print(columns_to_numeric_values)
 
             for col_index in range(num_columns):
                 if not columns_to_numeric_values[col_index]:
@@ -799,6 +800,12 @@ class TapasTokenizer(PreTrainedTokenizer):
         features["attention_mask"] = attention_mask
         for key, values in sorted(token_ids_dict.items()):
             features[key] = values
+
+        ### FIRST: parse both the table and question in terms of numeric values
+        table = add_numeric_table_values(table)
+        question = add_numeric_values_to_question(question)
+
+        ### SECOND: add numeric-related features (and not parse them in these functions):
 
         features, columns_to_numeric_values = self._add_numeric_column_ranks(
             token_ids_dict["column_ids"], token_ids_dict["row_ids"], table, features
@@ -1686,6 +1693,13 @@ class Cell:
     numeric_value: Optional[NumericValue] = None
 
 
+@dataclass
+class Question:
+    original_text: Text # The original raw question string.
+    text: Text # The question string after normalization.
+    numeric_spans: Optional[List[NumericValueSpan]] = None
+
+
 # Constants for parsing date expressions.
 # Masks that specify (by a bool) which of (year, month, day) will be populated.
 _DateMask = collections.namedtuple("_DateMask", ["year", "month", "day"])
@@ -2036,8 +2050,10 @@ def _get_numeric_values(text):
     return itertools.chain(*(span.values for span in numeric_spans))
 
 
-def _parse_column_values(table, col_index):
+def _get_column_values(table, col_index):
     """Parses text in column and returns a dict mapping row_index to values.
+    This is the _get_column_values function from number_annotation_utils.py of the
+    original implementation.
 
     Args:
       table: Pandas dataframe
@@ -2052,10 +2068,13 @@ def _parse_column_values(table, col_index):
 
 def add_numeric_values_to_question(question):
     """Adds numeric value spans to a question."""
+    original_text = question
     question = normalize_for_match(question)
     numeric_spans = parse_text(question)
 
-    return (question, numeric_spans)
+    return Question(original_text=original_text, 
+                    text=question, 
+                    numeric_spans==numeric_spans)
 
 
 def get_numeric_relation(value, other_value, sort_key_fn):
@@ -2069,3 +2088,110 @@ def get_numeric_relation(value, other_value, sort_key_fn):
     if value > other_value:
         return Relation.GT
     return None
+
+
+def filter_invalid_unicode(text):
+  """Return an empty string and True if 'text' is in invalid unicode."""
+  return ("", True) if isinstance(text, bytes) else (text, False)
+
+
+def filter_invalid_unicode_from_table(table):
+  """Removes invalid unicode from table.
+  Checks whether a table cell text contains an invalid unicode encoding. If yes,
+  reset the table cell text to an empty str and log a warning for each invalid
+  cell.
+  Args:
+    table: table to clean.
+  """
+  if not hasattr(table, "table_id"):
+      table.table_id = 0
+
+  for row_index, row in table.iterrows():
+    for col_index, cell in enumerate(row):
+      cell, is_invalid = filter_invalid_unicode(cell)
+      if is_invalid:
+        logging.warning(
+            "Scrub an invalid table body @ table_id: %s, row_index: %d, "
+            "col_index: %d", table.table_id, row_index, col_index)
+
+  for col_index, column in enumerate(table.columns):
+    column, is_invalid = filter_invalid_unicode(column)
+    if is_invalid:
+      logging.warning(
+          "Scrub an invalid table header @ table_id: %s, col_index: %d",
+          table.table_id, col_index)
+
+
+def _consolidate_numeric_values(
+    row_index_to_values,
+    min_consolidation_fraction,
+    debug_info):
+  """Finds the most common numeric values in a column and returns them.
+  Args:
+   row_index_to_values: For each row index all the values in that cell.
+   min_consolidation_fraction: Fraction of cells that need to have consolidated
+     value.
+   debug_info: Additional information only used for logging.
+  Returns:
+   For each row index the first value that matches the most common value.
+   Rows that don't have a matching value are dropped. Empty list if values can't
+   be consolidated.
+  """
+  type_counts = collections.Counter()
+  for numeric_values in row_index_to_values.values():
+    type_counts.update(_get_all_types(numeric_values))
+  if not type_counts:
+    return {}
+  max_count = max(type_counts.values())
+  if max_count < len(row_index_to_values) * min_consolidation_fraction:
+    logging.log_every_n(logging.INFO, 'Can\'t consolidate types: %s %s %d', 100,
+                        debug_info, row_index_to_values, max_count)
+    return {}
+
+  valid_types = set()
+  for value_type, count in type_counts.items():
+    if count == max_count:
+      valid_types.add(value_type)
+  if len(valid_types) > 1:
+    assert DATE_TYPE in valid_types
+    max_type = DATE_TYPE
+  else:
+    max_type = next(iter(valid_types))
+
+  new_row_index_to_value = {}
+  for index, values in row_index_to_values.items():
+    # Extract the first matching value.
+    for value in values:
+      if _get_value_type(value) == max_type:
+        new_row_index_to_value[index] = value
+        break
+
+  return new_row_index_to_value
+
+def add_numeric_table_values(table,
+                             min_consolidation_fraction=0.7,
+                             debug_info = None):
+  """Parses text in table column-wise and adds the consolidated values.
+  Consolidation refers to finding values with a common types (date or number).
+  Args:
+   table: Table to annotate.
+   min_consolidation_fraction: Fraction of cells in a column that need to have
+     consolidated value.
+   debug_info: Additional information used for logging.
+  """
+  # First, filter table on invalid unicode
+  filter_invalid_unicode_from_table(table)
+  # Second, replace cell values by Cell objects
+  for row_index, row in table.iterrows():
+    for col_index, cell in enumerate(row):
+      cell = Cell(text=cell)
+  # Third, add numeric_value attributes to these Cell objects
+  for col_index, column in enumerate(table.columns):
+    column_values = _consolidate_numeric_values(
+        _get_column_values(table, col_index),
+        min_consolidation_fraction=min_consolidation_fraction,
+        debug_info=(debug_info, column))
+
+    for row_index, numeric_value in column_values.items():
+      table.iloc[row_index, col_index].numeric_value.CopyFrom(
+          numeric_value)
