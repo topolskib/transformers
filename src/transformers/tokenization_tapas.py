@@ -880,15 +880,12 @@ class TapasTokenizer(PreTrainedTokenizer):
         found_answers = set()
         all_answers = set()
         for answers in answers_list:
-            print(answers)
             column_index, row_index = answers
             all_answers.add((column_index, row_index))
             for index in self._get_cell_token_indexes(column_ids, row_ids, column_index, row_index):
                 found_answers.add((column_index, row_index))
                 answer_ids[index] = 1
 
-        print(all_answers)
-        print(found_answers)
         missing_count = len(all_answers) - len(found_answers)
         return answer_ids, missing_count
 
@@ -1233,8 +1230,6 @@ class TapasTokenizer(PreTrainedTokenizer):
                     num_rows=num_rows,
                     drop_rows_to_fit=self.drop_rows_to_fit,
                 )
-
-                print(features)
                 
                 if add_loss_variables:
                     column_ids = serialized_example.column_ids
@@ -2194,4 +2189,3 @@ def add_numeric_table_values(table,
 
     for row_index, numeric_value in column_values.items():
       table.iloc[row_index, col_index].numeric_value = numeric_value
-
