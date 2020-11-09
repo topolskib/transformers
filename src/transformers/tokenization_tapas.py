@@ -708,22 +708,19 @@ class TapasTokenizer(PreTrainedTokenizer):
             num_columns = table.shape[1]
 
             for col_index in range(num_columns):
-                if not columns_to_numeric_values[col_index]:
-                    continue
-                else:
-                    for row_index in range(num_rows):
-                        numeric_value = table.iloc[row_index, col_index].numeric_value
-                        if numeric_value.float_value is None:
-                            continue
+                for row_index in range(num_rows):
+                    numeric_value = table.iloc[row_index, col_index].numeric_value
+                    if numeric_value.float_value is None:
+                        continue
 
-                        float_value = numeric_value.float_value
-                        if float_value == float("inf"):
-                            continue
+                    float_value = numeric_value.float_value
+                    if float_value == float("inf"):
+                        continue
 
-                        for index in self._get_cell_token_indexes(
-                            token_ids_dict["column_ids"], token_ids_dict["row_ids"], col_index, row_index
-                        ):
-                            numeric_values[index] = float_value
+                    for index in self._get_cell_token_indexes(
+                        token_ids_dict["column_ids"], token_ids_dict["row_ids"], col_index, row_index
+                    ):
+                        numeric_values[index] = float_value
 
         features["numeric_values"] = numeric_values
 
