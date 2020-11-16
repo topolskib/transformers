@@ -2497,9 +2497,9 @@ def filter_invalid_unicode_from_table(table):
     for col_index, column in enumerate(table.columns):
         column, is_invalid = filter_invalid_unicode(column)
         if is_invalid:
-        logging.warning(
-            "Scrub an invalid table header @ table_id: %s, col_index: %d",
-            table.table_id, col_index)
+            logging.warning(
+                "Scrub an invalid table header @ table_id: %s, col_index: %d",
+                table.table_id, col_index)
 
 
 def _consolidate_numeric_values(
@@ -2578,5 +2578,5 @@ def add_numeric_table_values(table,
 
         for row_index, numeric_value in column_values.items():
         table.iloc[row_index, col_index].numeric_value = numeric_value
-        
+
     return table
