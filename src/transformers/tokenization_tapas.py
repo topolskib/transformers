@@ -2577,6 +2577,6 @@ def add_numeric_table_values(table,
             debug_info=(debug_info, column))
 
         for row_index, numeric_value in column_values.items():
-        table.iloc[row_index, col_index].numeric_value = numeric_value
+            table.iloc[row_index, col_index].numeric_value = numeric_value
 
     return table
