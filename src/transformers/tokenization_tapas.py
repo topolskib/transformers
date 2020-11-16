@@ -1069,7 +1069,7 @@ class TapasTokenizer(PreTrainedTokenizer):
         ### FIRST: parse both the table and question in terms of numeric values
         
         raw_table = add_numeric_table_values(raw_table)
-        question = add_numeric_values_to_question(question)
+        raw_query = add_numeric_values_to_question(raw_query)
         
         ### SECOND: add numeric-related features (and not parse them in these functions):
         
