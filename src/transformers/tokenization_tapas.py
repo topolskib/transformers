@@ -1465,9 +1465,7 @@ class TapasTokenizer(PreTrainedTokenizer):
                         float_value = numeric_value.float_value
                         if float_value == float("inf"):
                             continue
-                        for index in self._get_cell_token_indexes(
-                            token_ids_dict["column_ids"], token_ids_dict["row_ids"], col_index, row_index
-                        ):
+                        for index in self._get_cell_token_indexes(column_ids, row_ids, col_index, row_index):
                             numeric_values[index] = float_value
 
         return numeric_values
