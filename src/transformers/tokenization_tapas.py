@@ -2483,15 +2483,17 @@ def filter_invalid_unicode_from_table(table):
     Args:
         table: table to clean.
     """
+    # to do: add table id support
     if not hasattr(table, "table_id"):
         table.table_id = 0
+
     for row_index, row in table.iterrows():
         for col_index, cell in enumerate(row):
-        cell, is_invalid = filter_invalid_unicode(cell)
-        if is_invalid:
-            logging.warning(
-                "Scrub an invalid table body @ table_id: %s, row_index: %d, "
-                "col_index: %d", table.table_id, row_index, col_index)
+            cell, is_invalid = filter_invalid_unicode(cell)
+            if is_invalid:
+                logging.warning(
+                    "Scrub an invalid table body @ table_id: %s, row_index: %d, "
+                    "col_index: %d", table.table_id, row_index, col_index)
     for col_index, column in enumerate(table.columns):
         column, is_invalid = filter_invalid_unicode(column)
         if is_invalid:
@@ -2501,9 +2503,9 @@ def filter_invalid_unicode_from_table(table):
 
 
 def _consolidate_numeric_values(
-    row_index_to_values,
-    min_consolidation_fraction,
-    debug_info):
+        row_index_to_values,
+        min_consolidation_fraction,
+        debug_info):
     """Finds the most common numeric values in a column and returns them.
     Args:
     row_index_to_values: For each row index all the values in that cell.
@@ -2525,22 +2527,25 @@ def _consolidate_numeric_values(
         # logging.log_every_n(logging.INFO, 'Can\'t consolidate types: %s %s %d', 100,
         #                     debug_info, row_index_to_values, max_count)
         return {}
+
     valid_types = set()
     for value_type, count in type_counts.items():
         if count == max_count:
-        valid_types.add(value_type)
+            valid_types.add(value_type)
     if len(valid_types) > 1:
         assert DATE_TYPE in valid_types
         max_type = DATE_TYPE
     else:
         max_type = next(iter(valid_types))
+    
     new_row_index_to_value = {}
     for index, values in row_index_to_values.items():
         # Extract the first matching value.
         for value in values:
-        if _get_value_type(value) == max_type:
-            new_row_index_to_value[index] = value
-            break
+            if _get_value_type(value) == max_type:
+                new_row_index_to_value[index] = value
+                break
+
     return new_row_index_to_value
 
 
@@ -2562,7 +2567,7 @@ def add_numeric_table_values(table,
     # Second, replace cell values by Cell objects
     for row_index, row in table.iterrows():
         for col_index, cell in enumerate(row):
-        table.iloc[row_index, col_index] = Cell(text=cell)
+            table.iloc[row_index, col_index] = Cell(text=cell)
     
     # Third, add numeric_value attributes to these Cell objects
     for col_index, column in enumerate(table.columns):
@@ -2570,6 +2575,8 @@ def add_numeric_table_values(table,
             _get_column_values(table, col_index),
             min_consolidation_fraction=min_consolidation_fraction,
             debug_info=(debug_info, column))
+
         for row_index, numeric_value in column_values.items():
         table.iloc[row_index, col_index].numeric_value = numeric_value
+        
     return table
