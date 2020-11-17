@@ -1535,8 +1535,6 @@ class TapasTokenizer(PreTrainedTokenizer):
         swap them to (column, row) format before calling _get_all_answer_ids_from_coordinates.
         """
 
-        answer_coordinates = self._parse_coordinates(answer_coordinates)
-        
         def _to_coordinates(answer_coordinates_question):
             return [(coords[1], coords[0]) for coords in answer_coordinates_question]
 
@@ -1728,19 +1726,6 @@ class TapasTokenizer(PreTrainedTokenizer):
             coords_to_probs[(col, row)].append(prob)
         return {coords: torch.as_tensor(cell_probs).mean() for coords, cell_probs in coords_to_probs.items()}
 
-    def _parse_coordinates(self, raw_coordinates):
-        """Parses cell coordinates (tuple strings) from text.
-
-        Args:
-            raw_coordinates (:obj:`List`):
-                List containing cell coordinates as tuple strings.
-
-        Returns:
-            The same list, but with Python tuples as elements instead of tuple strings.
-        
-        """
-        return [ast.literal_eval(x) for x in raw_coordinates]
-
     def convert_logits_to_predictions(
         self, data, logits, logits_agg=None, logits_cls=None, cell_classification_threshold=0.5
     ):
@@ -1821,8 +1806,8 @@ class TapasTokenizer(PreTrainedTokenizer):
                     cell_prob = cell_coords_to_prob.get((col, row), None)
                     if cell_prob is not None:
                         if cell_prob > cell_classification_threshold:
-                            answer_coordinates.append(str((row, col)))
-            answer_coordinates = sorted(self._parse_coordinates(answer_coordinates))
+                            answer_coordinates.append((row, col))
+            answer_coordinates = sorted(answer_coordinates)
             answer_coordinates_batch.append(answer_coordinates)
 
         output = answer_coordinates_batch
