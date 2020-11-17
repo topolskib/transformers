@@ -304,8 +304,6 @@ class TapasTokenizer(PreTrainedTokenizer):
         out_string = " ".join(tokens).replace(" ##", "").strip()
         return out_string
 
-    # the code below was also copied from tokenization_bert.py, but should be updated for TAPAS
-
     def save_vocabulary(self, save_directory: str, filename_prefix: Optional[str] = None) -> Tuple[str]:
         index = 0
         if os.path.isdir(save_directory):
@@ -351,12 +349,12 @@ class TapasTokenizer(PreTrainedTokenizer):
         self, token_ids_0: List[int], token_ids_1: Optional[List[int]] = None
     ) -> List[int]:
         """
-        Build model inputs from a sequence or a pair of sequence for sequence classification tasks by concatenating and
+        Build model inputs from a question and flattened table for question answering or sequence classification tasks by concatenating and
         adding special tokens.
 
         Args:
-            token_ids_0 (:obj:`List[int]`): The first tokenized sequence.
-            token_ids_1 (:obj:`List[int]`, `optional`): The second tokenized sequence.
+            token_ids_0 (:obj:`List[int]`): The ids of the question.
+            token_ids_1 (:obj:`List[int]`, `optional`): The ids of the flattened table.
 
         Returns:
             :obj:`List[int]`: The model input with special tokens.
@@ -375,9 +373,9 @@ class TapasTokenizer(PreTrainedTokenizer):
 
         Args:
             token_ids_0 (:obj:`List[int]`):
-                List of IDs.
+                List of question IDs.
             token_ids_1 (:obj:`List[int]`, `optional`):
-                Optional second list of IDs for sequence pairs.
+                List of flattened table IDs.
             already_has_special_tokens (:obj:`bool`, `optional`, defaults to :obj:`False`):
                 Whether or not the token list is already formatted with special tokens for the model.
 
@@ -410,8 +408,18 @@ class TapasTokenizer(PreTrainedTokenizer):
                 List[EncodedInput],
             ]
         ] = None,
-        answer_coordinates: Optional[List[Tuple]] = None,
-        answer_texts: Optional[List[TextInput]] = None,
+        answer_coordinates: Optional[
+            Union[
+                List[Tuple],
+                List[List[Tuple]]
+            ]
+        ] = None,
+        answer_text: Optional[
+            Union[
+                List[TextInput],
+                List[List[TextInput]]
+            ]
+        ] = None,
         add_special_tokens: bool = True,
         padding: Union[bool, str, PaddingStrategy] = False,
         truncation: Union[bool, str, TruncationStrategy] = False,
@@ -474,7 +482,7 @@ class TapasTokenizer(PreTrainedTokenizer):
                 table=table,
                 queries=queries,
                 answer_coordinates=answer_coordinates,
-                answer_texts=answer_texts,
+                answer_text=answer_text,
                 add_special_tokens=add_special_tokens,
                 padding=padding,
                 truncation=truncation,
@@ -497,7 +505,7 @@ class TapasTokenizer(PreTrainedTokenizer):
                 table=table,
                 query=queries,
                 answer_coordinates=answer_coordinates,
-                answer_text=answer_texts,
+                answer_text=answer_text,
                 add_special_tokens=add_special_tokens,
                 padding=padding,
                 truncation=truncation,
@@ -526,8 +534,8 @@ class TapasTokenizer(PreTrainedTokenizer):
                 List[EncodedInput],
             ]
         ] = None,
-        answer_coordinates: Optional[List[Tuple]] = None,
-        answer_texts: Optional[List[TextInput]] = None,
+        answer_coordinates: Optional[List[List[Tuple]]] = None,
+        answer_text: Optional[List[List[TextInput]]] = None,
         add_special_tokens: bool = True,
         padding: Union[bool, str, PaddingStrategy] = False,
         truncation: Union[bool, str, TruncationStrategy] = False,
@@ -562,10 +570,10 @@ class TapasTokenizer(PreTrainedTokenizer):
                 "set return_token_type_ids to None."
             )
 
-        if (answer_coordinates and not answer_texts) or (not answer_coordinates and answer_texts):
+        if (answer_coordinates and not answer_text) or (not answer_coordinates and answer_text):
             raise ValueError("In case you provide answers, both answer_coordinates and answer_text should be provided")
-        elif answer_coordinates is None and answer_texts is None:
-            answer_coordinates = answer_texts = [None] * len(queries)
+        elif answer_coordinates is None and answer_text is None:
+            answer_coordinates = answer_text = [None] * len(queries)
 
         if "is_split_into_words" in kwargs:
             raise NotImplementedError("Currently TapasTokenizer only supports questions as strings.")
@@ -590,7 +598,7 @@ class TapasTokenizer(PreTrainedTokenizer):
             table=table,
             queries=queries,
             answer_coordinates=answer_coordinates,
-            answer_texts=answer_texts,
+            answer_text=answer_text,
             add_special_tokens=add_special_tokens,
             padding_strategy=padding_strategy,
             truncation_strategy=truncation_strategy,
@@ -617,8 +625,8 @@ class TapasTokenizer(PreTrainedTokenizer):
             List[PreTokenizedInput],
             List[EncodedInput],
         ],
-        answer_coordinates: Optional[List[Tuple]] = None,
-        answer_texts: Optional[List[TextInput]] = None,
+        answer_coordinates: Optional[List[List[Tuple]]] = None,
+        answer_text: Optional[List[List[TextInput]]] = None,
         add_special_tokens: bool = True,
         padding_strategy: PaddingStrategy = PaddingStrategy.DO_NOT_PAD,
         truncation_strategy: TruncationStrategy = TruncationStrategy.DO_NOT_TRUNCATE,
@@ -664,7 +672,7 @@ class TapasTokenizer(PreTrainedTokenizer):
             table_data=table_data,
             queries_tokens=queries_tokens,
             answer_coordinates=answer_coordinates,
-            answer_texts=answer_texts,
+            answer_text=answer_text,
             add_special_tokens=add_special_tokens,
             padding=padding_strategy.value,
             truncation=truncation_strategy.value,
@@ -693,8 +701,8 @@ class TapasTokenizer(PreTrainedTokenizer):
             List[PreTokenizedInput],
             List[EncodedInput],
         ],
-        answer_coordinates: Optional[List[Tuple]] = None,
-        answer_texts: Optional[List[TextInput]] = None,
+        answer_coordinates: Optional[List[List[Tuple]]] = None,
+        answer_text: Optional[List[List[TextInput]]] = None,
         add_special_tokens: bool = True,
         padding: Union[bool, str, PaddingStrategy] = False,
         truncation: Union[bool, str, TruncationStrategy] = False,
@@ -735,8 +743,8 @@ class TapasTokenizer(PreTrainedTokenizer):
             table_data = None
             queries_tokens = [None] * len(queries_ids)
 
-        for query_ids, raw_query, query_tokens, answer_coords, answer_text in zip(
-            queries_ids, raw_queries, queries_tokens, answer_coordinates, answer_texts
+        for query_ids, raw_query, query_tokens, answer_coords, answer_txt in zip(
+            queries_ids, raw_queries, queries_tokens, answer_coordinates, answer_text
         ):
             outputs = self.prepare_for_model(
                 table_ids,
@@ -746,7 +754,7 @@ class TapasTokenizer(PreTrainedTokenizer):
                 table_data=table_data,
                 query_tokens=query_tokens,
                 answer_coordinates=answer_coords,
-                answer_text=answer_text,
+                answer_text=answer_txt,
                 add_special_tokens=add_special_tokens,
                 padding=PaddingStrategy.DO_NOT_PAD.value,  # we pad in batch afterward
                 truncation=truncation,
@@ -882,6 +890,8 @@ class TapasTokenizer(PreTrainedTokenizer):
         return self._encode_plus(
             table=table,
             query=query,
+            answer_coordinates=answer_coordinates,
+            answer_text=answer_text,
             add_special_tokens=add_special_tokens,
             padding_strategy=padding_strategy,
             truncation_strategy=truncation_strategy,
@@ -1617,7 +1627,10 @@ class TapasTokenizer(PreTrainedTokenizer):
                 column_ids,
                 row_ids,
                 tokenized_table,
-                answer_texts=[self.tokenize(at) for at in answer_texts_question],
+                answer_texts=[
+                    self.tokenize(at) 
+                    for at in answer_texts_question
+                ],
             )
         return self._get_answer_ids(column_ids, row_ids, question, answer_coordinates_question)
 
