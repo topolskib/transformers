@@ -1535,7 +1535,7 @@ class TapasTokenizer(PreTrainedTokenizer):
         swap them to (column, row) format before calling _get_all_answer_ids_from_coordinates.
         """
 
-        print(answer_coordinates_question)
+        print(answer_coordinates)
         
         def _to_coordinates(answer_coordinates_question):
             return [(coords[1], coords[0]) for coords in answer_coordinates_question]
