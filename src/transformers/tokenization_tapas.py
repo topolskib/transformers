@@ -1102,7 +1102,7 @@ class TapasTokenizer(PreTrainedTokenizer):
 
         if answer_coordinates is not None and answer_text is not None:
             label_ids = self.get_answer_ids(
-                column_ids, row_ids, table_data, query_tokens, answer_text, answer_coordinates
+                column_ids, row_ids, table_data, answer_text, answer_coordinates
             )
             numeric_values = self._get_numeric_values(raw_table, column_ids, row_ids)
             numeric_values_scale = self._get_numeric_values_scale(raw_table, column_ids, row_ids)
@@ -1527,10 +1527,12 @@ class TapasTokenizer(PreTrainedTokenizer):
         missing_count = len(all_answers) - len(found_answers)
         return answer_ids, missing_count
 
-    def _get_all_answer_ids(self, column_ids, row_ids, question, answer_coordinates):
+    def _get_all_answer_ids(self, column_ids, row_ids, answer_coordinates):
         """
-        Maps lists of questions with answer coordinates to token indexes. Here, we swap column and row coordinates. In
-        the TSV format, the coordinates are given as (row, column) tuples. Here, we swap them to (column, row) format.
+        Maps answer coordinates of a question to token indexes. 
+        
+        In the SQA format (TSV), the coordinates are given as (row, column) tuples. Here, we first 
+        swap them to (column, row) format before calling _get_all_answer_ids_from_coordinates.
         """
 
         answer_coordinates = self._parse_coordinates(answer_coordinates)
@@ -1611,16 +1613,16 @@ class TapasTokenizer(PreTrainedTokenizer):
                     break
         return answer_ids
 
-    def _get_answer_ids(self, column_ids, row_ids, question, answer_coordinates):
-        """Maps answer coordinates to token indexes."""
-        answer_ids, missing_count = self._get_all_answer_ids(column_ids, row_ids, [question], answer_coordinates)
+    def _get_answer_ids(self, column_ids, row_ids, answer_coordinates):
+        """Maps answer coordinates of a question to token indexes."""
+        answer_ids, missing_count = self._get_all_answer_ids(column_ids, row_ids, answer_coordinates)
 
         if missing_count:
             raise ValueError("Couldn't find all answers")
         return answer_ids
 
     def get_answer_ids(
-        self, column_ids, row_ids, tokenized_table, question, answer_texts_question, answer_coordinates_question
+        self, column_ids, row_ids, tokenized_table, answer_texts_question, answer_coordinates_question
     ):
         if self.update_answer_coordinates:
             return self._find_answer_ids_from_answer_texts(
@@ -1632,7 +1634,7 @@ class TapasTokenizer(PreTrainedTokenizer):
                     for at in answer_texts_question
                 ],
             )
-        return self._get_answer_ids(column_ids, row_ids, question, answer_coordinates_question)
+        return self._get_answer_ids(column_ids, row_ids, answer_coordinates_question)
 
     def _pad(
         self,
@@ -1727,7 +1729,16 @@ class TapasTokenizer(PreTrainedTokenizer):
         return {coords: torch.as_tensor(cell_probs).mean() for coords, cell_probs in coords_to_probs.items()}
 
     def _parse_coordinates(self, raw_coordinates):
-        """Parses cell coordinates from text."""
+        """Parses cell coordinates (tuple strings) from text.
+
+        Args:
+            raw_coordinates (:obj:`List`):
+                List containing cell coordinates as tuple strings.
+
+        Returns:
+            The same list, but with Python tuples as elements instead of tuple strings.
+        
+        """
         return [ast.literal_eval(x) for x in raw_coordinates]
 
     def convert_logits_to_predictions(
