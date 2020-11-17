@@ -1101,8 +1101,6 @@ class TapasTokenizer(PreTrainedTokenizer):
             encoded_inputs["attention_mask"] = attention_mask
 
         if answer_coordinates is not None and answer_text is not None:
-            print(answer_coordinates)
-            print(answer_text)
             label_ids = self.get_answer_ids(
                 column_ids, row_ids, table_data, answer_text, answer_coordinates
             )
@@ -1536,8 +1534,6 @@ class TapasTokenizer(PreTrainedTokenizer):
         In the SQA format (TSV), the coordinates are given as (row, column) tuples. Here, we first 
         swap them to (column, row) format before calling _get_all_answer_ids_from_coordinates.
         """
-
-        print(answer_coordinates)
         
         def _to_coordinates(answer_coordinates_question):
             return [(coords[1], coords[0]) for coords in answer_coordinates_question]
