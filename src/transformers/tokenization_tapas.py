@@ -1102,6 +1102,10 @@ class TapasTokenizer(PreTrainedTokenizer):
                 column_ids, row_ids, table_data, prev_answer_text, prev_answer_coordinates
             )
 
+        # verify implementation
+        for id, prev_label_id in zip(input_ids, prev_label_ids):
+            print(self.decode([id]), prev_label_id)
+        
         ### FIRST: parse both the table and question in terms of numeric values
         
         raw_table = add_numeric_table_values(raw_table)
