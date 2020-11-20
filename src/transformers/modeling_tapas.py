@@ -1106,6 +1106,12 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
         sequence_output = outputs[0]
         pooled_output = outputs[1]
 
+        print("Sequence output:")
+        print(sequence_output)
+
+        print("Pooled output:")
+        print(pooled_output)
+
         sequence_output = self.dropout(sequence_output)
 
         if input_ids is not None:
