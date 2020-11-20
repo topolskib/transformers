@@ -1160,8 +1160,14 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
         # Mask for cells that exist in the table (i.e. that are not padding).
         cell_mask, _ = reduce_mean(input_mask_float, cell_index)
 
+        print("Cell mask:")
+        print(cell_mask)
+
         # Compute logits per token. These are used to select individual cells.
         logits = compute_token_logits(sequence_output, self.config.temperature, self.output_weights, self.output_bias)
+
+        print("Token logits:")
+        print(logits)
 
         # Compute logits per column. These are used to select a column.
         column_logits = None
@@ -1174,6 +1180,9 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
                 cell_mask,
                 self.config.allow_empty_column_selection,
             )
+
+            print("Column logits:")
+            print(column_logits)
 
         ########## Aggregation logits ##############
         logits_aggregation = None
@@ -1260,6 +1269,9 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
                         per_example_additional_loss = _calculate_aggregation_loss(
                             logits_aggregation, aggregate_mask, aggregation_labels, self.config
                         )
+
+                        print("Per example additional loss:")
+                        print(per_example_additional_loss)
                     else:
                         raise ValueError(
                             "You have to specify aggregation labels in order to calculate the aggregation loss"
@@ -1894,6 +1906,9 @@ def _single_column_cell_selection_loss(token_logits, column_logits, label_ids, c
         cell_loss,
     )
 
+    print("Selection loss per example:")
+    print(selection_loss_per_example)
+
     # Set the probs outside the selected column (selected by the *model*)
     # to 0. This ensures backwards compatibility with models that select
     # cells from multiple columns.
@@ -1989,6 +2004,9 @@ def _calculate_aggregate_mask(answer, pooled_output, cell_selection_preference, 
     )
 
     aggregate_mask = aggregate_mask.detach()
+
+    print("Aggregate mask:")
+    print(aggregate_mask)
 
     return aggregate_mask
 
@@ -2170,6 +2188,10 @@ def _calculate_expected_result(
     )
 
     expected_result = torch.sum(all_results * aggregation_op_only_probs, dim=1)
+
+    print("Expected result:")
+    print(expected_result)
+
     return expected_result
 
 
