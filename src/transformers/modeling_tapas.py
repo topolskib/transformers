@@ -1804,6 +1804,9 @@ def compute_column_logits(
     # First, compute the token logits (batch_size, seq_len) - without temperature
     token_logits = torch.einsum("bsj,j->bs", sequence_output, column_output_weights) + column_output_bias
 
+    print("Token logits when computing column logits:")
+    print(token logits)
+
     # Next, average the logits per cell (batch_size, max_num_cols*max_num_rows)
     cell_logits, cell_logits_index = reduce_mean(token_logits, cell_index)
 
@@ -1819,6 +1822,9 @@ def compute_column_logits(
     column_logits += CLOSE_ENOUGH_TO_LOG_ZERO * torch.as_tensor(
         is_padding, dtype=torch.float32, device=is_padding.device
     )
+
+    print("Column logits after padding:")
+    print(column_logits)
 
     if not allow_empty_column_selection:
         column_logits += CLOSE_ENOUGH_TO_LOG_ZERO * torch.as_tensor(
