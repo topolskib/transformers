@@ -35,20 +35,21 @@ def convert_tf_checkpoint_to_pytorch(tf_checkpoint_path, tapas_config_file, pyto
     # Initialise PyTorch model
 
     # WTQ config
-    # config = TapasConfig(# run_task_main.py hparams
-    #         num_aggregation_labels = 4,
-    #         use_answer_as_supervision = True,
-    #         # hparam_utils.py hparams
-    #         answer_loss_cutoff = 0.664694,
-    #         cell_select_pref = 0.207951,
-    #         huber_loss_delta = 0.121194,
-    #         init_cell_selection_weights_to_zero = True,
-    #         select_one_column = True,
-    #         allow_empty_column_selection = False,
-    #         temperature = 0.0352513)
+    config = TapasConfig(reset_position_index_per_cell=False,
+            # run_task_main.py hparams
+            num_aggregation_labels = 4,
+            use_answer_as_supervision = True,
+            # hparam_utils.py hparams
+            answer_loss_cutoff = 0.664694,
+            cell_selection_preference = 0.207951,
+            huber_loss_delta = 0.121194,
+            init_cell_selection_weights_to_zero = True,
+            select_one_column = True,
+            allow_empty_column_selection = False,
+            temperature = 0.0352513)
 
     # SQA config
-    config = TapasConfig()
+    # config = TapasConfig(reset_position_index_per_cell=False)
 
     print("Building PyTorch model from configuration: {}".format(str(config)))
     # model = TapasForMaskedLM(config)

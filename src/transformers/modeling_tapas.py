@@ -1918,9 +1918,6 @@ def _single_column_cell_selection_loss(token_logits, column_logits, label_ids, c
         cell_loss,
     )
 
-    print("Selection loss per example:")
-    print(selection_loss_per_example)
-
     # Set the probs outside the selected column (selected by the *model*)
     # to 0. This ensures backwards compatibility with models that select
     # cells from multiple columns.
@@ -1944,6 +1941,9 @@ def _single_column_cell_selection_loss(token_logits, column_logits, label_ids, c
     new_logits_per_cell = logits_per_cell + CLOSE_ENOUGH_TO_LOG_ZERO * (1.0 - cell_mask * selected_column_mask)
     logits = gather(new_logits_per_cell, cell_index)
 
+    print("Selection loss per example:")
+    print(selection_loss_per_example)
+    
     return selection_loss_per_example, logits
 
 
