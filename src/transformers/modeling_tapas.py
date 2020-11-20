@@ -1805,7 +1805,7 @@ def compute_column_logits(
     token_logits = torch.einsum("bsj,j->bs", sequence_output, column_output_weights) + column_output_bias
 
     print("Token logits when computing column logits:")
-    print(token logits)
+    print(token_logits)
 
     # Next, average the logits per cell (batch_size, max_num_cols*max_num_rows)
     cell_logits, cell_logits_index = reduce_mean(token_logits, cell_index)
