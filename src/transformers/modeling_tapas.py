@@ -2202,9 +2202,6 @@ def _calculate_expected_result(
 
     expected_result = torch.sum(all_results * aggregation_op_only_probs, dim=1)
 
-    print("Expected result:")
-    print(expected_result)
-
     return expected_result
 
 
@@ -2255,6 +2252,9 @@ def _calculate_regression_loss(
         dist_per_cell, numeric_values, numeric_values_scale, input_mask_float, logits_aggregation, config
     )
 
+    print("Expected result:")
+    print(expected_result)
+
     # <float32>[batch_size]
     answer_masked = torch.where(torch.isnan(answer), torch.zeros_like(answer), answer)
 
@@ -2282,4 +2282,10 @@ def _calculate_regression_loss(
         )
     per_example_answer_loss_scaled = config.answer_loss_importance * (per_example_answer_loss * aggregate_mask)
 
+    print("Per example answer loss scaled")
+    print(per_example_answer_loss_scaled)
+
+    print("Large answer loss mask:")
+    print(large_answer_loss_mask)
+    
     return per_example_answer_loss_scaled, large_answer_loss_mask
