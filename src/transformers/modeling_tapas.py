@@ -1998,6 +1998,9 @@ def _calculate_aggregate_mask(answer, pooled_output, cell_selection_preference, 
     # Index 0 correponds to "no aggregation".
     aggregation_ops_total_mass = torch.sum(dist_aggregation.probs[:, 1:], dim=1)
 
+    print("Aggregation_ops_total_mass:")
+    print(aggregation_ops_total_mass)
+
     # Cell selection examples according to current model.
     is_pred_cell_selection = aggregation_ops_total_mass <= cell_selection_preference
 
