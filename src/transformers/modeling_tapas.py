@@ -1227,6 +1227,9 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
                 else:
                     raise ValueError("You have to specify float answers in order to calculate the aggregate mask")
 
+            print("Aggregate mask:")
+            print(aggregate_mask)
+            
             ### Cell selection log-likelihood
             #################################
 
@@ -1286,6 +1289,9 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
                         logits_aggregation, aggregate_mask, aggregation_labels, self.config
                     )
 
+                print("Per example additional loss (only for cell selection examples):")
+                print(per_example_additional_loss)
+                
                 if self.config.use_answer_as_supervision:
                     if numeric_values is not None and numeric_values_scale is not None:
                         assert numeric_values.shape == numeric_values_scale.shape
@@ -1308,6 +1314,9 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
                             "You have to specify numeric values and numeric values scale in order to calculate the regression loss"
                         )
 
+                print("Per example additional loss with answer loss:")
+                print(per_example_additional_loss)
+                
                 total_loss += torch.mean(per_example_additional_loss)
 
         else:
