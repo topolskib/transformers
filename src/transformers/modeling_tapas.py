@@ -1227,8 +1227,7 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
                 else:
                     raise ValueError("You have to specify float answers in order to calculate the aggregate mask")
 
-            print("Aggregate mask:")
-            print(aggregate_mask)
+            print("Aggregate mask:", aggregate_mask)
             
             ### Cell selection log-likelihood
             #################################
@@ -1256,8 +1255,7 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
                 )
                 dist_per_token = torch.distributions.Bernoulli(logits=logits)
 
-            print("Selection loss per example:")
-            print(selection_loss_per_example)
+            print("Selection loss per example:", selection_loss_per_example)
             
             ### Supervised cell selection
             #############################
@@ -1292,8 +1290,7 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
                         logits_aggregation, aggregate_mask, aggregation_labels, self.config
                     )
 
-                print("Per example additional loss (only for cell selection examples):")
-                print(per_example_additional_loss)
+                print("Per example additional loss (only for cell selection examples):", per_example_additional_loss)
                 
                 if self.config.use_answer_as_supervision:
                     if numeric_values is not None and numeric_values_scale is not None:
@@ -1317,8 +1314,7 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
                             "You have to specify numeric values and numeric values scale in order to calculate the regression loss"
                         )
 
-                print("Per example additional loss with answer loss:")
-                print(per_example_additional_loss)
+                print("Per example additional loss with answer loss:", per_example_additional_loss)
                 
                 total_loss += torch.mean(per_example_additional_loss)
 
@@ -2001,8 +1997,7 @@ def _calculate_aggregate_mask(answer, pooled_output, cell_selection_preference, 
     # Index 0 correponds to "no aggregation".
     aggregation_ops_total_mass = torch.sum(dist_aggregation.probs[:, 1:], dim=1)
 
-    print("Aggregation_ops_total_mass:")
-    print(aggregation_ops_total_mass)
+    print("Aggregation_ops_total_mass:", aggregation_ops_total_mass)
 
     # Cell selection examples according to current model.
     is_pred_cell_selection = aggregation_ops_total_mass <= cell_selection_preference
@@ -2266,6 +2261,8 @@ def _calculate_regression_loss(
             expected_result * aggregate_mask, answer_masked * aggregate_mask, delta=config.huber_loss_delta
         )
 
+    print("Per example answer loss (Huber loss):", per_example_answer_loss)
+    
     if config.answer_loss_cutoff is None:
         large_answer_loss_mask = torch.ones_like(per_example_answer_loss, dtype=torch.float32)
 
@@ -2277,4 +2274,8 @@ def _calculate_regression_loss(
         )
     per_example_answer_loss_scaled = config.answer_loss_importance * (per_example_answer_loss * aggregate_mask)
 
+    print("Per example answer loss (scaled):", per_example_answer_loss_scaled)
+
+    print("Large answer loss mask", large_answer_loss_mask)
+    
     return per_example_answer_loss_scaled, large_answer_loss_mask
