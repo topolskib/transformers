@@ -2195,6 +2195,9 @@ def _calculate_expected_result(
     )
 
     expected_result = torch.sum(all_results * aggregation_op_only_probs, dim=1)
+
+    print("Expected result:", expected_result)
+
     return expected_result
 
 
