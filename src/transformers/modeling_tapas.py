@@ -1256,6 +1256,9 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
                 )
                 dist_per_token = torch.distributions.Bernoulli(logits=logits)
 
+            print("Selection loss per example:")
+            print(selection_loss_per_example)
+            
             ### Supervised cell selection
             #############################
             if self.config.span_prediction != "none":
