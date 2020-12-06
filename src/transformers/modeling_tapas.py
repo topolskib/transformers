@@ -1172,9 +1172,6 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
         # Compute logits per token. These are used to select individual cells.
         logits = compute_token_logits(sequence_output, self.config.temperature, self.output_weights, self.output_bias)
 
-        print("Token logits of third example:")
-        print(logits[2])
-
         # Compute logits per column. These are used to select a column.
         column_logits = None
         if self.config.select_one_column:
@@ -1186,9 +1183,6 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
                 cell_mask,
                 self.config.allow_empty_column_selection,
             )
-
-            print("Column logits of third example:")
-            print(column_logits[2])
 
         ########## Aggregation logits ##############
         logits_aggregation = None
