@@ -1966,6 +1966,9 @@ def _single_column_cell_selection_loss(token_logits, column_logits, labels, cell
     new_logits_per_cell = logits_per_cell + CLOSE_ENOUGH_TO_LOG_ZERO * (1.0 - cell_mask * selected_column_mask)
     logits = gather(new_logits_per_cell, cell_index)
 
+    print("Selection loss per example:")
+    print(selection_loss_per_example)
+
     return selection_loss_per_example, logits
 
 
@@ -2233,6 +2236,10 @@ def _calculate_expected_result(
     )
 
     expected_result = torch.sum(all_results * aggregation_op_only_probs, dim=1)
+    
+    print("Expected result:")
+    print(expected_result)
+
     return expected_result
 
 
@@ -2309,5 +2316,11 @@ def _calculate_regression_loss(
             torch.ones_like(per_example_answer_loss, dtype=torch.float32),
         )
     per_example_answer_loss_scaled = config.answer_loss_importance * (per_example_answer_loss * aggregate_mask)
+
+    print("Per example answer loss scaled:")
+    print(per_example_answer_loss_scaled)
+
+    print("Large answer loss mask:")
+    print(large_answer_loss_mask)
 
     return per_example_answer_loss_scaled, large_answer_loss_mask
