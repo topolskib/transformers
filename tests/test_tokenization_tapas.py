@@ -32,12 +32,13 @@ from transformers.models.tapas.tokenization_tapas import (
     _is_punctuation,
     _is_whitespace,
 )
-from transformers.testing_utils import is_pt_tf_cross_test, require_tokenizers, require_torch, slow
+from transformers.testing_utils import is_pt_tf_cross_test, require_pandas, require_tokenizers, require_torch, slow
 
 from .test_tokenization_common import TokenizerTesterMixin, filter_non_english, merge_model_tokenizer_mappings
 
 
 @require_tokenizers
+@require_pandas
 class TapasTokenizationTest(TokenizerTesterMixin, unittest.TestCase):
     tokenizer_class = TapasTokenizer
     test_rust_tokenizer = False
@@ -131,13 +132,6 @@ class TapasTokenizationTest(TokenizerTesterMixin, unittest.TestCase):
         input_text = "UNwant\u00E9d,running"
         output_text = "unwanted, running"
         return input_text, output_text
-
-    def test_full_tokenizer(self):
-        tokenizer = self.tokenizer_class(self.vocab_file)
-
-        tokens = tokenizer.tokenize("UNwant\u00E9d,running")
-        self.assertListEqual(tokens, ["un", "##want", "##ed", ",", "runn", "##ing"])
-        self.assertListEqual(tokenizer.convert_tokens_to_ids(tokens), [9, 6, 7, 12, 10, 11])
 
     def test_rust_and_python_full_tokenizers(self):
         if not self.test_rust_tokenizer:
@@ -646,40 +640,6 @@ class TapasTokenizationTest(TokenizerTesterMixin, unittest.TestCase):
                 padded_sequence_right_length = len(padded_sequence_right)
                 assert sequence_length == padded_sequence_right_length
                 assert encoded_sequence == padded_sequence_right
-
-    def test_padding_to_multiple_of(self):
-        tokenizers = self.get_tokenizers()
-        for tokenizer in tokenizers:
-            with self.subTest(f"{tokenizer.__class__.__name__}"):
-                if tokenizer.pad_token is None:
-                    self.skipTest("No padding token.")
-                else:
-                    empty_tokens = tokenizer("", padding=True, pad_to_multiple_of=8)
-                    normal_tokens = tokenizer("This is a sample input", padding=True, pad_to_multiple_of=8)
-                    for key, value in empty_tokens.items():
-                        self.assertEqual(len(value) % 8, 0, "BatchEncoding.{} is not multiple of 8".format(key))
-                    for key, value in normal_tokens.items():
-                        self.assertEqual(len(value) % 8, 0, "BatchEncoding.{} is not multiple of 8".format(key))
-
-                    normal_tokens = tokenizer("This", pad_to_multiple_of=8)
-                    for key, value in normal_tokens.items():
-                        self.assertNotEqual(len(value) % 8, 0, "BatchEncoding.{} is not multiple of 8".format(key))
-
-                    # Should also work with truncation
-                    normal_tokens = tokenizer("This", padding=True, truncation=True, pad_to_multiple_of=8)
-                    for key, value in normal_tokens.items():
-                        self.assertEqual(len(value) % 8, 0, "BatchEncoding.{} is not multiple of 8".format(key))
-
-                    # truncation to something which is not a multiple of pad_to_multiple_of raises an error
-                    self.assertRaises(
-                        ValueError,
-                        tokenizer.__call__,
-                        "This",
-                        padding=True,
-                        truncation=True,
-                        max_length=12,
-                        pad_to_multiple_of=8,
-                    )
 
     def test_call(self):
         # Tests that all call wrap to encode_plus and batch_encode_plus
@@ -3459,3 +3419,7 @@ class TapasTokenizationTest(TokenizerTesterMixin, unittest.TestCase):
         self.assertListEqual(segment_ids.tolist(), expected_results["segment_ids"])
         self.assertListEqual(column_ids.tolist(), expected_results["column_ids"])
         self.assertListEqual(row_ids.tolist(), expected_results["row_ids"])
+
+    @unittest.skip("Skip this test while all models are still to be uploaded.")
+    def test_pretrained_model_lists(self):
+        pass

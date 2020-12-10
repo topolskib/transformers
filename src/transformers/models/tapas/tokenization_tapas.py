@@ -26,11 +26,11 @@ import unicodedata
 from dataclasses import dataclass
 from typing import Callable, Dict, Generator, List, Optional, Text, Tuple, Union
 
-import pandas as pd
-import torch
+import numpy as np
 
 from transformers import add_end_docstrings
 
+from ...file_utils import is_pandas_available
 from ...tokenization_utils import PreTrainedTokenizer, _is_control, _is_punctuation, _is_whitespace
 from ...tokenization_utils_base import (
     ENCODE_KWARGS_DOCSTRING,
@@ -44,6 +44,9 @@ from ...tokenization_utils_base import (
 )
 from ...utils import logging
 
+
+if is_pandas_available():
+    import pandas as pd
 
 logger = logging.get_logger(__name__)
 
@@ -307,6 +310,9 @@ class TapasTokenizer(PreTrainedTokenizer):
         additional_special_tokens: Optional[List[str]] = None,
         **kwargs
     ):
+        if not is_pandas_available():
+            raise ImportError("Pandas is required for the TAPAS tokenizer.")
+
         if additional_special_tokens is not None:
             if empty_token not in additional_special_tokens:
                 additional_special_tokens.append(empty_token)
@@ -539,7 +545,7 @@ class TapasTokenizer(PreTrainedTokenizer):
     @add_end_docstrings(TAPAS_ENCODE_PLUS_ADDITIONAL_KWARGS_DOCSTRING)
     def __call__(
         self,
-        table: pd.DataFrame,
+        table: "pd.DataFrame",
         queries: Optional[
             Union[
                 TextInput,
@@ -663,7 +669,7 @@ class TapasTokenizer(PreTrainedTokenizer):
     @add_end_docstrings(ENCODE_KWARGS_DOCSTRING, TAPAS_ENCODE_PLUS_ADDITIONAL_KWARGS_DOCSTRING)
     def batch_encode_plus(
         self,
-        table: pd.DataFrame,
+        table: "pd.DataFrame",
         queries: Optional[
             Union[
                 List[TextInput],
@@ -812,7 +818,7 @@ class TapasTokenizer(PreTrainedTokenizer):
 
     def _batch_prepare_for_model(
         self,
-        raw_table: pd.DataFrame,
+        raw_table: "pd.DataFrame",
         raw_queries: Union[
             List[TextInput],
             List[PreTokenizedInput],
@@ -884,7 +890,7 @@ class TapasTokenizer(PreTrainedTokenizer):
     @add_end_docstrings(ENCODE_KWARGS_DOCSTRING)
     def encode(
         self,
-        table: pd.DataFrame,
+        table: "pd.DataFrame",
         query: Optional[
             Union[
                 TextInput,
@@ -927,7 +933,7 @@ class TapasTokenizer(PreTrainedTokenizer):
     @add_end_docstrings(ENCODE_KWARGS_DOCSTRING, TAPAS_ENCODE_PLUS_ADDITIONAL_KWARGS_DOCSTRING)
     def encode_plus(
         self,
-        table: pd.DataFrame,
+        table: "pd.DataFrame",
         query: Optional[
             Union[
                 TextInput,
@@ -1010,7 +1016,7 @@ class TapasTokenizer(PreTrainedTokenizer):
 
     def _encode_plus(
         self,
-        table: pd.DataFrame,
+        table: "pd.DataFrame",
         query: Union[
             TextInput,
             PreTokenizedInput,
@@ -1066,7 +1072,7 @@ class TapasTokenizer(PreTrainedTokenizer):
     @add_end_docstrings(ENCODE_KWARGS_DOCSTRING, TAPAS_ENCODE_PLUS_ADDITIONAL_KWARGS_DOCSTRING)
     def prepare_for_model(
         self,
-        raw_table: pd.DataFrame,
+        raw_table: "pd.DataFrame",
         raw_query: Union[
             TextInput,
             PreTokenizedInput,
@@ -1884,7 +1890,7 @@ class TapasTokenizer(PreTrainedTokenizer):
             col = column_ids[i] - 1
             row = row_ids[i] - 1
             coords_to_probs[(col, row)].append(prob)
-        return {coords: torch.as_tensor(cell_probs).mean() for coords, cell_probs in coords_to_probs.items()}
+        return {coords: np.array(cell_probs).mean() for coords, cell_probs in coords_to_probs.items()}
 
     def convert_logits_to_predictions(self, data, logits, logits_agg=None, cell_classification_threshold=0.5):
         """
@@ -1912,11 +1918,8 @@ class TapasTokenizer(PreTrainedTokenizer):
             of length ``batch_size``: Predicted aggregation operator indices of the aggregation head.
         """
         # compute probabilities from token logits
-        dist_per_token = torch.distributions.Bernoulli(logits=logits)
-        probabilities = dist_per_token.probs * data["attention_mask"].type(torch.float32).to(
-            dist_per_token.probs.device
-        )
-
+        # DO sigmoid here
+        probabilities = 1 / (1 + np.exp(-logits)) * data["attention_mask"]
         token_types = [
             "segment_ids",
             "column_ids",
@@ -1980,7 +1983,7 @@ class TapasTokenizer(PreTrainedTokenizer):
 # Copied from transformers.models.bert.tokenization_bert.BasicTokenizer
 class BasicTokenizer(object):
     """
-    Constructs a BasicTokenizer that will run basic tokenization (punctuation splitting, lower casing, etc.)
+    Constructs a BasicTokenizer that will run basic tokenization (punctuation splitting, lower casing, etc.).
 
     Args:
         do_lower_case (:obj:`bool`, `optional`, defaults to :obj:`True`):
@@ -1989,8 +1992,10 @@ class BasicTokenizer(object):
             Collection of tokens which will never be split during tokenization. Only has an effect when
             :obj:`do_basic_tokenize=True`
         tokenize_chinese_chars (:obj:`bool`, `optional`, defaults to :obj:`True`):
-            Whether or not to tokenize Chinese characters. This should likely be deactivated for Japanese (see this
-            `issue <https://github.com/huggingface/transformers/issues/328>`__).
+            Whether or not to tokenize Chinese characters.
+
+            This should likely be deactivated for Japanese (see this `issue
+            <https://github.com/huggingface/transformers/issues/328>`__).
         strip_accents: (:obj:`bool`, `optional`):
             Whether or not to strip all accents. If this option is not specified, then it will be determined by the
             value for :obj:`lowercase` (as in the original BERT).
@@ -2007,7 +2012,7 @@ class BasicTokenizer(object):
     def tokenize(self, text, never_split=None):
         """
         Basic Tokenization of a piece of text. Split on "white spaces" only, for sub-word tokenization, see
-        WordPieceTokenizer
+        WordPieceTokenizer.
 
         Args:
             **never_split**: (`optional`) list of str
@@ -2137,12 +2142,13 @@ class WordpieceTokenizer(object):
     def tokenize(self, text):
         """
         Tokenizes a piece of text into its word pieces. This uses a greedy longest-match-first algorithm to perform
-        tokenization using the given vocabulary. For example, :obj:`input = "unaffable"` wil return as output
-        :obj:`["un", "##aff", "##able"]`
+        tokenization using the given vocabulary.
+
+        For example, :obj:`input = "unaffable"` wil return as output :obj:`["un", "##aff", "##able"]`.
 
         Args:
           text: A single token or whitespace separated tokens. This should have
-            already been passed through `BasicTokenizer`
+            already been passed through `BasicTokenizer`.
 
         Returns:
           A list of wordpiece tokens.
