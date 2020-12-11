@@ -1293,6 +1293,10 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
                             self.config.num_aggregation_labels,
                             self.config.aggregation_loss_weight,
                         )
+
+                        print("Per_example_additional_loss (only for cell selection examples)")
+                        print(per_example_additional_loss)
+
                     else:
                         raise ValueError(
                             "You have to specify aggregation labels in order to calculate the aggregation loss"
@@ -1326,6 +1330,13 @@ class TapasForQuestionAnswering(TapasPreTrainedModel):
                         per_example_additional_loss += answer_loss
                         # Zero loss for examples with answer_loss > cutoff.
                         per_example_additional_loss *= large_answer_loss_mask
+
+                        print("per_example_additional_loss (with answer loss)")
+                        print(per_example_additional_loss)
+
+                        print("Large answer loss mask:")
+                        print(large_answer_loss_mask)
+
                     else:
                         raise ValueError(
                             "You have to specify numeric values and numeric values scale in order to calculate the regression loss"
@@ -1884,10 +1895,11 @@ def _single_column_cell_selection_loss(token_logits, column_logits, labels, cell
             Mask for cells that exist in the table (i.e. that are not padding).
 
     Returns:
-        selection_loss_per_example (:obj:`torch.FloatTensor` of shape :obj:`(batch_size,)`): Loss for each example.
-        logits (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length)`): New logits which are only
-        allowed to select cells in a single column. Logits outside of the most likely column according to
-        `column_logits` will be set to a very low value (such that the probabilities are 0).
+        selection_loss_per_example (:obj:`torch.FloatTensor` of shape :obj:`(batch_size,)`): 
+            Loss for each example.
+        logits (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length)`): 
+            New logits which are only allowed to select cells in a single column. Logits outside of the most likely column according to
+            `column_logits` will be set to a very low value (such that the probabilities are 0).
     """
     # Part 1: column loss
 
@@ -1905,8 +1917,14 @@ def _single_column_cell_selection_loss(token_logits, column_logits, labels, cell
         no_cell_selected.view(column_label.size()), torch.zeros_like(column_label), column_label
     )
 
+    print("Column label:")
+    print(column_label)
+
     column_dist = torch.distributions.Categorical(logits=column_logits)  # shape (batch_size, max_num_cols)
     column_loss_per_example = -column_dist.log_prob(column_label)
+
+    print("Column loss per example:")
+    print(column_loss_per_example)
 
     # Part 2: cell loss
 
@@ -1928,6 +1946,9 @@ def _single_column_cell_selection_loss(token_logits, column_logits, labels, cell
         device=cell_mask.device,
     )
 
+    print("Column mask:")
+    print(column_mask)
+
     # Compute the log-likelihood for cells, but only for the selected column.
     cell_dist = torch.distributions.Bernoulli(logits=logits_per_cell)  # shape (batch_size, 64*32)
     cell_log_prob = cell_dist.log_prob(labels_per_cell.type(torch.float32))  # shape(batch_size, 64*32)
@@ -1943,6 +1964,9 @@ def _single_column_cell_selection_loss(token_logits, column_logits, labels, cell
         torch.zeros_like(selection_loss_per_example),
         cell_loss,
     )
+
+    print("Selection loss per example:")
+    print(selection_loss_per_example)
 
     # Set the probs outside the selected column (selected by the *model*)
     # to 0. This ensures backwards compatibility with models that select
@@ -1966,6 +1990,9 @@ def _single_column_cell_selection_loss(token_logits, column_logits, labels, cell
     )
     new_logits_per_cell = logits_per_cell + CLOSE_ENOUGH_TO_LOG_ZERO * (1.0 - cell_mask * selected_column_mask)
     logits = gather(new_logits_per_cell, cell_index)
+
+    print("New_logits_per_cell")
+    print(new_logits_per_cell)
 
     return selection_loss_per_example, logits
 
@@ -2023,6 +2050,9 @@ def _calculate_aggregate_mask(answer, pooled_output, cell_selection_preference, 
     dist_aggregation = torch.distributions.categorical.Categorical(logits=logits_aggregation)
     # Index 0 correponds to "no aggregation".
     aggregation_ops_total_mass = torch.sum(dist_aggregation.probs[:, 1:], dim=1)
+    
+    print("Aggregation_ops_total_mass:")
+    print(aggregation_ops_total_mass)
 
     # Cell selection examples according to current model.
     is_pred_cell_selection = aggregation_ops_total_mass <= cell_selection_preference
@@ -2037,6 +2067,9 @@ def _calculate_aggregate_mask(answer, pooled_output, cell_selection_preference, 
         torch.zeros_like(aggregate_mask_init, dtype=torch.float32),
         aggregate_mask_init,
     )
+
+    print("Aggregate mask:")
+    print(aggregate_mask)
 
     aggregate_mask = aggregate_mask.detach()
 
@@ -2284,6 +2317,9 @@ def _calculate_regression_loss(
         dist_per_cell, numeric_values, numeric_values_scale, input_mask_float, logits_aggregation, config
     )
 
+    print("Expected result:")
+    print(expected_result)
+
     # float32 (batch_size,)
     answer_masked = torch.where(torch.isnan(answer), torch.zeros_like(answer), answer)
 
@@ -2300,6 +2336,9 @@ def _calculate_regression_loss(
             expected_result * aggregate_mask, answer_masked * aggregate_mask, delta=config.huber_loss_delta
         )
 
+    print("Per example answer loss:")
+    print(per_example_answer_loss)
+    
     if config.answer_loss_cutoff is None:
         large_answer_loss_mask = torch.ones_like(per_example_answer_loss, dtype=torch.float32)
 
@@ -2310,5 +2349,8 @@ def _calculate_regression_loss(
             torch.ones_like(per_example_answer_loss, dtype=torch.float32),
         )
     per_example_answer_loss_scaled = config.answer_loss_importance * (per_example_answer_loss * aggregate_mask)
+
+    print("Per example answer loss scaled:")
+    print(per_example_answer_loss_scaled)
 
     return per_example_answer_loss_scaled, large_answer_loss_mask
