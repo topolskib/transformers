@@ -1177,12 +1177,16 @@ class TapasTokenizer(PreTrainedTokenizer):
         column_ids = self.create_column_token_type_ids_from_sequences(query_ids, table_data)
         row_ids = self.create_row_token_type_ids_from_sequences(query_ids, table_data)
         if not is_part_of_batch or (prev_answer_coordinates is None and prev_answer_text is None):
+            print("we are here")
             # simply set the prev_labels to zeros
             prev_labels = [0] * len(row_ids)
         else:
+            print("now we're here")
             prev_labels = self.get_answer_ids(
                 column_ids, row_ids, table_data, prev_answer_text, prev_answer_coordinates
             )
+
+        print(prev_labels)
 
         # FIRST: parse both the table and question in terms of numeric values
 
