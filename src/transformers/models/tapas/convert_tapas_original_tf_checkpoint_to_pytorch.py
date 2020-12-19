@@ -59,6 +59,9 @@ def convert_tf_checkpoint_to_pytorch(
         config.select_one_column = True
         config.allow_empty_column_selection = False
         config.temperature = 0.0352513
+        # 2 extra pipline hparams
+        config.aggregation_labels = {"0": "NONE", "1": "SUM", "2": "AVERAGE", "3": "COUNT"}
+        config.no_aggregation_label_index = 0
 
         model = TapasForQuestionAnswering(config=config)
     elif task == "WIKISQL_SUPERVISED":
@@ -73,6 +76,9 @@ def convert_tf_checkpoint_to_pytorch(
         config.select_one_column = True
         config.allow_empty_column_selection = True
         config.temperature = 0.763141
+        # 2 extra pipline hparams
+        config.aggregation_labels = {"0": "NONE", "1": "SUM", "2": "AVERAGE", "3": "COUNT"}
+        config.no_aggregation_label_index = 0
 
         model = TapasForQuestionAnswering(config=config)
     elif task == "TABFACT":
