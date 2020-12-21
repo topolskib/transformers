@@ -1136,6 +1136,10 @@ class TapasTokenizer(PreTrainedTokenizer):
             num_rows, num_tokens = self._get_truncated_table_rows(
                 query_tokens, tokenized_table, num_rows, num_columns, max_length, truncation_strategy=truncation
             )
+
+            print("Number of rows:", num_rows)
+            print("Number of tokens:", num_tokens)
+        
         table_data = list(self._get_table_values(tokenized_table, num_columns, num_rows, num_tokens))
 
         query_ids = self.convert_tokens_to_ids(query_tokens)
