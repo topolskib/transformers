@@ -1294,6 +1294,9 @@ class TapasTokenizer(PreTrainedTokenizer):
                     query_tokens, tokenized_table, num_rows=num_rows, num_columns=num_columns, max_length=max_length
                 )
 
+                print("Number of tokens while truncating:")
+                print(num_tokens)
+
                 if num_tokens is not None:
                     # We could fit the table.
                     break
@@ -1410,6 +1413,10 @@ class TapasTokenizer(PreTrainedTokenizer):
         """Computes max number of tokens that can be squeezed into the budget."""
         token_budget = self._get_token_budget(question_tokens, max_length)
         _, _, max_num_tokens = self._get_table_boundaries(tokenized_table)
+        
+        print("Token budget:", token_budget)
+        print("Maximum number of tokens:", max_num_tokens)
+
         if self.cell_trim_length >= 0 and max_num_tokens > self.cell_trim_length:
             max_num_tokens = self.cell_trim_length
         num_tokens = 0
