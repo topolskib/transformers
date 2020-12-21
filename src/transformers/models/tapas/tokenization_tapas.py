@@ -1128,6 +1128,10 @@ class TapasTokenizer(PreTrainedTokenizer):
         num_columns = self._get_num_columns(raw_table)
         _, _, num_tokens = self._get_table_boundaries(tokenized_table)
 
+        print("Number of rows:", num_rows)
+        print("Number of columns:", num_columns)
+        print("Maximum number of tokens:", num_tokens)
+
         if truncation != TapasTruncationStrategy.DO_NOT_TRUNCATE:
             num_rows, num_tokens = self._get_truncated_table_rows(
                 query_tokens, tokenized_table, num_rows, num_columns, max_length, truncation_strategy=truncation
