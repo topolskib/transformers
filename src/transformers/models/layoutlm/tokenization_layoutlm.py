@@ -65,9 +65,9 @@ class LayoutLMTokenizer(BertTokenizer):
     def __call__(
         self,
         images: Union[Image, List[Image]],
-        words: Union[List[TextInput], List[List[TextInput]],
-        bounding_boxes: Union[List[List[int]], List[List[List[int]]],
-        labels: Union[List[TextInput], List[List[TextInput]]] = None,
+        words: Union[List[str], List[List[str]],
+        bounding_boxes: Union[List[List[int]], List[List[List[int]]]],
+        labels: Union[List[str], List[List[str]]] = None,
         add_special_tokens: bool = True,
         padding: Union[bool, str, PaddingStrategy] = False,
         truncation: Union[bool, str, TruncationStrategy] = False,
@@ -92,9 +92,10 @@ class LayoutLMTokenizer(BertTokenizer):
                 The image or batch of images whose words will be encoded. Each image should be a PIL image.
             words (:obj:`List[str]`, :obj:`List[List[str]]`):
                 The words or batch of words (as recognized by an external OCR engine) to be encoded. Each words list 
-                should be a list of strings. 
+                should correspond to an image, and be a list of strings. 
             bounding_boxes (:obj:`List[List[int]]`, :obj:`List[List[List[int]]]`):
-                The actual (unnormalized) bounding boxes of the words. Each bounding box should be a list comprising 4 elements.
+                The actual (unnormalized) bounding boxes of the words. Each bounding box should be a list comprising 4 elements,
+                and correspond to a word in the words list.
             labels (:obj:`List[str]`, :obj:`List[List[str]]`, `optional`):
                 Labels in IOB/BIOES format for each word. 
                   
@@ -117,6 +118,11 @@ class LayoutLMTokenizer(BertTokenizer):
         )
 
         if is_batched:
+            assert len(images) == len(words) == len(bounding_boxes), "There must be an equal amount of images and corresponding lists of words and bounding boxes"
+
+            for i in range(len(images)):
+                assert len(words[i]) == len(bounding_boxes[i]), "There must be as many words as there are bounding boxes for each image in the batch"
+
             return self.batch_encode_plus(
                 images=images,
                 words=words,
@@ -140,6 +146,8 @@ class LayoutLMTokenizer(BertTokenizer):
                 **kwargs,
             )
         else:
+            assert len(words) == len(bounding_boxes), "There must be as many words as there are bounding boxes"
+           
             return self.encode_plus(
                 image=images,
                 words=words,
@@ -167,9 +175,9 @@ class LayoutLMTokenizer(BertTokenizer):
     def encode_plus(
         self,
         image: Image,
-        words: List[TextInput],
+        words: List[str],
         bounding_boxes: List[List[int]],
-        labels: List[str],
+        labels: List[str] = None,
         add_special_tokens: bool = True,
         padding: Union[bool, str, PaddingStrategy] = False,
         truncation: Union[bool, str, TruncationStrategy] = False,
@@ -230,9 +238,9 @@ class LayoutLMTokenizer(BertTokenizer):
     def _encode_plus(
         self,
         image: Image,
-        words: List[TextInput],
+        words: List[str],
         bounding_boxes: List[List[int]],
-        labels: List[str],
+        labels: List[str] = None,
         add_special_tokens: bool = True,
         padding_strategy: PaddingStrategy = PaddingStrategy.DO_NOT_PAD,
         truncation_strategy: TruncationStrategy = TruncationStrategy.DO_NOT_TRUNCATE,
@@ -251,8 +259,7 @@ class LayoutLMTokenizer(BertTokenizer):
         **kwargs
     ) -> BatchEncoding:
         return self.prepare_for_model(
-            image=image,
-            words=words,
+            input_ids,
             bounding_boxes=bounding_boxes,
             labels=labels,
             add_special_tokens=add_special_tokens,
@@ -273,9 +280,9 @@ class LayoutLMTokenizer(BertTokenizer):
     def batch_encode_plus(
         self,
         images: Union[Image, List[Image]],
-        words: Union[List[TextInput], List[List[TextInput]],
+        words: Union[List[str], List[List[str]],
         bounding_boxes: Union[List[List[int]], List[List[List[int]]],
-        labels: Union[List[TextInput], List[List[TextInput]]] = None,
+        labels: Union[List[str], List[List[str]]] = None,
         add_special_tokens: bool = True,
         padding: Union[bool, str, PaddingStrategy] = False,
         truncation: Union[bool, str, TruncationStrategy] = False,
@@ -340,9 +347,9 @@ class LayoutLMTokenizer(BertTokenizer):
     def _batch_encode_plus(
         self,
         images: Union[Image, List[Image]],
-        words: Union[List[TextInput], List[List[TextInput]],
+        words: Union[List[str], List[List[str]],
         bounding_boxes: Union[List[List[int]], List[List[List[int]]],
-        labels: Union[List[TextInput], List[List[TextInput]]] = None,
+        labels: Union[List[str], List[List[str]]] = None,
         add_special_tokens: bool = True,
         padding_strategy: PaddingStrategy = PaddingStrategy.DO_NOT_PAD,
         truncation_strategy: TruncationStrategy = TruncationStrategy.DO_NOT_TRUNCATE,
@@ -379,6 +386,14 @@ class LayoutLMTokenizer(BertTokenizer):
                     "Input is not valid. Should be a string, a list/tuple of strings or a list/tuple of integers."
                 )
 
+        def normalize_box(box, width, height):
+            return [
+                int(1000 * (box[0] / width)),
+                int(1000 * (box[1] / height)),
+                int(1000 * (box[2] / width)),
+                int(1000 * (box[3] / height)),
+            ]
+        
         if return_offsets_mapping:
             raise NotImplementedError(
                 "return_offset_mapping is not available when using Python tokenizers."
@@ -387,17 +402,25 @@ class LayoutLMTokenizer(BertTokenizer):
             )
 
         input_ids = []
-        for ids_or_pair_ids in batch_text_or_text_pairs:
-            if not isinstance(ids_or_pair_ids, (list, tuple)):
-                ids, pair_ids = ids_or_pair_ids, None
-            elif is_split_into_words and not isinstance(ids_or_pair_ids[0], (list, tuple)):
-                ids, pair_ids = ids_or_pair_ids, None
-            else:
-                ids, pair_ids = ids_or_pair_ids
+        for image, words_example, bounding_boxes_example in zip(images, words, bounding_boxes):
+            width, height = image.size
 
-            first_ids = get_input_ids(ids)
-            second_ids = get_input_ids(pair_ids) if pair_ids is not None else None
-            input_ids.append((first_ids, second_ids))
+            #first, normalize the bounding boxes
+            boxes = []
+            for box in bounding_boxes_example:
+                boxes.append(normalize_box(box, width, height))
+
+            tokens = []
+            token_boxes = []
+            token_actual_boxes = []
+            for word, box, actual_box in zip(words_example, boxes, bounding_boxes_example):
+                word_tokens = self.tokenize(word)
+                tokens.extend(word_tokens)
+                token_boxes.extend([box] * len(word_tokens))
+                token_actual_boxes.extend([actual_box] * len(word_tokens))
+
+                ids = self.convert_tokens_to_ids(word_tokens)
+                input_ids.append(ids)
 
         batch_outputs = self._batch_prepare_for_model(
             input_ids,
@@ -421,7 +444,7 @@ class LayoutLMTokenizer(BertTokenizer):
     @add_end_docstrings(ENCODE_KWARGS_DOCSTRING, ENCODE_PLUS_ADDITIONAL_KWARGS_DOCSTRING)
     def _batch_prepare_for_model(
         self,
-        batch_ids_pairs: List[Union[PreTokenizedInputPair, Tuple[List[int], None]]],
+        batch_ids: List[Union[PreTokenizedInputPair, Tuple[List[int], None]]],
         bounding_boxes: List[List[int]],
         labels: List[List[str]] = None,
         add_special_tokens: bool = True,
@@ -443,34 +466,36 @@ class LayoutLMTokenizer(BertTokenizer):
         if overflowing while taking into account the special tokens and manages a moving window (with user defined stride) 
         for overflowing tokens.
         Args:
-            batch_ids_pairs: list of tokenized input ids
+            batch_ids: list of tokenized input ids
         """
 
-        batch_outputs = {}
-        for first_ids, second_ids in batch_ids_pairs:
-            outputs = self.prepare_for_model(
-                first_ids,
-                second_ids,
-                add_special_tokens=add_special_tokens,
-                padding=PaddingStrategy.DO_NOT_PAD.value,  # we pad in batch afterwards
-                truncation=truncation_strategy.value,
-                max_length=max_length,
-                stride=stride,
-                pad_to_multiple_of=None,  # we pad in batch afterwards
-                return_attention_mask=False,  # we pad in batch afterwards
-                return_token_type_ids=return_token_type_ids,
-                return_overflowing_tokens=return_overflowing_tokens,
-                return_special_tokens_mask=return_special_tokens_mask,
-                return_length=return_length,
-                return_tensors=None,  # We convert the whole batch to tensors at the end
-                prepend_batch_axis=False,
-                verbose=verbose,
-            )
+        if labels is not None:
+            batch_outputs = {}
+            for input_ids, bounding_boxes_example, labels_example in zip(batch_ids, bounding_boxes, labels):
+                outputs = self.prepare_for_model(
+                    input_ids,
+                    bounding_boxes_example,
+                    labels_example,
+                    add_special_tokens=add_special_tokens,
+                    padding=PaddingStrategy.DO_NOT_PAD.value,  # we pad in batch afterwards
+                    truncation=truncation_strategy.value,
+                    max_length=max_length,
+                    stride=stride,
+                    pad_to_multiple_of=None,  # we pad in batch afterwards
+                    return_attention_mask=False,  # we pad in batch afterwards
+                    return_token_type_ids=return_token_type_ids,
+                    return_overflowing_tokens=return_overflowing_tokens,
+                    return_special_tokens_mask=return_special_tokens_mask,
+                    return_length=return_length,
+                    return_tensors=None,  # We convert the whole batch to tensors at the end
+                    prepend_batch_axis=False,
+                    verbose=verbose,
+                )
 
-            for key, value in outputs.items():
-                if key not in batch_outputs:
-                    batch_outputs[key] = []
-                batch_outputs[key].append(value)
+                for key, value in outputs.items():
+                    if key not in batch_outputs:
+                        batch_outputs[key] = []
+                    batch_outputs[key].append(value)
 
         batch_outputs = self.pad(
             batch_outputs,
