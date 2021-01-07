@@ -27,6 +27,7 @@ from ...modeling_outputs import (
     BaseModelOutputWithPastAndCrossAttentions,
     BaseModelOutputWithPoolingAndCrossAttentions,
     MaskedLMOutput,
+    SequenceClassifierOutput,
     TokenClassifierOutput,
 )
 from ...modeling_utils import (
@@ -614,7 +615,7 @@ class LayoutLMPreTrainedModel(PreTrainedModel):
 
 LAYOUTLM_START_DOCSTRING = r"""
     The LayoutLM model was proposed in `LayoutLM: Pre-training of Text and Layout for Document Image Understanding
-    <https://arxiv.org/abs/1912.13318>`__ by....
+    <https://arxiv.org/abs/1912.13318>`__ by Yiheng Xu, Minghao Li, Lei Cui, Shaohan Huang, Furu Wei and Ming Zhou.
 
     This model is a PyTorch `torch.nn.Module <https://pytorch.org/docs/stable/nn.html#torch.nn.Module>`_ sub-class. Use
     it as a regular PyTorch Module and refer to the PyTorch documentation for all matter related to general usage and
@@ -638,8 +639,10 @@ LAYOUTLM_INPUTS_DOCSTRING = r"""
 
             `What are input IDs? <../glossary.html#input-ids>`__
         bbox (:obj:`torch.LongTensor` of shape :obj:`({0}, 4)`, `optional`):
-            Bounding Boxes of each input sequence tokens. Selected in the range ``[0,
-            config.max_2d_position_embeddings-1]``.
+            Bounding boxes of each input sequence tokens. Selected in the range ``[0,
+            config.max_2d_position_embeddings-1]``. Each bounding box should be a normalized version in 
+            (x0, y0, x1, y1) format, where (x0, y0) corresponds to the position of the upper left in the bounding box, and (x1, y1) 
+            represents the position of the lower right. See Overview section for normalization. 
         attention_mask (:obj:`torch.FloatTensor` of shape :obj:`({0})`, `optional`):
             Mask to avoid performing attention on padding token indices. Mask values selected in ``[0, 1]``: ``1`` for
             tokens that are NOT MASKED, ``0`` for MASKED tokens.
@@ -915,8 +918,96 @@ class LayoutLMForMaskedLM(LayoutLMPreTrainedModel):
 
 @add_start_docstrings(
     """
+    LayoutLM Model with a sequence classification head on top (a linear layer on top of the pooled
+    output) e.g. for document image classification tasks such as the `RVL-CDIP <https://www.cs.cmu.edu/~aharley/rvl-cdip/>`__ dataset.
+    """,
+    LAYOUTLM_START_DOCSTRING,
+)
+class LayoutLMForSequenceClassification(LayoutLMPreTrainedModel):
+    config_class = LayoutLMConfig
+    pretrained_model_archive_map = LAYOUTLM_PRETRAINED_MODEL_ARCHIVE_LIST
+    base_model_prefix = "layoutlm"
+
+    def __init__(self, config):
+        super().__init__(config)
+        self.num_labels = config.num_labels
+        self.layoutlm = LayoutLMModel(config)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.classifier = nn.Linear(config.hidden_size, config.num_labels)
+
+        self.init_weights()
+
+    def get_input_embeddings(self):
+        return self.layoutlm.embeddings.word_embeddings
+
+    @add_start_docstrings_to_model_forward(LAYOUTLM_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
+    @add_code_sample_docstrings(
+        tokenizer_class=_TOKENIZER_FOR_DOC,
+        checkpoint="layoutlm-base-uncased",
+        output_type=SequenceClassifierOutput,
+        config_class=_CONFIG_FOR_DOC,
+    )
+    def forward(
+        self,
+        input_ids=None,
+        bbox=None,
+        attention_mask=None,
+        token_type_ids=None,
+        position_ids=None,
+        head_mask=None,
+        inputs_embeds=None,
+        labels=None,
+        output_attentions=None,
+        output_hidden_states=None,
+        return_dict=None,
+    ):
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        outputs = self.layoutlm(
+            input_ids=input_ids,
+            bbox=bbox,
+            attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
+            position_ids=position_ids,
+            head_mask=head_mask,
+            inputs_embeds=inputs_embeds,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+
+        pooled_output = outputs[1]
+
+        pooled_output = self.dropout(pooled_output)
+        logits = self.classifier(pooled_output)
+
+        loss = None
+        if labels is not None:
+            if self.num_labels == 1:
+                #  We are doing regression
+                loss_fct = MSELoss()
+                loss = loss_fct(logits.view(-1), labels.view(-1))
+            else:
+                loss_fct = CrossEntropyLoss()
+                loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
+
+        if not return_dict:
+            output = (logits,) + outputs[2:]
+            return ((loss,) + output) if loss is not None else output
+
+        return SequenceClassifierOutput(
+            loss=loss,
+            logits=logits,
+            hidden_states=outputs.hidden_states,
+            attentions=outputs.attentions,
+        )
+
+
+@add_start_docstrings(
+    """
     LayoutLM Model with a token classification head on top (a linear layer on top of the hidden-states output) e.g. for
-    Named-Entity-Recognition (NER) tasks.
+    sequence labeling (information extraction) tasks such as the `FUNSD <https://guillaumejaume.github.io/FUNSD/>`__ dataset and 
+    the `SROIE <https://rrc.cvc.uab.es/?ch=13>`__ dataset.
     """,
     LAYOUTLM_START_DOCSTRING,
 )

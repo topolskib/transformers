@@ -28,6 +28,7 @@ if is_torch_available():
     from .modeling_layoutlm import (
         LAYOUTLM_PRETRAINED_MODEL_ARCHIVE_LIST,
         LayoutLMForMaskedLM,
+        LayoutLMForSequenceClassification,
         LayoutLMForTokenClassification,
         LayoutLMModel,
     )

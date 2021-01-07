@@ -888,6 +888,195 @@ if is_tf_available():
             "TFCTRLModel",
             "TFCTRLPreTrainedModel",
         ]
+    from .models.dpr import (
+        DPR_CONTEXT_ENCODER_PRETRAINED_MODEL_ARCHIVE_LIST,
+        DPR_QUESTION_ENCODER_PRETRAINED_MODEL_ARCHIVE_LIST,
+        DPR_READER_PRETRAINED_MODEL_ARCHIVE_LIST,
+        DPRContextEncoder,
+        DPRPretrainedContextEncoder,
+        DPRPretrainedQuestionEncoder,
+        DPRPretrainedReader,
+        DPRQuestionEncoder,
+        DPRReader,
+    )
+    from .models.electra import (
+        ELECTRA_PRETRAINED_MODEL_ARCHIVE_LIST,
+        ElectraForMaskedLM,
+        ElectraForMultipleChoice,
+        ElectraForPreTraining,
+        ElectraForQuestionAnswering,
+        ElectraForSequenceClassification,
+        ElectraForTokenClassification,
+        ElectraModel,
+        ElectraPreTrainedModel,
+        load_tf_weights_in_electra,
+    )
+    from .models.encoder_decoder import EncoderDecoderModel
+    from .models.flaubert import (
+        FLAUBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
+        FlaubertForMultipleChoice,
+        FlaubertForQuestionAnswering,
+        FlaubertForQuestionAnsweringSimple,
+        FlaubertForSequenceClassification,
+        FlaubertForTokenClassification,
+        FlaubertModel,
+        FlaubertWithLMHeadModel,
+    )
+    from .models.fsmt import FSMTForConditionalGeneration, FSMTModel, PretrainedFSMTModel
+    from .models.funnel import (
+        FUNNEL_PRETRAINED_MODEL_ARCHIVE_LIST,
+        FunnelBaseModel,
+        FunnelForMaskedLM,
+        FunnelForMultipleChoice,
+        FunnelForPreTraining,
+        FunnelForQuestionAnswering,
+        FunnelForSequenceClassification,
+        FunnelForTokenClassification,
+        FunnelModel,
+        load_tf_weights_in_funnel,
+    )
+    from .models.gpt2 import (
+        GPT2_PRETRAINED_MODEL_ARCHIVE_LIST,
+        GPT2DoubleHeadsModel,
+        GPT2ForSequenceClassification,
+        GPT2LMHeadModel,
+        GPT2Model,
+        GPT2PreTrainedModel,
+        load_tf_weights_in_gpt2,
+    )
+    from .models.layoutlm import (
+        LAYOUTLM_PRETRAINED_MODEL_ARCHIVE_LIST,
+        LayoutLMForMaskedLM,
+        LayoutLMForSequenceClassification,
+        LayoutLMForTokenClassification,
+        LayoutLMModel,
+    )
+    from .models.led import (
+        LED_PRETRAINED_MODEL_ARCHIVE_LIST,
+        LEDForConditionalGeneration,
+        LEDForQuestionAnswering,
+        LEDForSequenceClassification,
+        LEDModel,
+    )
+    from .models.longformer import (
+        LONGFORMER_PRETRAINED_MODEL_ARCHIVE_LIST,
+        LongformerForMaskedLM,
+        LongformerForMultipleChoice,
+        LongformerForQuestionAnswering,
+        LongformerForSequenceClassification,
+        LongformerForTokenClassification,
+        LongformerModel,
+        LongformerSelfAttention,
+    )
+    from .models.lxmert import (
+        LxmertEncoder,
+        LxmertForPreTraining,
+        LxmertForQuestionAnswering,
+        LxmertModel,
+        LxmertPreTrainedModel,
+        LxmertVisualFeatureEncoder,
+        LxmertXLayer,
+    )
+    from .models.marian import MarianModel, MarianMTModel
+    from .models.mbart import (
+        MBartForConditionalGeneration,
+        MBartForQuestionAnswering,
+        MBartForSequenceClassification,
+        MBartModel,
+    )
+    from .models.mmbt import MMBTForClassification, MMBTModel, ModalEmbeddings
+    from .models.mobilebert import (
+        MOBILEBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
+        MobileBertForMaskedLM,
+        MobileBertForMultipleChoice,
+        MobileBertForNextSentencePrediction,
+        MobileBertForPreTraining,
+        MobileBertForQuestionAnswering,
+        MobileBertForSequenceClassification,
+        MobileBertForTokenClassification,
+        MobileBertLayer,
+        MobileBertModel,
+        MobileBertPreTrainedModel,
+        load_tf_weights_in_mobilebert,
+    )
+    from .models.mpnet import (
+        MPNET_PRETRAINED_MODEL_ARCHIVE_LIST,
+        MPNetForMaskedLM,
+        MPNetForMultipleChoice,
+        MPNetForQuestionAnswering,
+        MPNetForSequenceClassification,
+        MPNetForTokenClassification,
+        MPNetLayer,
+        MPNetModel,
+        MPNetPreTrainedModel,
+    )
+    from .models.mt5 import MT5EncoderModel, MT5ForConditionalGeneration, MT5Model
+    from .models.openai import (
+        OPENAI_GPT_PRETRAINED_MODEL_ARCHIVE_LIST,
+        OpenAIGPTDoubleHeadsModel,
+        OpenAIGPTForSequenceClassification,
+        OpenAIGPTLMHeadModel,
+        OpenAIGPTModel,
+        OpenAIGPTPreTrainedModel,
+        load_tf_weights_in_openai_gpt,
+    )
+    from .models.pegasus import PegasusForConditionalGeneration, PegasusModel
+    from .models.prophetnet import (
+        PROPHETNET_PRETRAINED_MODEL_ARCHIVE_LIST,
+        ProphetNetDecoder,
+        ProphetNetEncoder,
+        ProphetNetForCausalLM,
+        ProphetNetForConditionalGeneration,
+        ProphetNetModel,
+        ProphetNetPreTrainedModel,
+    )
+    from .models.rag import RagModel, RagSequenceForGeneration, RagTokenForGeneration
+    from .models.reformer import (
+        REFORMER_PRETRAINED_MODEL_ARCHIVE_LIST,
+        ReformerAttention,
+        ReformerForMaskedLM,
+        ReformerForQuestionAnswering,
+        ReformerForSequenceClassification,
+        ReformerLayer,
+        ReformerModel,
+        ReformerModelWithLMHead,
+    )
+    from .models.retribert import RETRIBERT_PRETRAINED_MODEL_ARCHIVE_LIST, RetriBertModel, RetriBertPreTrainedModel
+    from .models.roberta import (
+        ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST,
+        RobertaForCausalLM,
+        RobertaForMaskedLM,
+        RobertaForMultipleChoice,
+        RobertaForQuestionAnswering,
+        RobertaForSequenceClassification,
+        RobertaForTokenClassification,
+        RobertaModel,
+    )
+    from .models.squeezebert import (
+        SQUEEZEBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
+        SqueezeBertForMaskedLM,
+        SqueezeBertForMultipleChoice,
+        SqueezeBertForQuestionAnswering,
+        SqueezeBertForSequenceClassification,
+        SqueezeBertForTokenClassification,
+        SqueezeBertModel,
+        SqueezeBertModule,
+        SqueezeBertPreTrainedModel,
+    )
+    from .models.t5 import (
+        T5_PRETRAINED_MODEL_ARCHIVE_LIST,
+        T5EncoderModel,
+        T5ForConditionalGeneration,
+        T5Model,
+        T5PreTrainedModel,
+        load_tf_weights_in_t5,
+    )
+    from .models.tapas import (
+        TAPAS_PRETRAINED_MODEL_ARCHIVE_LIST,
+        TapasForMaskedLM,
+        TapasForQuestionAnswering,
+        TapasForSequenceClassification,
+        TapasModel,
     )
     _import_structure["models.distilbert"].extend(
         [
