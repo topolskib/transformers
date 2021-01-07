@@ -753,13 +753,17 @@ class LayoutLMModel(LayoutLMPreTrainedModel):
             ...    word_tokens = tokenizer.tokenize(word)
             ...    tokens.extend(word_tokens)
             ...    token_boxes.extend([box] * len(word_tokens))
+
+            >>> # add cls + sep tokens
+            >>> tokens = [tokenizer.cls_token] + tokens + [tokenizer.sep_token]
+            >>> token_boxes = [[0, 0, 0, 0]] + token_boxes + [[1000, 1000, 1000, 1000]]
             
             >>> input_ids = torch.tensor(tokenizer.convert_tokens_to_ids(tokens)).unsqueeze(0) # batch size of 1
             >>> bbox = torch.tensor(token_boxes).unsqueeze(0) # batch size of 1
-            >>> attention_mask = torch.tensor([1] * input_ids.shape[-1]).unsqueeze(0) # batch size of 1
-            >>> token_type_ids = torch.tensor([0] * input_ids.shape[-1]).unsqueeze(0) # batch size of 1
+            >>> attention_mask = torch.tensor([1] * len(tokens)).unsqueeze(0) # batch size of 1
+            >>> token_type_ids = torch.tensor([0] * len(tokens)).unsqueeze(0) # batch size of 1
             
-            >>> outputs = model(input_ids=input_ids, bbox=normalized_boxes, attention_mask=attention_mask, token_type_ids=token_type_ids)
+            >>> outputs = model(input_ids=input_ids, bbox=bbox, attention_mask=attention_mask, token_type_ids=token_type_ids)
             
             >>> last_hidden_states = outputs.last_hidden_state
         """
@@ -875,17 +879,22 @@ class LayoutLMForMaskedLM(LayoutLMPreTrainedModel):
         return_dict=None,
     ):
         r"""
+        labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size, sequence_length)`, `optional`):
+            Labels for computing the masked language modeling loss. Indices should be in ``[-100, 0, ...,
+            config.vocab_size]`` (see ``input_ids`` docstring) Tokens with indices set to ``-100`` are ignored
+            (masked), the loss is only computed for the tokens with labels in ``[0, ..., config.vocab_size]``
+
         Returns:
 
         Examples::
 
-            >>> from transformers import LayoutLMTokenizer, LayoutLMModel
+            >>> from transformers import LayoutLMTokenizer, LayoutLMForMaskedLM
             >>> import torch
             
             >>> tokenizer = LayoutLMTokenizer.from_pretrained('microsoft/layoutlm-base-uncased')
-            >>> model = LayoutLMModel.from_pretrained('microsoft/layoutlm-base-uncased')
+            >>> model = LayoutLMForMaskedLM.from_pretrained('microsoft/layoutlm-base-uncased')
             
-            >>> words = ["Hello", "world"]
+            >>> words = ["Hello", "[MASK]"]
             >>> normalized_word_boxes = [637, 773, 693, 782], [698, 773, 733, 782]
             >>> inputs = tokenizer(words, return_tensors="pt")
             >>> input_ids = inputs['input_ids']
@@ -899,14 +908,21 @@ class LayoutLMForMaskedLM(LayoutLMPreTrainedModel):
             ...    tokens.extend(word_tokens)
             ...    token_boxes.extend([box] * len(word_tokens))
             
+            >>> # add cls + sep tokens
+            >>> tokens = [tokenizer.cls_token] + tokens + [tokenizer.sep_token]
+            >>> token_boxes = [[0, 0, 0, 0]] + token_boxes + [[1000, 1000, 1000, 1000]]
+            
             >>> input_ids = torch.tensor(tokenizer.convert_tokens_to_ids(tokens)).unsqueeze(0) # batch size of 1
             >>> bbox = torch.tensor(token_boxes).unsqueeze(0) # batch size of 1
-            >>> attention_mask = torch.tensor([1] * input_ids.shape[-1]).unsqueeze(0) # batch size of 1
-            >>> token_type_ids = torch.tensor([0] * input_ids.shape[-1]).unsqueeze(0) # batch size of 1
+            >>> attention_mask = torch.tensor([1] * len(tokens)).unsqueeze(0) # batch size of 1
+            >>> token_type_ids = torch.tensor([0] * len(tokens)).unsqueeze(0) # batch size of 1
+
+            >>> labels = tokenizer("Hello world", return_tensors="pt")["input_ids"]
             
-            >>> outputs = model(input_ids=input_ids, bbox=normalized_boxes, attention_mask=attention_mask, token_type_ids=token_type_ids)
+            >>> outputs = model(input_ids=input_ids, bbox=bbox, attention_mask=attention_mask, token_type_ids=token_type_ids,
+            ...                 labels=labels)
             
-            >>> last_hidden_states = outputs.last_hidden_state
+            >>> loss = outputs.loss
         """
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
@@ -988,30 +1004,21 @@ class LayoutLMForSequenceClassification(LayoutLMPreTrainedModel):
         output_hidden_states=None,
         return_dict=None,
     ):
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-
-        outputs = self.layoutlm(
-            input_ids=input_ids,
-            bbox=bbox,
-            attention_mask=attention_mask,
-            token_type_ids=token_type_ids,
-            position_ids=position_ids,
-            head_mask=head_mask,
-            inputs_embeds=inputs_embeds,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
-        )
         r"""
+        labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size,)`, `optional`):
+            Labels for computing the sequence classification/regression loss. Indices should be in :obj:`[0, ...,
+            config.num_labels - 1]`. If :obj:`config.num_labels == 1` a regression loss is computed (Mean-Square loss),
+            If :obj:`config.num_labels > 1` a classification loss is computed (Cross-Entropy). 
+        
         Returns:
 
         Examples::
 
-            >>> from transformers import LayoutLMTokenizer, LayoutLMModel
+            >>> from transformers import LayoutLMTokenizer, LayoutLMForSequenceClassification
             >>> import torch
             
             >>> tokenizer = LayoutLMTokenizer.from_pretrained('microsoft/layoutlm-base-uncased')
-            >>> model = LayoutLMModel.from_pretrained('microsoft/layoutlm-base-uncased')
+            >>> model = LayoutLMForSequenceClassification.from_pretrained('microsoft/layoutlm-base-uncased')
             
             >>> words = ["Hello", "world"]
             >>> normalized_word_boxes = [637, 773, 693, 782], [698, 773, 733, 782]
@@ -1026,16 +1033,38 @@ class LayoutLMForSequenceClassification(LayoutLMPreTrainedModel):
             ...    word_tokens = tokenizer.tokenize(word)
             ...    tokens.extend(word_tokens)
             ...    token_boxes.extend([box] * len(word_tokens))
+
+            >>> # add cls + sep tokens
+            >>> tokens = [tokenizer.cls_token] + tokens + [tokenizer.sep_token]
+            >>> token_boxes = [[0, 0, 0, 0]] + token_boxes + [[1000, 1000, 1000, 1000]]
             
             >>> input_ids = torch.tensor(tokenizer.convert_tokens_to_ids(tokens)).unsqueeze(0) # batch size of 1
             >>> bbox = torch.tensor(token_boxes).unsqueeze(0) # batch size of 1
-            >>> attention_mask = torch.tensor([1] * input_ids.shape[-1]).unsqueeze(0) # batch size of 1
-            >>> token_type_ids = torch.tensor([0] * input_ids.shape[-1]).unsqueeze(0) # batch size of 1
+            >>> attention_mask = torch.tensor([1] * len(tokens)).unsqueeze(0) # batch size of 1
+            >>> token_type_ids = torch.tensor([0] * len(tokens)).unsqueeze(0) # batch size of 1
             
-            >>> outputs = model(input_ids=input_ids, bbox=normalized_boxes, attention_mask=attention_mask, token_type_ids=token_type_ids)
+            >>> sequence_label = torch.tensor([1]) 
             
-            >>> last_hidden_states = outputs.last_hidden_state
+            >>> outputs = model(input_ids=input_ids, bbox=bbox, attention_mask=attention_mask, token_type_ids=token_type_ids,
+            ...                 labels=sequence_label)
+            
+            >>> loss = outputs.loss
+            >>> logits = outputs.logits
         """
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        outputs = self.layoutlm(
+            input_ids=input_ids,
+            bbox=bbox,
+            attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
+            position_ids=position_ids,
+            head_mask=head_mask,
+            inputs_embeds=inputs_embeds,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
 
         pooled_output = outputs[1]
 
@@ -1106,15 +1135,19 @@ class LayoutLMForTokenClassification(LayoutLMPreTrainedModel):
         return_dict=None,
     ):
         r"""
+        labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size, sequence_length)`, `optional`):
+            Labels for computing the token classification loss. Indices should be in ``[0, ..., config.num_labels -
+            1]``.
+
         Returns:
 
         Examples::
 
-            >>> from transformers import LayoutLMTokenizer, LayoutLMModel
+            >>> from transformers import LayoutLMTokenizer, LayoutLMForTokenClassification
             >>> import torch
             
             >>> tokenizer = LayoutLMTokenizer.from_pretrained('microsoft/layoutlm-base-uncased')
-            >>> model = LayoutLMModel.from_pretrained('microsoft/layoutlm-base-uncased')
+            >>> model = LayoutLMForTokenClassification.from_pretrained('microsoft/layoutlm-base-uncased')
             
             >>> words = ["Hello", "world"]
             >>> normalized_word_boxes = [637, 773, 693, 782], [698, 773, 733, 782]
@@ -1130,14 +1163,21 @@ class LayoutLMForTokenClassification(LayoutLMPreTrainedModel):
             ...    tokens.extend(word_tokens)
             ...    token_boxes.extend([box] * len(word_tokens))
             
+            >>> # add cls + sep tokens
+            >>> tokens = [tokenizer.cls_token] + tokens + [tokenizer.sep_token]
+            >>> token_boxes = [[0, 0, 0, 0]] + token_boxes + [[1000, 1000, 1000, 1000]]
+            
             >>> input_ids = torch.tensor(tokenizer.convert_tokens_to_ids(tokens)).unsqueeze(0) # batch size of 1
             >>> bbox = torch.tensor(token_boxes).unsqueeze(0) # batch size of 1
-            >>> attention_mask = torch.tensor([1] * input_ids.shape[-1]).unsqueeze(0) # batch size of 1
-            >>> token_type_ids = torch.tensor([0] * input_ids.shape[-1]).unsqueeze(0) # batch size of 1
+            >>> attention_mask = torch.tensor([1] * len(tokens)).unsqueeze(0) # batch size of 1
+            >>> token_type_ids = torch.tensor([0] * len(tokens)).unsqueeze(0) # batch size of 1
+            >>> token_labels = torch.tensor([1,1,0,0]).unsqueeze(0) # batch size of 1
             
-            >>> outputs = model(input_ids=input_ids, bbox=normalized_boxes, attention_mask=attention_mask, token_type_ids=token_type_ids)
+            >>> outputs = model(input_ids=input_ids, bbox=bbox, attention_mask=attention_mask, token_type_ids=token_type_ids,
+            ...                 labels=token_labels)
             
-            >>> last_hidden_states = outputs.last_hidden_state
+            >>> loss = outputs.loss
+            >>> logits = outputs.logits
         """
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
