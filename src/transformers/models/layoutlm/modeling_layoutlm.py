@@ -22,9 +22,10 @@ from torch import nn
 from torch.nn import CrossEntropyLoss
 
 from ...activations import ACT2FN
-from ...file_utils import add_code_sample_docstrings, add_start_docstrings, add_start_docstrings_to_model_forward
+from ...file_utils import replace_return_docstrings, add_start_docstrings, add_start_docstrings_to_model_forward
 from ...modeling_outputs import (
     BaseModelOutputWithPastAndCrossAttentions,
+    BaseModelOutputWithPooling,
     BaseModelOutputWithPoolingAndCrossAttentions,
     MaskedLMOutput,
     SequenceClassifierOutput,
@@ -712,12 +713,7 @@ class LayoutLMModel(LayoutLMPreTrainedModel):
             self.encoder.layer[layer].attention.prune_heads(heads)
 
     @add_start_docstrings_to_model_forward(LAYOUTLM_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
-    @add_code_sample_docstrings(
-        tokenizer_class=_TOKENIZER_FOR_DOC,
-        checkpoint="layoutlm-base-uncased",
-        output_type=BaseModelOutputWithPoolingAndCrossAttentions,
-        config_class=_CONFIG_FOR_DOC,
-    )
+    @replace_return_docstrings(output_type=BaseModelOutputWithPooling, config_class=_CONFIG_FOR_DOC)
     def forward(
         self,
         input_ids=None,
@@ -733,31 +729,39 @@ class LayoutLMModel(LayoutLMPreTrainedModel):
         output_hidden_states=None,
         return_dict=None,
     ):
-        """
-        input_ids (torch.LongTensor of shape (batch_size, sequence_length)):
-            Indices of input sequence tokens in the vocabulary.
-        attention_mask (torch.FloatTensor of shape (batch_size, sequence_length), optional):
-            Mask to avoid performing attention on padding token indices. Mask values selected in [0, 1]: 1 for tokens
-            that are NOT MASKED, 0 for MASKED tokens.
-        token_type_ids (torch.LongTensor of shape (batch_size, sequence_length), optional):
-            Segment token indices to indicate first and second portions of the inputs. Indices are selected in [0, 1]:
-            0 corresponds to a sentence A token, 1 corresponds to a sentence B token
-        position_ids (torch.LongTensor of shape (batch_size, sequence_length), optional):
-            Indices of positions of each input sequence tokens in the position embeddings. Selected in the range [0,
-            config.max_position_embeddings - 1].
-        head_mask (torch.FloatTensor of shape (num_heads,) or (num_layers, num_heads), optional):
-            Mask to nullify selected heads of the self-attention modules. Mask values selected in [0, 1]: 1 indicates
-            the head is not masked, 0 indicates the head is masked.
-        inputs_embeds (torch.FloatTensor of shape (batch_size, sequence_length, hidden_size), optional):
-            Optionally, instead of passing input_ids you can choose to directly pass an embedded representation. This
-            is useful if you want more control over how to convert input_ids indices into associated vectors than the
-            model’s internal embedding lookup matrix.
-        output_attentions (bool, optional):
-            If set to True, the attentions tensors of all attention layers are returned.
-        output_hidden_states (bool, optional):
-            If set to True, the hidden states of all layers are returned.
-        return_dict (bool, optional):
-            If set to True, the model will return a ModelOutput instead of a plain tuple.
+        r"""
+        Returns:
+
+        Examples::
+
+            >>> from transformers import LayoutLMTokenizer, LayoutLMModel
+            >>> import torch
+            
+            >>> tokenizer = LayoutLMTokenizer.from_pretrained('microsoft/layoutlm-base-uncased')
+            >>> model = LayoutLMModel.from_pretrained('microsoft/layoutlm-base-uncased')
+            
+            >>> words = ["Hello", "world"]
+            >>> normalized_word_boxes = [637, 773, 693, 782], [698, 773, 733, 782]
+            >>> inputs = tokenizer(words, return_tensors="pt")
+            >>> input_ids = inputs['input_ids']
+            >>> attention_mask = inputs['attention_mask']
+            >>> token_type_ids = inputs['token_type_ids']
+
+            >>> tokens = []
+            >>> token_boxes = []
+            >>> for word, box in zip(words, normalized_word_boxes):
+            ...    word_tokens = tokenizer.tokenize(word)
+            ...    tokens.extend(word_tokens)
+            ...    token_boxes.extend([box] * len(word_tokens))
+            
+            >>> input_ids = torch.tensor(tokenizer.convert_tokens_to_ids(tokens)).unsqueeze(0) # batch size of 1
+            >>> bbox = torch.tensor(token_boxes).unsqueeze(0) # batch size of 1
+            >>> attention_mask = torch.tensor([1] * input_ids.shape[-1]).unsqueeze(0) # batch size of 1
+            >>> token_type_ids = torch.tensor([0] * input_ids.shape[-1]).unsqueeze(0) # batch size of 1
+            
+            >>> outputs = model(input_ids=input_ids, bbox=normalized_boxes, attention_mask=attention_mask, token_type_ids=token_type_ids)
+            
+            >>> last_hidden_states = outputs.last_hidden_state
         """
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
@@ -853,12 +857,7 @@ class LayoutLMForMaskedLM(LayoutLMPreTrainedModel):
         self.cls.predictions.decoder = new_embeddings
 
     @add_start_docstrings_to_model_forward(LAYOUTLM_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
-    @add_code_sample_docstrings(
-        tokenizer_class=_TOKENIZER_FOR_DOC,
-        checkpoint="layoutlm-base-uncased",
-        output_type=MaskedLMOutput,
-        config_class=_CONFIG_FOR_DOC,
-    )
+    @replace_return_docstrings(output_type=MaskedLMOutput, config_class=_CONFIG_FOR_DOC)
     def forward(
         self,
         input_ids=None,
@@ -875,7 +874,40 @@ class LayoutLMForMaskedLM(LayoutLMPreTrainedModel):
         output_hidden_states=None,
         return_dict=None,
     ):
+        r"""
+        Returns:
 
+        Examples::
+
+            >>> from transformers import LayoutLMTokenizer, LayoutLMModel
+            >>> import torch
+            
+            >>> tokenizer = LayoutLMTokenizer.from_pretrained('microsoft/layoutlm-base-uncased')
+            >>> model = LayoutLMModel.from_pretrained('microsoft/layoutlm-base-uncased')
+            
+            >>> words = ["Hello", "world"]
+            >>> normalized_word_boxes = [637, 773, 693, 782], [698, 773, 733, 782]
+            >>> inputs = tokenizer(words, return_tensors="pt")
+            >>> input_ids = inputs['input_ids']
+            >>> attention_mask = inputs['attention_mask']
+            >>> token_type_ids = inputs['token_type_ids']
+
+            >>> tokens = []
+            >>> token_boxes = []
+            >>> for word, box in zip(words, normalized_word_boxes):
+            ...    word_tokens = tokenizer.tokenize(word)
+            ...    tokens.extend(word_tokens)
+            ...    token_boxes.extend([box] * len(word_tokens))
+            
+            >>> input_ids = torch.tensor(tokenizer.convert_tokens_to_ids(tokens)).unsqueeze(0) # batch size of 1
+            >>> bbox = torch.tensor(token_boxes).unsqueeze(0) # batch size of 1
+            >>> attention_mask = torch.tensor([1] * input_ids.shape[-1]).unsqueeze(0) # batch size of 1
+            >>> token_type_ids = torch.tensor([0] * input_ids.shape[-1]).unsqueeze(0) # batch size of 1
+            
+            >>> outputs = model(input_ids=input_ids, bbox=normalized_boxes, attention_mask=attention_mask, token_type_ids=token_type_ids)
+            
+            >>> last_hidden_states = outputs.last_hidden_state
+        """
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         outputs = self.layoutlm(
@@ -941,12 +973,7 @@ class LayoutLMForSequenceClassification(LayoutLMPreTrainedModel):
         return self.layoutlm.embeddings.word_embeddings
 
     @add_start_docstrings_to_model_forward(LAYOUTLM_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
-    @add_code_sample_docstrings(
-        tokenizer_class=_TOKENIZER_FOR_DOC,
-        checkpoint="layoutlm-base-uncased",
-        output_type=SequenceClassifierOutput,
-        config_class=_CONFIG_FOR_DOC,
-    )
+    @replace_return_docstrings(output_type=SequenceClassifierOutput, config_class=_CONFIG_FOR_DOC)
     def forward(
         self,
         input_ids=None,
@@ -975,6 +1002,40 @@ class LayoutLMForSequenceClassification(LayoutLMPreTrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
+        r"""
+        Returns:
+
+        Examples::
+
+            >>> from transformers import LayoutLMTokenizer, LayoutLMModel
+            >>> import torch
+            
+            >>> tokenizer = LayoutLMTokenizer.from_pretrained('microsoft/layoutlm-base-uncased')
+            >>> model = LayoutLMModel.from_pretrained('microsoft/layoutlm-base-uncased')
+            
+            >>> words = ["Hello", "world"]
+            >>> normalized_word_boxes = [637, 773, 693, 782], [698, 773, 733, 782]
+            >>> inputs = tokenizer(words, return_tensors="pt")
+            >>> input_ids = inputs['input_ids']
+            >>> attention_mask = inputs['attention_mask']
+            >>> token_type_ids = inputs['token_type_ids']
+
+            >>> tokens = []
+            >>> token_boxes = []
+            >>> for word, box in zip(words, normalized_word_boxes):
+            ...    word_tokens = tokenizer.tokenize(word)
+            ...    tokens.extend(word_tokens)
+            ...    token_boxes.extend([box] * len(word_tokens))
+            
+            >>> input_ids = torch.tensor(tokenizer.convert_tokens_to_ids(tokens)).unsqueeze(0) # batch size of 1
+            >>> bbox = torch.tensor(token_boxes).unsqueeze(0) # batch size of 1
+            >>> attention_mask = torch.tensor([1] * input_ids.shape[-1]).unsqueeze(0) # batch size of 1
+            >>> token_type_ids = torch.tensor([0] * input_ids.shape[-1]).unsqueeze(0) # batch size of 1
+            
+            >>> outputs = model(input_ids=input_ids, bbox=normalized_boxes, attention_mask=attention_mask, token_type_ids=token_type_ids)
+            
+            >>> last_hidden_states = outputs.last_hidden_state
+        """
 
         pooled_output = outputs[1]
 
@@ -1029,12 +1090,7 @@ class LayoutLMForTokenClassification(LayoutLMPreTrainedModel):
         return self.layoutlm.embeddings.word_embeddings
 
     @add_start_docstrings_to_model_forward(LAYOUTLM_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
-    @add_code_sample_docstrings(
-        tokenizer_class=_TOKENIZER_FOR_DOC,
-        checkpoint="layoutlm-base-uncased",
-        output_type=TokenClassifierOutput,
-        config_class=_CONFIG_FOR_DOC,
-    )
+    @replace_return_docstrings(output_type=TokenClassifierOutput, config_class=_CONFIG_FOR_DOC)
     def forward(
         self,
         input_ids=None,
@@ -1049,6 +1105,40 @@ class LayoutLMForTokenClassification(LayoutLMPreTrainedModel):
         output_hidden_states=None,
         return_dict=None,
     ):
+        r"""
+        Returns:
+
+        Examples::
+
+            >>> from transformers import LayoutLMTokenizer, LayoutLMModel
+            >>> import torch
+            
+            >>> tokenizer = LayoutLMTokenizer.from_pretrained('microsoft/layoutlm-base-uncased')
+            >>> model = LayoutLMModel.from_pretrained('microsoft/layoutlm-base-uncased')
+            
+            >>> words = ["Hello", "world"]
+            >>> normalized_word_boxes = [637, 773, 693, 782], [698, 773, 733, 782]
+            >>> inputs = tokenizer(words, return_tensors="pt")
+            >>> input_ids = inputs['input_ids']
+            >>> attention_mask = inputs['attention_mask']
+            >>> token_type_ids = inputs['token_type_ids']
+
+            >>> tokens = []
+            >>> token_boxes = []
+            >>> for word, box in zip(words, normalized_word_boxes):
+            ...    word_tokens = tokenizer.tokenize(word)
+            ...    tokens.extend(word_tokens)
+            ...    token_boxes.extend([box] * len(word_tokens))
+            
+            >>> input_ids = torch.tensor(tokenizer.convert_tokens_to_ids(tokens)).unsqueeze(0) # batch size of 1
+            >>> bbox = torch.tensor(token_boxes).unsqueeze(0) # batch size of 1
+            >>> attention_mask = torch.tensor([1] * input_ids.shape[-1]).unsqueeze(0) # batch size of 1
+            >>> token_type_ids = torch.tensor([0] * input_ids.shape[-1]).unsqueeze(0) # batch size of 1
+            
+            >>> outputs = model(input_ids=input_ids, bbox=normalized_boxes, attention_mask=attention_mask, token_type_ids=token_type_ids)
+            
+            >>> last_hidden_states = outputs.last_hidden_state
+        """
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         outputs = self.layoutlm(
