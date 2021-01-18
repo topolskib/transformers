@@ -599,14 +599,15 @@ class LukePreTrainedModel(PreTrainedModel):
     config_class = LukeConfig
     base_model_prefix = "luke"
 
-    # Copied from transformers.models.bert.modeling_bert.BertPreTrainedModel._init_weights
-    def _init_weights(self, module):
-        """ Initialize the weights """
-        if isinstance(module, (nn.Linear, nn.Embedding)):
-            # Slightly different from the TF version which uses truncated_normal for initialization
-            # cf https://github.com/pytorch/pytorch/pull/5617
+    def init_weights(self, module: nn.Module):
+        if isinstance(module, nn.Linear):
             module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
-        elif isinstance(module, nn.LayerNorm):
+        elif isinstance(module, nn.Embedding):
+            if module.embedding_dim == 1:  # embedding for bias parameters
+                module.weight.data.zero_()
+            else:
+                module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+        elif isinstance(module, BertLayerNorm):
             module.bias.data.zero_()
             module.weight.data.fill_(1.0)
         if isinstance(module, nn.Linear) and module.bias is not None:
@@ -856,8 +857,8 @@ class LukeModel(LukePreTrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
-        sequence_output = encoder_outputs[0]
-        pooled_output = self.pooler(sequence_output) if self.pooler is not None else None
+        word_sequence_output = encoder_outputs[0]
+        pooled_output = self.pooler(word_sequence_output) if self.pooler is not None else None
 
         if entity_ids is not None:
             entity_sequence_output = sequence_output[:, word_seq_size:, :]
@@ -869,7 +870,7 @@ class LukeModel(LukePreTrainedModel):
             return (sequence_output, pooled_output) + encoder_outputs[1:]
 
         return BaseModelOutputWithPoolingAndCrossAttentions(
-            last_hidden_state=sequence_output,
+            last_hidden_state=word_sequence_output,
             pooler_output=pooled_output,
             past_key_values=encoder_outputs.past_key_values,
             hidden_states=encoder_outputs.hidden_states,
