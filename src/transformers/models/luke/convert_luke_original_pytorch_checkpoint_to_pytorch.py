@@ -16,11 +16,9 @@
 
 
 import argparse
-import os
-from pathlib import Path
+import json
 
 import torch
-from packaging import version
 
 from ...utils import logging
 from . import LukeConfig, LukeEntityAwareAttentionModel
@@ -31,16 +29,18 @@ logger = logging.get_logger(__name__)
 
 
 @torch.no_grad()
-def convert_luke_checkpoint(checkpoint_path, pytorch_dump_folder_path):
-    """
-    Copy/paste/tweak model's weights to our BERT structure.
-    """
-    # First, define our model 
-    config = LukeConfig()
+def convert_luke_checkpoint(checkpoint_path, metadata_path, pytorch_dump_folder_path):
+
+    with open(metadata_path) as metadata_file:
+            metadata = json.load(metadata_file)
+    
+    # First, define our model based on configuration
+    config = LukeConfig(**metadata["model_config"])
     model = LukeEntityAwareAttentionModel(config=config)
 
-    # Second, load in the weights from the checkpoint_path
-    model.load_state_dict(torch.load(checkpoint_path))
+    # Second, load in the weights from the checkpoint_path 
+    state_dict = torch.load(checkpoint_path, map_location="cpu")
+    model.load_state_dict(state_dict)
     
     # Finally, save our PyTorch model
     model.save_pretrained(pytorch_dump_folder_path)
@@ -50,8 +50,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     # Required parameters
     parser.add_argument(
-        "checkpoint_path", type=str, help="path to a pytorch_model.bin on local filesystem."
+        "checkpoint_path", type=str, help="Path to a pytorch_model.bin file."
     )
-    parser.add_argument("pytorch_dump_folder_path", default=None, type=str, help="Path to the output PyTorch model.")
+    parser.add_argument("metadata_path", default=None, type=str, help="Path to a metadata.json file, defining the configuration.")
+    parser.add_argument("pytorch_dump_folder_path", default=None, type=str, help="Path to where to dump the output PyTorch model.")
     args = parser.parse_args()
-    convert_luke_checkpoint(args.checkpoint_path, args.pytorch_dump_folder_path)
+    convert_luke_checkpoint(args.checkpoint_path, args.metadata_path, args.pytorch_dump_folder_path)
