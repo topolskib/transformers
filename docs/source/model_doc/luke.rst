@@ -18,9 +18,9 @@ Overview
 
 The LUKE model was proposed in `LUKE: Deep Contextualized Entity Representations with Entity-aware Self-attention
 <https://arxiv.org/abs/2010.01057>`_ by Ikuya Yamada, Akari Asai, Hiroyuki Shindo, Hideaki Takeda and Yuji Matsumoto. 
-It is based on Google's BERT model released in 2018. It adds entity embeddings as well as an entity-aware self-attention mechanism, 
-which helps improve performance on several downstream tasks involving reasoning about entities such as named-entity recognition, 
-extractive and cloze-style question answering, entity linking and relation classification between entities.
+It is based on RoBERTa and adds entity embeddings as well as an entity-aware self-attention mechanism, which helps improve 
+performance on several downstream tasks involving reasoning about entities such as named-entity recognition, extractive and 
+cloze-style question answering, entity linking and relation classification between entities. 
 
 The abstract from the paper is the following:
 
@@ -33,12 +33,12 @@ that is an extension of the self-attention mechanism of the transformer, and con
 when computing attention scores. The proposed model achieves impressive empirical performance on a wide range of entity-related 
 tasks. In particular, it obtains state-of-the-art results on five well-known datasets: Open Entity (entity typing), TACRED 
 (relation classification), CoNLL-2003 (named entity recognition), ReCoRD (cloze-style question answering), and SQuAD 1.1 
-(extractive question answering). Our source code and pretrained representations are available at `this https URL <https://github.com/studio-ousia/luke>`__.*
+(extractive question answering).*
 
 Tips:
 
 - This implementation is the same as :class:`~transformers.RobertaModel` with the addition of entity embeddings as well as an entity-
-  aware self-attention mechanism.
+  aware self-attention mechanism, which improves performance on tasks involing reasoning about entities.
 - LUKE adds :obj:`entity_ids`, :obj:`entity_attention_mask`, :obj:`entity_token_type_ids` and :obj:`entity_position_ids` as extra input
   to the model. You can obtain those using :class:`LukeTokenizer`.
 

@@ -384,6 +384,7 @@ TensorFlow and/or Flax.
     model_doc/layoutlm
     model_doc/led
     model_doc/longformer
+    model_doc/luke
     model_doc/lxmert
     model_doc/marian
     model_doc/mbart

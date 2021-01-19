@@ -46,6 +46,7 @@ from ...modeling_utils import (
 )
 from ...utils import logging
 from .configuration_luke import LukeConfig
+from dataclasses import dataclass
 
 
 logger = logging.get_logger(__name__)
@@ -57,6 +58,72 @@ LUKE_PRETRAINED_MODEL_ARCHIVE_LIST = [
     "luke-large",
     # See all LUKE models at https://huggingface.co/models?filter=luke
 ]
+
+@dataclass
+class BaseLukeModelOutputWithPoolingAndCrossAttentions(ModelOutput):
+    """
+    Base class for entity-aware model's outputs that also contains a pooling of the last hidden states.
+
+    Args:
+        last_hidden_state (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length - max_entity_length, hidden_size)`):
+            Sequence of hidden-states at the output of the last layer of the model.
+        entity_last_hidden_state (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, max_entity_length, hidden_size)`):
+            Sequence of entity hidden-states at the output of the last layer of the model.
+        pooler_output (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, hidden_size)`):
+            Last layer hidden-state of the first token of the sequence (classification token) further processed by a
+            Linear layer and a Tanh activation function. The Linear layer weights are trained from the next sentence
+            prediction (classification) objective during pretraining.
+        hidden_states (:obj:`tuple(torch.FloatTensor)`, `optional`, returned when ``output_hidden_states=True`` is passed or when ``config.output_hidden_states=True``):
+            Tuple of :obj:`torch.FloatTensor` (one for the output of the embeddings + one for the output of each layer)
+            of shape :obj:`(batch_size, sequence_length, hidden_size)`.
+
+            Hidden-states of the model at the output of each layer plus the initial embedding outputs.
+        attentions (:obj:`tuple(torch.FloatTensor)`, `optional`, returned when ``output_attentions=True`` is passed or when ``config.output_attentions=True``):
+            Tuple of :obj:`torch.FloatTensor` (one for each layer) of shape :obj:`(batch_size, num_heads,
+            sequence_length, sequence_length)`.
+
+            Attentions weights after the attention softmax, used to compute the weighted average in the self-attention
+            heads.
+        cross_attentions (:obj:`tuple(torch.FloatTensor)`, `optional`, returned when ``output_attentions=True`` and ``config.add_cross_attention=True`` is passed or when ``config.output_attentions=True``):
+            Tuple of :obj:`torch.FloatTensor` (one for each layer) of shape :obj:`(batch_size, num_heads,
+            sequence_length, sequence_length)`.
+
+            Attentions weights of the decoder's cross-attention layer, after the attention softmax, used to compute the
+            weighted average in the cross-attention heads.
+        past_key_values (:obj:`tuple(tuple(torch.FloatTensor))`, `optional`, returned when ``use_cache=True`` is passed or when ``config.use_cache=True``):
+            Tuple of :obj:`tuple(torch.FloatTensor)` of length :obj:`config.n_layers`, with each tuple having 2 tensors
+            of shape :obj:`(batch_size, num_heads, sequence_length, embed_size_per_head)`) and optionally if
+            ``config.is_encoder_decoder=True`` 2 additional tensors of shape :obj:`(batch_size, num_heads,
+            encoder_sequence_length, embed_size_per_head)`.
+
+            Contains pre-computed hidden-states (key and values in the self-attention blocks and optionally if
+            ``config.is_encoder_decoder=True`` in the cross-attention blocks) that can be used (see
+            :obj:`past_key_values` input) to speed up sequential decoding.
+    """
+
+    last_hidden_state: torch.FloatTensor = None
+    entity_last_hidden_state: torch.FloatTensor = None
+    pooler_output: torch.FloatTensor = None
+    hidden_states: Optional[Tuple[torch.FloatTensor]] = None
+    past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
+    attentions: Optional[Tuple[torch.FloatTensor]] = None
+    cross_attentions: Optional[Tuple[torch.FloatTensor]] = None
+
+
+@dataclass
+class BaseLukeEntityAwareAttentionModelOutputWithPoolingAndCrossAttentions(ModelOutput):
+    """
+    Base class for entity-aware model's outputs with entity-aware self-attention mechanism.
+
+    Args:
+        last_hidden_state (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length - max_entity_length, hidden_size)`):
+            Sequence of hidden-states at the output of the last layer of the model.
+        entity_last_hidden_state (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, max_entity_length, hidden_size)`):
+            Sequence of entity hidden-states at the output of the last layer of the model.
+    """
+
+    last_hidden_state: torch.FloatTensor = None
+    entity_last_hidden_state: torch.FloatTensor = None
 
 
 # Copied from transformers.models.roberta.modeling_bert.RobertaEmbeddings with Roberta -> Luke
@@ -690,7 +757,7 @@ LUKE_INPUTS_DOCSTRING = r"""
             Optionally, instead of passing :obj:`input_ids` you can choose to directly pass an embedded representation.
             This is useful if you want more control over how to convert :obj:`input_ids` indices into associated
             vectors than the model's internal embedding lookup matrix.
-            
+
         head_mask (:obj:`torch.FloatTensor` of shape :obj:`(num_heads,)` or :obj:`(num_layers, num_heads)`, `optional`):
             Mask to nullify selected heads of the self-attention modules. Mask values selected in ``[0, 1]``:
 
@@ -858,6 +925,7 @@ class LukeModel(LukePreTrainedModel):
         # and head_mask is converted to shape [num_hidden_layers x batch x num_heads x seq_length x seq_length]
         head_mask = self.get_head_mask(head_mask, self.config.num_hidden_layers)
 
+        # First, compute word embeddings
         embedding_output = self.embeddings(
             input_ids=input_ids,
             position_ids=position_ids,
@@ -866,11 +934,14 @@ class LukeModel(LukePreTrainedModel):
             past_key_values_length=past_key_values_length,
         )
 
+        # Second, compute extended attention mask
         extended_attention_mask = self._compute_extended_attention_mask(attention_mask, entity_attention_mask)
+        # Third, compute entity embeddings and concatenate with word embeddings
         if entity_ids is not None:
             entity_embedding_output = self.entity_embeddings(entity_ids, entity_position_ids, entity_token_type_ids)
             embedding_output = torch.cat([embedding_output, entity_embedding_output], dim=1)
 
+        # Fourth, send embeddings through the model 
         encoder_outputs = self.encoder(
             embedding_output,
             attention_mask=extended_attention_mask,
@@ -883,20 +954,24 @@ class LukeModel(LukePreTrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
-        word_sequence_output = encoder_outputs[0]
-        pooled_output = self.pooler(word_sequence_output) if self.pooler is not None else None
-
+        
+        # Fifth, get the output. LukeModel outputs the same as BertModel, namely sequence_output of shape (batch_size, seq_len, hidden_size)
+        sequence_output = encoder_outputs[0]
+        
+        # Sixth, we compute the pooled_output, word_sequence_output and entity_sequence_output based on the sequence_output
+        pooled_output = self.pooler(sequence_output) if self.pooler is not None else None
+        word_seq_len = input_ids.shape[1]
+        word_sequence_output = sequence_output[:, :word_seq_len, :]
+        entity_sequence_output = None
         if entity_ids is not None:
-            entity_sequence_output = sequence_output[:, word_seq_size:, :]
-            return (word_sequence_output, entity_sequence_output, pooled_output,) + encoder_outputs[1:]
-        else:
-            return (word_sequence_output, pooled_output,) + encoder_outputs[1:]
+            entity_sequence_output = sequence_output[:, word_seq_len:, :]
         
         if not return_dict:
-            return (sequence_output, pooled_output) + encoder_outputs[1:]
+            return (word_sequence_output, entity_sequence_output, pooled_output,) + encoder_outputs[1:]
 
-        return BaseModelOutputWithPoolingAndCrossAttentions(
+        return BaseLukeModelOutputWithPoolingAndCrossAttentions(
             last_hidden_state=word_sequence_output,
+            entity_last_hidden_state=entity_sequence_output,
             pooler_output=pooled_output,
             past_key_values=encoder_outputs.past_key_values,
             hidden_states=encoder_outputs.hidden_states,
