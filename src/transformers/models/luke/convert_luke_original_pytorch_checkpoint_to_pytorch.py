@@ -29,32 +29,6 @@ from . import LukeConfig, LukeEntityAwareAttentionModel
 logging.set_verbosity_info()
 logger = logging.get_logger(__name__)
 
-MODEL_FILE = "pytorch_model.bin"
-
-luke_rename_keys = [
-    ("model.classification_heads.mnli.dense.weight", "classification_head.dense.weight"),
-    ("model.classification_heads.mnli.dense.bias", "classification_head.dense.bias"),
-    ("model.classification_heads.mnli.out_proj.weight", "classification_head.out_proj.weight"),
-    ("model.classification_heads.mnli.out_proj.bias", "classification_head.out_proj.bias"),
-]
-
-
-def remove_ignore_keys_(state_dict):
-    ignore_keys = [
-        "encoder.version",
-        "decoder.version",
-        "model.encoder.version",
-        "model.decoder.version",
-        "_float_tensor",
-    ]
-    for k in ignore_keys:
-        state_dict.pop(k, None)
-
-
-def rename_key(dct, old, new):
-    val = dct.pop(old)
-    dct[new] = val
-
 
 @torch.no_grad()
 def convert_luke_checkpoint(checkpoint_path, pytorch_dump_folder_path):

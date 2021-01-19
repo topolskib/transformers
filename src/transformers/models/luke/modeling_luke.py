@@ -15,6 +15,8 @@
 """PyTorch LUKE model. """
 
 import math
+from dataclasses import dataclass
+from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -23,6 +25,7 @@ from torch.nn import CrossEntropyLoss, MSELoss
 
 from ...activations import ACT2FN, gelu
 from ...file_utils import (
+    ModelOutput,
     add_code_sample_docstrings,
     add_start_docstrings,
     add_start_docstrings_to_model_forward,
@@ -31,12 +34,7 @@ from ...file_utils import (
 from ...modeling_outputs import (
     BaseModelOutputWithPastAndCrossAttentions,
     BaseModelOutputWithPoolingAndCrossAttentions,
-    CausalLMOutputWithCrossAttentions,
     MaskedLMOutput,
-    MultipleChoiceModelOutput,
-    QuestionAnsweringModelOutput,
-    SequenceClassifierOutput,
-    TokenClassifierOutput,
 )
 from ...modeling_utils import (
     PreTrainedModel,
@@ -46,7 +44,6 @@ from ...modeling_utils import (
 )
 from ...utils import logging
 from .configuration_luke import LukeConfig
-from dataclasses import dataclass
 
 
 logger = logging.get_logger(__name__)
