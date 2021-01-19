@@ -174,6 +174,7 @@ _import_structure = {
     "models.layoutlm": ["LAYOUTLM_PRETRAINED_CONFIG_ARCHIVE_MAP", "LayoutLMConfig", "LayoutLMTokenizer"],
     "models.led": ["LED_PRETRAINED_CONFIG_ARCHIVE_MAP", "LEDConfig", "LEDTokenizer"],
     "models.longformer": ["LONGFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP", "LongformerConfig", "LongformerTokenizer"],
+    "models.luke": ["LUKE_PRETRAINED_CONFIG_ARCHIVE_MAP", "LukeConfig",],
     "models.lxmert": ["LXMERT_PRETRAINED_CONFIG_ARCHIVE_MAP", "LxmertConfig", "LxmertTokenizer"],
     "models.marian": ["MarianConfig"],
     "models.mbart": ["MBartConfig"],
@@ -586,6 +587,14 @@ if is_torch_available():
             "LongformerForTokenClassification",
             "LongformerModel",
             "LongformerSelfAttention",
+        ]
+    )
+    _import_structure["models.luke"].extend(
+        [
+            "LUKE_PRETRAINED_MODEL_ARCHIVE_LIST",
+            "LukeForMaskedLM",
+            "LukeModel",
+            "LukeEntityAwareAttentionModel",
         ]
     )
     _import_structure["models.lxmert"].extend(
@@ -1253,6 +1262,7 @@ if TYPE_CHECKING:
     from .models.layoutlm import LAYOUTLM_PRETRAINED_CONFIG_ARCHIVE_MAP, LayoutLMConfig, LayoutLMTokenizer
     from .models.led import LED_PRETRAINED_CONFIG_ARCHIVE_MAP, LEDConfig, LEDTokenizer
     from .models.longformer import LONGFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP, LongformerConfig, LongformerTokenizer
+    from .models.luke import LUKE_PRETRAINED_CONFIG_ARCHIVE_MAP, LukeConfig
     from .models.lxmert import LXMERT_PRETRAINED_CONFIG_ARCHIVE_MAP, LxmertConfig, LxmertTokenizer
     from .models.marian import MarianConfig
     from .models.mbart import MBartConfig
@@ -1620,6 +1630,12 @@ if TYPE_CHECKING:
             LongformerForTokenClassification,
             LongformerModel,
             LongformerSelfAttention,
+        )
+        from .models.luke import (
+            LUKE_PRETRAINED_MODEL_ARCHIVE_LIST,
+            LukeForMaskedLM,
+            LukeModel,
+            LukeEntityAwareAttentionModel,
         )
         from .models.lxmert import (
             LxmertEncoder,

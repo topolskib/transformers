@@ -1,6 +1,5 @@
 # coding=utf-8
-# Copyright (...) and The HuggingFace Inc. team.
-# Copyright (c) 2018, NVIDIA CORPORATION.  All rights reserved.
+# Copyright Studio Ousia and The HuggingFace Inc. team.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -45,9 +44,9 @@ class LukeConfig(BertConfig):
     """
     model_type = "luke"
 
-    def __init__(self, vocab_size: int, entity_vocab_size: int, entity_emb_size: int = None, **kwargs):
+    def __init__(self, entity_vocab_size: int = 500000, entity_emb_size: int = None, **kwargs):
         """Constructs LukeConfig."""
-        super(LukeConfig, self).__init__(vocab_size, **kwargs)
+        super(LukeConfig, self).__init__(**kwargs)
 
         self.entity_vocab_size = entity_vocab_size
         if entity_emb_size is None:
