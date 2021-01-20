@@ -20,7 +20,7 @@ import json
 
 import torch
 
-from . import LukeConfig, LukeEntityAwareAttentionModel
+from transformers import LukeConfig, LukeEntityAwareAttentionModel
 
 
 @torch.no_grad()
