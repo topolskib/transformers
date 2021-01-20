@@ -20,12 +20,7 @@ import json
 
 import torch
 
-from ...utils import logging
 from . import LukeConfig, LukeEntityAwareAttentionModel
-
-
-logging.set_verbosity_info()
-logger = logging.get_logger(__name__)
 
 
 @torch.no_grad()
