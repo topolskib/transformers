@@ -17,6 +17,7 @@
 # limitations under the License.
 
 from . import (
+    detr,
     albert,
     auto,
     bart,
@@ -28,7 +29,6 @@ from . import (
     blenderbot,
     blenderbot_small,
     camembert,
-    convbert,
     ctrl,
     deberta,
     dialogpt,
