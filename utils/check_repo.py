@@ -30,6 +30,8 @@ PATH_TO_DOC = "docs/source"
 # Being in this list is an exception and should **not** be the rule.
 IGNORE_NON_TESTED = [
     # models to ignore for not tested
+"DetrEncoder",  # Building part of bigger (tested) model.
+    "DetrDecoder",  # Building part of bigger (tested) model.
     "LEDEncoder",  # Building part of bigger (tested) model.
     "LEDDecoder",  # Building part of bigger (tested) model.
     "BartDecoder",  # Building part of bigger (tested) model.
@@ -52,7 +54,6 @@ IGNORE_NON_TESTED = [
     "TFDPRSpanPredictor",  # Building part of bigger (tested) model.
     "TFElectraMainLayer",  # Building part of bigger (tested) model (should it be a TFPreTrainedModel ?)
     "TFRobertaForMultipleChoice",  # TODO: fix
-    "SeparableConv1D",  # Building part of bigger (tested) model.
 ]
 
 # Update this list with test files that don't have a tester with a `all_model_classes` variable and which don't
@@ -75,6 +76,8 @@ TEST_FILES_WITH_NO_COMMON_TESTS = [
 # should **not** be the rule.
 IGNORE_NON_AUTO_CONFIGURED = [
     # models to ignore for model xxx mapping
+"DetrEncoder",
+    "DetrDecoder",
     "LEDEncoder",
     "LEDDecoder",
     "BartDecoder",
@@ -117,7 +120,6 @@ IGNORE_NON_AUTO_CONFIGURED = [
     "XLMProphetNetDecoder",
     "XLMProphetNetEncoder",
     "XLNetForQuestionAnswering",
-    "SeparableConv1D",
 ]
 
 # This is to make sure the transformers module imported is the one in the repo.
