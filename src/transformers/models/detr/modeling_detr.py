@@ -431,8 +431,8 @@ class DetrAttention(nn.Module):
         key_value_states: Optional[torch.Tensor] = None,
         past_key_value: Optional[Tuple[torch.Tensor]] = None,
         attention_mask: Optional[torch.Tensor] = None,
-        position_embeddings: Optional(torch.Tensor) = None,
-        query_position_embeddings: Optional(torch.Tensor) = None,
+        position_embeddings: Optional[torch.Tensor] = None,
+        query_position_embeddings: Optional[torch.Tensor] = None,
         output_attentions: bool = False,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         """Input shape: Batch x Time x Channel"""
