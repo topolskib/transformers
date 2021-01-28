@@ -1345,7 +1345,7 @@ class DetrModel(DetrPreTrainedModel):
         print(encoder_outputs[0].shape)
         
         # Fifth, sent query embeddings + position embeddings through the decoder (which is conditioned on the encoder output)
-        query_embeddings = self.query_embeddings.weight.unsqueeze(1).repeat(batch_size, 1, 1)
+        query_embeddings = self.query_embeddings.weight.unsqueeze(0).repeat(batch_size, 1, 1)
         tgt = torch.zeros_like(query_embeddings)
         print("Shape of tgt as input to decoder:")
         print(tgt.shape)
