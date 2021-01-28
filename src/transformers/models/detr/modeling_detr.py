@@ -1339,13 +1339,13 @@ class DetrModel(DetrPreTrainedModel):
                 attentions=encoder_outputs[2] if len(encoder_outputs) > 2 else None,
             )
 
-        # Fifth, sent query embeddings + position embeddings through the decoder
+        # Fifth, sent query embeddings + position embeddings through the decoder (which is conditioned on the encoder output)
         query_embeddings = self.query_embeddings.weight.unsqueeze(1).repeat(1, batch_size, 1)
         tgt = torch.zeros_like(query_embeddings)
         # decoder outputs consists of (dec_features, past_key_value, dec_hidden, dec_attn)
         decoder_outputs = self.decoder(
             inputs_embeds=tgt,
-            attention_mask=mask,
+            attention_mask=None,
             #position_embeddings=position_embeddings,
             #query_position_embeddings=query_embeddings,
             encoder_hidden_states=encoder_outputs[0],
