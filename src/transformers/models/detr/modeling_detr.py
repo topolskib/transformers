@@ -1342,7 +1342,7 @@ class DetrModel(DetrPreTrainedModel):
             #position_embeddings=position_embeddings,
             #query_position_embeddings=query_embeddings,
             encoder_hidden_states=encoder_outputs[0],
-            encoder_attention_mask=attention_mask,
+            encoder_attention_mask=mask,
             past_key_values=past_key_values,
             use_cache=use_cache,
             output_attentions=output_attentions,
