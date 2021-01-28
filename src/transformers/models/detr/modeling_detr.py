@@ -1314,9 +1314,11 @@ class DetrModel(DetrPreTrainedModel):
         batch_size, c, h, w = src.shape
         print(src.shape)
         src = src.flatten(2).permute(0, 2, 1)
+        print("Shape of input to the encoder:")
         print(src.shape)
         position_embeddings = position_embeddings_list[-1].flatten(2).permute(0, 2, 1)
         mask = mask.flatten(1)
+        print("Shape of mask to the encoder:")
         print(mask.shape)
         
         # Fourth, sent src + mask + position embeddings through encoder 
@@ -1339,9 +1341,16 @@ class DetrModel(DetrPreTrainedModel):
                 attentions=encoder_outputs[2] if len(encoder_outputs) > 2 else None,
             )
 
+        print("Shape of encoder outputs:")
+        print(encoder_outputs[0].shape)
+        
         # Fifth, sent query embeddings + position embeddings through the decoder (which is conditioned on the encoder output)
         query_embeddings = self.query_embeddings.weight.unsqueeze(1).repeat(1, batch_size, 1)
         tgt = torch.zeros_like(query_embeddings)
+        print("Shape of tgt as input to decoder:")
+        print(tgt.shape)
+        print("Shape of query embeddings as input to decoder:")
+        print(query_embeddings.shape)
         # decoder outputs consists of (dec_features, past_key_value, dec_hidden, dec_attn)
         decoder_outputs = self.decoder(
             inputs_embeds=tgt,
