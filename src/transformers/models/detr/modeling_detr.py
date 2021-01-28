@@ -431,10 +431,12 @@ class DetrAttention(nn.Module):
         key_value_states: Optional[torch.Tensor] = None,
         past_key_value: Optional[Tuple[torch.Tensor]] = None,
         attention_mask: Optional[torch.Tensor] = None,
+        position_embeddings: Optional(torch.Tensor) = None,
+        query_position_embeddings: Optional(torch.Tensor) = None,
         output_attentions: bool = False,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         """Input shape: Batch x Time x Channel"""
-
+        
         # if key_value_states are provided this layer is used as a cross-attention layer
         # for the decoder
         is_cross_attention = key_value_states is not None
@@ -457,7 +459,7 @@ class DetrAttention(nn.Module):
             value_states = self._shape(self.v_proj(hidden_states), -1, bsz)
             key_states = torch.cat([past_key_value[0], key_states], dim=2)
             value_states = torch.cat([past_key_value[1], value_states], dim=2)
-        else:
+        else:          
             # self_attention
             key_states = self._shape(self.k_proj(hidden_states), -1, bsz)
             value_states = self._shape(self.v_proj(hidden_states), -1, bsz)
@@ -546,12 +548,14 @@ class DetrEncoderLayer(nn.Module):
         self.fc2 = nn.Linear(config.encoder_ffn_dim, self.embed_dim)
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
 
-    def forward(self, hidden_states: torch.Tensor, attention_mask: torch.Tensor, output_attentions: bool = False):
+    def forward(self, hidden_states: torch.Tensor, attention_mask: torch.Tensor, position_embeddings: torch.Tensor,
+                    output_attentions: bool = False):
         """
         Args:
             hidden_states (:obj:`torch.FloatTensor`): input to the layer of shape `(seq_len, batch, embed_dim)`
             attention_mask (:obj:`torch.FloatTensor`): attention mask of size
                 `(batch, 1, tgt_len, src_len)` where padding elements are indicated by very large negative values.
+            position_embeddings (:obj:`torch.FloatTensor`): position embeddings, to be added to hidden_states.
             output_attentions (:obj:`bool`, `optional`):
                 Whether or not to return the attentions tensors of all attention layers. See ``attentions`` under
                 returned tensors for more detail.
@@ -882,7 +886,7 @@ class DetrEncoder(DetrPreTrainedModel):
         input_ids=None,
         attention_mask=None,
         inputs_embeds=None,
-        position_embeds=None,
+        position_embeddings=None,
         output_attentions=None,
         output_hidden_states=None,
         return_dict=None,
@@ -925,23 +929,27 @@ class DetrEncoder(DetrPreTrainedModel):
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         # retrieve input_ids and inputs_embeds
-        if input_ids is not None and inputs_embeds is not None:
-            raise ValueError("You cannot specify both input_ids and inputs_embeds at the same time")
-        elif input_ids is not None:
-            input_shape = input_ids.size()
-            input_ids = input_ids.view(-1, input_shape[-1])
-        elif inputs_embeds is not None:
-            input_shape = inputs_embeds.size()[:-1]
-        else:
-            raise ValueError("You have to specify either input_ids or inputs_embeds")
+        # if input_ids is not None and inputs_embeds is not None:
+        #     raise ValueError("You cannot specify both input_ids and inputs_embeds at the same time")
+        # elif input_ids is not None:
+        #     input_shape = input_ids.size()
+        #     input_ids = input_ids.view(-1, input_shape[-1])
+        # elif inputs_embeds is not None:
+        #     input_shape = inputs_embeds.size()[:-1]
+        # else:
+        #     raise ValueError("You have to specify either input_ids or inputs_embeds")
 
-        if inputs_embeds is None:
-            inputs_embeds = self.embed_tokens(input_ids) * self.embed_scale
+        # if inputs_embeds is None:
+        #     inputs_embeds = self.embed_tokens(input_ids) * self.embed_scale
 
-        embed_pos = self.embed_positions(input_shape)
+        # embed_pos = self.embed_positions(input_shape)
 
-        # add position embeddings
-        hidden_states = inputs_embeds + embed_pos
+        # # add position embeddings
+        # hidden_states = inputs_embeds + embed_pos
+        # hidden_states = self.layernorm_embedding(hidden_states)
+        # hidden_states = F.dropout(hidden_states, p=self.dropout, training=self.training)
+
+        hidden_states = inputs_embeds
         hidden_states = self.layernorm_embedding(hidden_states)
         hidden_states = F.dropout(hidden_states, p=self.dropout, training=self.training)
 
@@ -974,7 +982,11 @@ class DetrEncoder(DetrPreTrainedModel):
                         attention_mask,
                     )
                 else:
-                    layer_outputs = encoder_layer(hidden_states, attention_mask, output_attentions=output_attentions)
+                    layer_outputs = encoder_layer(hidden_states, 
+                                                  attention_mask, 
+                                                  position_embeddings=position_embeddings, 
+                                                  output_attentions=output_attentions
+                    )
 
                 hidden_states = layer_outputs[0]
 
@@ -1298,11 +1310,13 @@ class DetrModel(DetrPreTrainedModel):
         mask = mask.flatten(1)
         
         # Fourth, sent src + mask + position embeddings through encoder 
+        # src is a Tensor of shape (batch_size, heigth*width, hidden_size) 
+        # mask is a Tensor of shape (batch_size, heigth*width)
         if encoder_outputs is None:
             encoder_outputs = self.encoder(
-                inputs_embeds=src,
+                inputs_embeds=src, 
                 attention_mask=mask,
-                #position_embeds=position_embeddings,
+                position_embeddings=position_embeddings,
                 output_attentions=output_attentions,
                 output_hidden_states=output_hidden_states,
                 return_dict=return_dict,
@@ -1322,8 +1336,8 @@ class DetrModel(DetrPreTrainedModel):
         decoder_outputs = self.decoder(
             inputs_embeds=tgt,
             attention_mask=mask,
-            #position_embeds=position_embeddings,
-            #query_position_embeds=query_embeddings,
+            #position_embeddings=position_embeddings,
+            #query_position_embeddings=query_embeddings,
             encoder_hidden_states=encoder_outputs[0],
             encoder_attention_mask=attention_mask,
             past_key_values=past_key_values,
