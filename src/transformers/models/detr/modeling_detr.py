@@ -1333,7 +1333,7 @@ class DetrModel(DetrPreTrainedModel):
             )
 
         # Fifth, sent query embeddings + position embeddings through the decoder
-        query_embeddings = self.query_embeddings.unsqueeze(1).repeat(1, batch_size, 1)
+        query_embeddings = self.query_embeddings.weight.unsqueeze(1).repeat(1, batch_size, 1)
         tgt = torch.zeros_like(query_embeddings)
         # decoder outputs consists of (dec_features, past_key_value, dec_hidden, dec_attn)
         decoder_outputs = self.decoder(
