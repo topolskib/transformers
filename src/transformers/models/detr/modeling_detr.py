@@ -1020,10 +1020,12 @@ class DetrDecoder(DetrPreTrainedModel):
         self.max_target_positions = config.max_position_embeddings
         self.embed_scale = math.sqrt(config.d_model) if config.scale_embedding else 1.0
 
-        if embed_tokens is not None:
-            self.embed_tokens = embed_tokens
-        else:
-            self.embed_tokens = nn.Embedding(config.vocab_size, config.d_model, self.padding_idx)
+        # don't think we need embed_tokens (output tokens) here, since we are just updating the query embeddings
+        
+        # if embed_tokens is not None:
+        #     self.embed_tokens = embed_tokens
+        # else:
+        #     self.embed_tokens = nn.Embedding(config.vocab_size, config.d_model, self.padding_idx)
 
         # self.embed_positions = DetrLearnedPositionalEmbedding(
         #     config.max_position_embeddings,
@@ -1125,6 +1127,11 @@ class DetrDecoder(DetrPreTrainedModel):
         # create causal mask
         # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
         combined_attention_mask = None
+        
+        # added this (Niels) to infer input_shape:
+        if inputs_embeds is not None:
+           input_shape = inputs_embeds.size()[:-1]
+        
         if input_shape[-1] > 1:
             combined_attention_mask = _make_causal_mask(
                 input_shape, inputs_embeds.dtype, past_key_values_length=past_key_values_length
@@ -1142,9 +1149,9 @@ class DetrDecoder(DetrPreTrainedModel):
             encoder_attention_mask = _expand_mask(encoder_attention_mask, inputs_embeds.dtype, tgt_len=input_shape[-1])
 
         # embed positions
-        positions = self.embed_positions(input_shape, past_key_values_length)
+        # positions = self.embed_positions(input_shape, past_key_values_length)
 
-        hidden_states = inputs_embeds + positions
+        # hidden_states = inputs_embeds + positions
         hidden_states = self.layernorm_embedding(hidden_states)
 
         hidden_states = F.dropout(hidden_states, p=self.dropout, training=self.training)
@@ -1245,7 +1252,7 @@ class DetrModel(DetrPreTrainedModel):
         self.query_embeddings = nn.Embedding(config.num_queries, config.d_model)
         
         self.encoder = DetrEncoder(config)
-        self.decoder = DetrDecoder(config, self.query_embeddings)
+        self.decoder = DetrDecoder(config)
 
         self.init_weights()
 
