@@ -1310,7 +1310,7 @@ class DetrModel(DetrPreTrainedModel):
         print(src.shape)
         position_embeddings = position_embeddings_list[-1].flatten(2).permute(0, 2, 1)
         mask = mask.flatten(1)
-        pritn(mask.shape)
+        print(mask.shape)
         
         # Fourth, sent src + mask + position embeddings through encoder 
         # src is a Tensor of shape (batch_size, heigth*width, hidden_size) 
