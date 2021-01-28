@@ -72,6 +72,10 @@ def _max_by_axis(the_list):
 
 
 class NestedTensor(object):
+    """
+    Data type that handles different types of inputs (either list of images or list of sequences),
+    and computes the padded output (with masking).
+    """
     def __init__(self, tensors, mask: Optional[Tensor]):
         self.tensors = tensors
         self.mask = mask
@@ -115,7 +119,7 @@ def nested_tensor_from_tensor_list(tensor_list: List[Tensor]):
             pad_img[: img.shape[0], : img.shape[1], : img.shape[2]].copy_(img)
             m[: img.shape[1], :img.shape[2]] = False
     else:
-        raise ValueError('not supported')
+        raise ValueError('Not supported')
     return NestedTensor(tensor, mask)
 
 
@@ -1090,15 +1094,15 @@ class DetrDecoder(DetrPreTrainedModel):
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         # retrieve input_ids and inputs_embeds
-        if input_ids is not None and inputs_embeds is not None:
-            raise ValueError("You cannot specify both decoder_input_ids and decoder_inputs_embeds at the same time")
-        elif input_ids is not None:
-            input_shape = input_ids.size()
-            input_ids = input_ids.view(-1, input_shape[-1])
-        elif inputs_embeds is not None:
-            input_shape = inputs_embeds.size()[:-1]
-        else:
-            raise ValueError("You have to specify either decoder_input_ids or decoder_inputs_embeds")
+        # if input_ids is not None and inputs_embeds is not None:
+        #     raise ValueError("You cannot specify both decoder_input_ids and decoder_inputs_embeds at the same time")
+        # elif input_ids is not None:
+        #     input_shape = input_ids.size()
+        #     input_ids = input_ids.view(-1, input_shape[-1])
+        # elif inputs_embeds is not None:
+        #     input_shape = inputs_embeds.size()[:-1]
+        # else:
+        #     raise ValueError("You have to specify either decoder_input_ids or decoder_inputs_embeds")
 
         # past_key_values_length
         past_key_values_length = past_key_values[0][0].shape[2] if past_key_values is not None else 0
@@ -1218,10 +1222,12 @@ class DetrModel(DetrPreTrainedModel):
     def __init__(self, config: DetrConfig):
         super().__init__(config)
 
+        # Create backbone + positional encoding
         backbone = Backbone(config.backbone, config.train_backbone, config.masks, config.dilation)
         position_embeddings = build_position_encoding(config)
         self.backbone = Joiner(backbone, position_embeddings)
 
+        # Create projection layer
         self.input_projection = nn.Conv2d(backbone.num_channels, config.d_model, kernel_size=1)
 
         self.query_embeddings = nn.Embedding(config.num_queries, config.d_model)
@@ -1281,18 +1287,17 @@ class DetrModel(DetrPreTrainedModel):
         src, mask = features[-1].decompose()
         assert mask is not None
 
-        # Second, apply 1x1 convolution to reduce the channel dimension
+        # Second, apply 1x1 convolution to reduce the channel dimension to d_model (256 by default)
         src = self.input_projection(src)
         
         # Third, flatten the feature map + position embeddings of shape NxCxHxW to NxCxHW, and permute it to NxHWxC
-        # In other words, shape (batch_size, sequence_length, hidden_size)
+        # In other words, turn their shape into (batch_size, sequence_length, hidden_size)
         batch_size, c, h, w = src.shape
         src = src.flatten(2).permute(0, 2, 1)
         position_embeddings = position_embeddings.flatten(2).permute(0, 2, 1)
-        query_embeddings = self.query_embeddings.unsqueeze(1).repeat(1, batch_size, 1)
         mask = mask.flatten(1)
         
-        # Fourth, sent through encoder 
+        # Fourth, sent src + mask + position embeddings through encoder 
         if encoder_outputs is None:
             encoder_outputs = self.encoder(
                 inputs_embeds=src,
@@ -1310,11 +1315,15 @@ class DetrModel(DetrPreTrainedModel):
                 attentions=encoder_outputs[2] if len(encoder_outputs) > 2 else None,
             )
 
+        # Fifth, sent query embeddings + position embeddings through the decoder
+        query_embeddings = self.query_embeddings.unsqueeze(1).repeat(1, batch_size, 1)
+        tgt = torch.zeros_like(query_embeddings)
         # decoder outputs consists of (dec_features, past_key_value, dec_hidden, dec_attn)
         decoder_outputs = self.decoder(
-            inputs_embeds=self.query_embeddings,
-            attention_mask=decoder_attention_mask,
+            inputs_embeds=tgt,
+            attention_mask=mask,
             #position_embeds=position_embeddings,
+            #query_position_embeds=query_embeddings,
             encoder_hidden_states=encoder_outputs[0],
             encoder_attention_mask=attention_mask,
             past_key_values=past_key_values,

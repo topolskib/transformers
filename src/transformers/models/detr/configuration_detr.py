@@ -42,7 +42,7 @@ class DetrConfig(PretrainedConfig):
         num_queries (:obj:`int`, `optional`, defaults to 100):
             Number of object queries, i.e. detection slots. This is the maximal number of objects
             :class:`~transformers.DetrModel` can detect in a single image. For COCO, we recommend 100 queries.
-        d_model (:obj:`int`, `optional`, defaults to 1024):
+        d_model (:obj:`int`, `optional`, defaults to 256):
             Dimensionality of the layers and the pooler layer.
         encoder_layers (:obj:`int`, `optional`, defaults to 12):
             Number of encoder layers.
@@ -52,9 +52,9 @@ class DetrConfig(PretrainedConfig):
             Number of attention heads for each attention layer in the Transformer encoder.
         decoder_attention_heads (:obj:`int`, `optional`, defaults to 16):
             Number of attention heads for each attention layer in the Transformer decoder.
-        decoder_ffn_dim (:obj:`int`, `optional`, defaults to 4096):
+        decoder_ffn_dim (:obj:`int`, `optional`, defaults to 2048):
             Dimensionality of the "intermediate" (often named feed-forward) layer in decoder.
-        encoder_ffn_dim (:obj:`int`, `optional`, defaults to 4096):
+        encoder_ffn_dim (:obj:`int`, `optional`, defaults to 2048):
             Dimensionality of the "intermediate" (often named feed-forward) layer in decoder.
         activation_function (:obj:`str` or :obj:`function`, `optional`, defaults to :obj:`"gelu"`):
             The non-linear activation function (function or string) in the encoder and pooler. If string,
