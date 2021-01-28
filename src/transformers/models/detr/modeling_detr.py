@@ -17,11 +17,12 @@
 
 import math
 import random
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, Dict, List
 
 import torch
 import torch.nn.functional as F
 import torchvision
+from torchvision.models._utils import IntermediateLayerGetter
 from torch import nn
 from torch.nn import CrossEntropyLoss
 from torch import Tensor
@@ -39,8 +40,6 @@ from ...modeling_outputs import (
     BaseModelOutputWithPastAndCrossAttentions,
     Seq2SeqLMOutput,
     Seq2SeqModelOutput,
-    Seq2SeqQuestionAnsweringModelOutput,
-    Seq2SeqSequenceClassifierOutput,
 )
 from ...modeling_utils import PreTrainedModel
 from ...utils import logging
@@ -60,7 +59,8 @@ DETR_PRETRAINED_MODEL_ARCHIVE_LIST = [
 
 
 ## BELOW: utilities copied from 
-# https://github.com/facebookresearch/detr/blob/a54b77800eb8e64e3ad0d8237789fcbf2f8350c5/util/misc.py#L306
+# https://github.com/facebookresearch/detr/blob/a54b77800eb8e64e3ad0d8237789fcbf2f8350c5/util/misc.py
+
 
 def _max_by_axis(the_list):
     # type: (List[List[int]]) -> List[int]
@@ -150,6 +150,103 @@ def _onnx_nested_tensor_from_tensor_list(tensor_list: List[Tensor]) -> NestedTen
     return NestedTensor(tensor, mask=mask)
 
 
+## BELOW: utilities copied from 
+# https://github.com/facebookresearch/detr/blob/a54b77800eb8e64e3ad0d8237789fcbf2f8350c5/backbone.py
+
+
+class FrozenBatchNorm2d(torch.nn.Module):
+    """
+    BatchNorm2d where the batch statistics and the affine parameters are fixed.
+
+    Copy-paste from torchvision.misc.ops with added eps before rqsrt,
+    without which any other models than torchvision.models.resnet[18,34,50,101]
+    produce nans.
+    """
+
+    def __init__(self, n):
+        super(FrozenBatchNorm2d, self).__init__()
+        self.register_buffer("weight", torch.ones(n))
+        self.register_buffer("bias", torch.zeros(n))
+        self.register_buffer("running_mean", torch.zeros(n))
+        self.register_buffer("running_var", torch.ones(n))
+
+    def _load_from_state_dict(self, state_dict, prefix, local_metadata, strict,
+                              missing_keys, unexpected_keys, error_msgs):
+        num_batches_tracked_key = prefix + 'num_batches_tracked'
+        if num_batches_tracked_key in state_dict:
+            del state_dict[num_batches_tracked_key]
+
+        super(FrozenBatchNorm2d, self)._load_from_state_dict(
+            state_dict, prefix, local_metadata, strict,
+            missing_keys, unexpected_keys, error_msgs)
+
+    def forward(self, x):
+        # move reshapes to the beginning
+        # to make it user-friendly
+        w = self.weight.reshape(1, -1, 1, 1)
+        b = self.bias.reshape(1, -1, 1, 1)
+        rv = self.running_var.reshape(1, -1, 1, 1)
+        rm = self.running_mean.reshape(1, -1, 1, 1)
+        eps = 1e-5
+        scale = w * (rv + eps).rsqrt()
+        bias = b - rm * scale
+        return x * scale + bias
+
+
+class BackboneBase(nn.Module):
+
+    def __init__(self, backbone: nn.Module, train_backbone: bool, num_channels: int, return_interm_layers: bool):
+        super().__init__()
+        for name, parameter in backbone.named_parameters():
+            if not train_backbone or 'layer2' not in name and 'layer3' not in name and 'layer4' not in name:
+                parameter.requires_grad_(False)
+        if return_interm_layers:
+            return_layers = {"layer1": "0", "layer2": "1", "layer3": "2", "layer4": "3"}
+        else:
+            return_layers = {'layer4': "0"}
+        self.body = IntermediateLayerGetter(backbone, return_layers=return_layers)
+        self.num_channels = num_channels
+
+    def forward(self, tensor_list: NestedTensor):
+        xs = self.body(tensor_list.tensors)
+        out: Dict[str, NestedTensor] = {}
+        for name, x in xs.items():
+            m = tensor_list.mask
+            assert m is not None
+            mask = F.interpolate(m[None].float(), size=x.shape[-2:]).to(torch.bool)[0]
+            out[name] = NestedTensor(x, mask)
+        return out
+
+
+class Backbone(BackboneBase):
+    """ResNet backbone with frozen BatchNorm."""
+    def __init__(self, name: str,
+                 train_backbone: bool,
+                 return_interm_layers: bool,
+                 dilation: bool):
+        backbone = getattr(torchvision.models, name)(
+            replace_stride_with_dilation=[False, False, dilation],
+            pretrained=True, norm_layer=FrozenBatchNorm2d)
+        num_channels = 512 if name in ('resnet18', 'resnet34') else 2048
+        super().__init__(backbone, train_backbone, num_channels, return_interm_layers)
+
+
+class Joiner(nn.Sequential):
+    def __init__(self, backbone, position_embedding):
+        super().__init__(backbone, position_embedding)
+
+    def forward(self, tensor_list: NestedTensor):
+        xs = self[0](tensor_list)
+        out: List[NestedTensor] = []
+        pos = []
+        for name, x in xs.items():
+            out.append(x)
+            # position encoding
+            pos.append(self[1](x).to(x.tensors.dtype))
+
+        return out, pos
+
+
 def shift_tokens_right(input_ids: torch.Tensor, pad_token_id: int, decoder_start_token_id: int):
     """
     Shift input ids one token to the right.
@@ -201,9 +298,9 @@ class PositionEmbeddingSine(nn.Module):
     This is a more standard version of the position embedding, very similar to the one
     used by the Attention is all you need paper, generalized to work on images.
     """
-    def __init__(self, num_pos_feats=64, temperature=10000, normalize=False, scale=None):
+    def __init__(self, embedding_dim=64, temperature=10000, normalize=False, scale=None):
         super().__init__()
-        self.num_pos_feats = num_pos_feats
+        self.embedding_dim = embedding_dim
         self.temperature = temperature
         self.normalize = normalize
         if scale is not None and normalize is False:
@@ -224,8 +321,8 @@ class PositionEmbeddingSine(nn.Module):
             y_embed = y_embed / (y_embed[:, -1:, :] + eps) * self.scale
             x_embed = x_embed / (x_embed[:, :, -1:] + eps) * self.scale
 
-        dim_t = torch.arange(self.num_pos_feats, dtype=torch.float32, device=x.device)
-        dim_t = self.temperature ** (2 * (dim_t // 2) / self.num_pos_feats)
+        dim_t = torch.arange(self.embedding_dim, dtype=torch.float32, device=x.device)
+        dim_t = self.temperature ** (2 * (dim_t // 2) / self.embedding_dim)
 
         pos_x = x_embed[:, :, :, None] / dim_t
         pos_y = y_embed[:, :, :, None] / dim_t
@@ -237,30 +334,43 @@ class PositionEmbeddingSine(nn.Module):
 
 class PositionEmbeddingLearned(nn.Module):
     """
-    Absolute pos embedding, learned.
+    This module learns positional embeddings up to a fixed maximum size. 
     """
-    def __init__(self, num_pos_feats=256):
+    def __init__(self, embedding_dim=256):
         super().__init__()
-        self.row_embed = nn.Embedding(50, num_pos_feats)
-        self.col_embed = nn.Embedding(50, num_pos_feats)
+        self.row_embeddings = nn.Embedding(50, embedding_dim)
+        self.column_embeddings = nn.Embedding(50, embedding_dim)
         self.reset_parameters()
 
     def reset_parameters(self):
-        nn.init.uniform_(self.row_embed.weight)
-        nn.init.uniform_(self.col_embed.weight)
+        nn.init.uniform_(self.row_embeddings.weight)
+        nn.init.uniform_(self.column_embeddings.weight)
 
     def forward(self, tensor_list: NestedTensor):
         x = tensor_list.tensors
         h, w = x.shape[-2:]
         i = torch.arange(w, device=x.device)
         j = torch.arange(h, device=x.device)
-        x_emb = self.col_embed(i)
-        y_emb = self.row_embed(j)
+        x_emb = self.column_embeddings(i)
+        y_emb = self.row_embeddings(j)
         pos = torch.cat([
             x_emb.unsqueeze(0).repeat(h, 1, 1),
             y_emb.unsqueeze(1).repeat(1, w, 1),
         ], dim=-1).permute(2, 0, 1).unsqueeze(0).repeat(x.shape[0], 1, 1, 1)
         return pos
+
+
+def build_position_encoding(config):
+    N_steps = config.d_model // 2
+    if config.position_embedding_type == 'sine':
+        # TODO find a better way of exposing other arguments
+        position_embedding = PositionEmbeddingSine(N_steps, normalize=True)
+    elif config.position_embedding_type == 'learned':
+        position_embedding = PositionEmbeddingLearned(N_steps)
+    else:
+        raise ValueError(f"not supported {config.position_embedding_type}")
+
+    return position_embedding
 
 
 # class DetrLearnedPositionalEmbedding(nn.Embedding):
@@ -736,7 +846,7 @@ class DetrEncoder(DetrPreTrainedModel):
         embed_tokens (torch.nn.Embedding): output embedding
     """
 
-    def __init__(self, config: DetrConfig, embed_tokens: Optional[nn.Embedding] = None):
+    def __init__(self, config: DetrConfig):
         super().__init__(config)
 
         self.dropout = config.dropout
@@ -747,21 +857,10 @@ class DetrEncoder(DetrPreTrainedModel):
         self.max_source_positions = config.max_position_embeddings
         self.embed_scale = math.sqrt(embed_dim) if config.scale_embedding else 1.0
 
-        if embed_tokens is not None:
-            self.embed_tokens = embed_tokens
-        else:
-            self.embed_tokens = nn.Embedding(config.vocab_size, embed_dim, self.padding_idx)
-
-        if config.position_embedding == 'sine':
-            # TODO find a better way of exposing other arguments
-            self.embed_positions = PositionEmbeddingSine(config.max_position_embeddings, normalize=True)
-        elif config.position_embedding == 'learned':
-            self.embed_positions = PositionEmbeddingLearned(config.max_position_embeddings)
-        else:
-            raise ValueError(f"not supported {config.position_embedding}")
-          
-        # Next, flatten the position embeddings (not sure if needed?)
-        self.embed_positions = self.embed_positions.flatten(2).permute(2, 0, 1)
+        # if embed_tokens is not None:
+        #     self.embed_tokens = embed_tokens
+        # else:
+        #     self.embed_tokens = nn.Embedding(config.vocab_size, embed_dim, self.padding_idx)
         
         # self.embed_positions = DetrLearnedPositionalEmbedding(
         #     config.max_position_embeddings,
@@ -779,6 +878,7 @@ class DetrEncoder(DetrPreTrainedModel):
         input_ids=None,
         attention_mask=None,
         inputs_embeds=None,
+        position_embeds=None,
         output_attentions=None,
         output_hidden_states=None,
         return_dict=None,
@@ -836,6 +936,7 @@ class DetrEncoder(DetrPreTrainedModel):
 
         embed_pos = self.embed_positions(input_shape)
 
+        # add position embeddings
         hidden_states = inputs_embeds + embed_pos
         hidden_states = self.layernorm_embedding(hidden_states)
         hidden_states = F.dropout(hidden_states, p=self.dropout, training=self.training)
@@ -908,11 +1009,11 @@ class DetrDecoder(DetrPreTrainedModel):
         else:
             self.embed_tokens = nn.Embedding(config.vocab_size, config.d_model, self.padding_idx)
 
-        self.embed_positions = DetrLearnedPositionalEmbedding(
-            config.max_position_embeddings,
-            config.d_model,
-            self.padding_idx,
-        )
+        # self.embed_positions = DetrLearnedPositionalEmbedding(
+        #     config.max_position_embeddings,
+        #     config.d_model,
+        #     self.padding_idx,
+        # )
         self.layers = nn.ModuleList([DetrDecoderLayer(config) for _ in range(config.decoder_layers)])
         self.layernorm_embedding = nn.LayerNorm(config.d_model)
 
@@ -1114,10 +1215,12 @@ class DetrDecoder(DetrPreTrainedModel):
     DETR_START_DOCSTRING,
 )
 class DetrModel(DetrPreTrainedModel):
-    def __init__(self, backbone, config: DetrConfig):
+    def __init__(self, config: DetrConfig):
         super().__init__(config)
 
-        self.backbone = backbone
+        backbone = Backbone(config.backbone, config.train_backbone, config.masks, config.dilation)
+        position_embeddings = build_position_encoding(config)
+        self.backbone = Joiner(backbone, position_embeddings)
 
         self.input_projection = nn.Conv2d(backbone.num_channels, config.d_model, kernel_size=1)
 
@@ -1170,11 +1273,10 @@ class DetrModel(DetrPreTrainedModel):
         use_cache = use_cache if use_cache is not None else self.config.use_cache
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
-        # First, sent images through backbone to obtain the features (includes features map, mask and position embeddings)
-        # We are not going to use the position embeddings because these will be defined in DetrEncoder and DetrDecoder
+        # First, sent images through Backbone to obtain the features (includes features map, mask and position embeddings)
         if isinstance(samples, (list, torch.Tensor)):
             samples = nested_tensor_from_tensor_list(samples)
-        features, pos = self.backbone(samples)
+        features, position_embeddings = self.backbone(samples)
 
         src, mask = features[-1].decompose()
         assert mask is not None
@@ -1182,9 +1284,11 @@ class DetrModel(DetrPreTrainedModel):
         # Second, apply 1x1 convolution to reduce the channel dimension
         src = self.input_projection(src)
         
-        # Third, flatten the feature map of shape NxCxHxW to NxCxHW, and permute it to NxHWxC
+        # Third, flatten the feature map + position embeddings of shape NxCxHxW to NxCxHW, and permute it to NxHWxC
+        # In other words, shape (batch_size, sequence_length, hidden_size)
         batch_size, c, h, w = src.shape
         src = src.flatten(2).permute(0, 2, 1)
+        position_embeddings = position_embeddings.flatten(2).permute(0, 2, 1)
         query_embeddings = self.query_embeddings.unsqueeze(1).repeat(1, batch_size, 1)
         mask = mask.flatten(1)
         
@@ -1193,6 +1297,7 @@ class DetrModel(DetrPreTrainedModel):
             encoder_outputs = self.encoder(
                 inputs_embeds=src,
                 attention_mask=mask,
+                #position_embeds=position_embeddings,
                 output_attentions=output_attentions,
                 output_hidden_states=output_hidden_states,
                 return_dict=return_dict,
@@ -1209,6 +1314,7 @@ class DetrModel(DetrPreTrainedModel):
         decoder_outputs = self.decoder(
             inputs_embeds=self.query_embeddings,
             attention_mask=decoder_attention_mask,
+            #position_embeds=position_embeddings,
             encoder_hidden_states=encoder_outputs[0],
             encoder_attention_mask=attention_mask,
             past_key_values=past_key_values,

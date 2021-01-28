@@ -84,6 +84,14 @@ class DetrConfig(PretrainedConfig):
             Whether auxiliary decoding losses (loss at each decoder layer) are to be used.
         position_embedding_type (:obj:`str`, `optional`, defaults to :obj:`sine`):
             Type of position embeddings to be used. One of 'sine' or 'learned'.
+        backbone (:obj:`bool`, `optional`, defaults to :obj:`resnet50`): 
+            Name of convolutional backbone to use. Currently only resnet of the Torchvision package is supported. 
+        train_backbone (:obj:`bool`, `optional`, defaults to :obj:`True`): 
+            Whether to train (fine-tune) the backbone. 
+        dilation (:obj:`bool`, `optional`, defaults to :obj:`False`): 
+            Whether to replace stride with dilation in the last convolutional block (DC5).
+        masks (:obj:`bool`, `optional`, defaults to :obj:`False`): 
+            Whether to train the segmentation head.
         Example::
 
         >>> from transformers import DetrModel, DetrConfig
@@ -128,6 +136,10 @@ class DetrConfig(PretrainedConfig):
         eos_token_id=2,
         aux_loss=False,
         position_embedding_type='sine',
+        backbone='resnet50',
+        train_backbone=True,
+        dilation=False,
+        masks=False,
         **kwargs
     ):
         super().__init__(
@@ -162,6 +174,10 @@ class DetrConfig(PretrainedConfig):
         self.scale_embedding = scale_embedding  # scale factor will be sqrt(d_model) if True
         self.aux_loss = aux_loss
         self.position_embedding_type = position_embedding_type
+        self.backbone = backbone
+        self.train_backbone = train_backbone
+        self.dilation = dilation
+        self.masks = masks
 
         
     @property
