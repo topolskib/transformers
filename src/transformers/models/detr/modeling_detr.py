@@ -1282,7 +1282,7 @@ class DetrModel(DetrPreTrainedModel):
         # First, sent images through Backbone to obtain the features (includes features map, mask and position embeddings)
         if isinstance(samples, (list, torch.Tensor)):
             samples = nested_tensor_from_tensor_list(samples)
-        features, position_embeddings = self.backbone(samples)
+        features, position_embeddings_list = self.backbone(samples)
 
         src, mask = features[-1].decompose()
         assert mask is not None
@@ -1294,7 +1294,7 @@ class DetrModel(DetrPreTrainedModel):
         # In other words, turn their shape into (batch_size, sequence_length, hidden_size)
         batch_size, c, h, w = src.shape
         src = src.flatten(2).permute(0, 2, 1)
-        position_embeddings = position_embeddings.flatten(2).permute(0, 2, 1)
+        position_embeddings = position_embeddings_list[-1].flatten(2).permute(0, 2, 1)
         mask = mask.flatten(1)
         
         # Fourth, sent src + mask + position embeddings through encoder 
