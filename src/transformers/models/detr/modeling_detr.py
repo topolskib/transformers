@@ -431,6 +431,10 @@ class DetrAttention(nn.Module):
 
     # added (Niels)
     def with_pos_embed(self, tensor: torch.Tensor, position_embeddings: Optional[Tensor]):
+        print("Shape of tensor:")
+        print(tensor.shape)
+        print("Shape of pos:")
+        print(position_embeddings.shape)
         return tensor if position_embeddings is None else tensor + position_embeddings
     
     def forward(
