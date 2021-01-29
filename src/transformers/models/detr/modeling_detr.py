@@ -431,10 +431,6 @@ class DetrAttention(nn.Module):
 
     # added (Niels)
     def with_pos_embed(self, tensor: torch.Tensor, position_embeddings: Optional[Tensor]):
-        print("Shape of tensor:")
-        print(tensor.shape)
-        print("Shape of pos:")
-        print(position_embeddings.shape)
         return tensor if position_embeddings is None else tensor + position_embeddings
     
     def forward(
@@ -498,7 +494,7 @@ class DetrAttention(nn.Module):
         print(position_embeddings.shape)
         query_states = self.with_pos_embed(query_states, position_embeddings)
         print("Shape of key states:")
-        print(query_states.shape)
+        print(key_states.shape)
         print("Shape of position embeddings:")
         print(position_embeddings.shape)
         key_states = self.with_pos_embed(key_states, position_embeddings)
