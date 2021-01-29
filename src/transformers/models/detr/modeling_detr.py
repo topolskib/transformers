@@ -440,7 +440,6 @@ class DetrAttention(nn.Module):
         past_key_value: Optional[Tuple[torch.Tensor]] = None,
         attention_mask: Optional[torch.Tensor] = None,
         position_embeddings: Optional[torch.Tensor] = None,
-        query_position_embeddings: Optional[torch.Tensor] = None,
         output_attentions: bool = False,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         """Input shape: Batch x Time x Channel"""
@@ -490,7 +489,15 @@ class DetrAttention(nn.Module):
         src_len = key_states.size(1)
 
         # added (Niels): add spatial position embeddings to the query_states and key_states
+        print("Shape of query states:")
+        print(query_states.shape)
+        print("Shape of position embeddings:")
+        print(position_embeddings.shape)
         query_states = self.with_pos_embed(query_states, position_embeddings)
+        print("Shape of key states:")
+        print(query_states.shape)
+        print("Shape of position embeddings:")
+        print(position_embeddings.shape)
         key_states = self.with_pos_embed(key_states, position_embeddings)
 
         attn_weights = torch.bmm(query_states, key_states.transpose(1, 2))
