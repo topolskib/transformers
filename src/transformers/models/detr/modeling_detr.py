@@ -396,7 +396,11 @@ def build_position_encoding(config):
 
 
 class DetrAttention(nn.Module):
-    """Multi-headed attention from 'Attention Is All You Need' paper"""
+    """
+    Multi-headed attention from 'Attention Is All You Need' paper, with an addition: we add position embeddings
+    to the queries and keys. 
+    
+    """
 
     def __init__(
         self,
@@ -425,6 +429,10 @@ class DetrAttention(nn.Module):
     def _shape(self, tensor: torch.Tensor, seq_len: int, bsz: int):
         return tensor.view(bsz, seq_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
 
+    # added (Niels)
+    def with_pos_embed(self, tensor: torch.Tensor, position_embeddings: Optional[Tensor]):
+        return tensor if position_embeddings is None else tensor + position_embeddings
+    
     def forward(
         self,
         hidden_states: torch.Tensor,
@@ -480,6 +488,11 @@ class DetrAttention(nn.Module):
         value_states = value_states.view(*proj_shape)
 
         src_len = key_states.size(1)
+
+        # added (Niels): add spatial position embeddings to the query_states and key_states
+        query_states = self.with_pos_embed(query_states, position_embeddings)
+        key_states = self.with_pos_embed(key_states, position_embeddings)
+
         attn_weights = torch.bmm(query_states, key_states.transpose(1, 2))
 
         assert attn_weights.size() == (
@@ -548,21 +561,22 @@ class DetrEncoderLayer(nn.Module):
         self.fc2 = nn.Linear(config.encoder_ffn_dim, self.embed_dim)
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
 
-    def forward(self, hidden_states: torch.Tensor, attention_mask: torch.Tensor, position_embeddings: torch.Tensor,
+    def forward(self, hidden_states: torch.Tensor, attention_mask: torch.Tensor, position_embeddings: torch.Tensor = None,
                     output_attentions: bool = False):
         """
         Args:
             hidden_states (:obj:`torch.FloatTensor`): input to the layer of shape `(seq_len, batch, embed_dim)`
             attention_mask (:obj:`torch.FloatTensor`): attention mask of size
                 `(batch, 1, tgt_len, src_len)` where padding elements are indicated by very large negative values.
-            position_embeddings (:obj:`torch.FloatTensor`): position embeddings, to be added to hidden_states.
+            position_embeddings (:obj:`torch.FloatTensor`, `optional`): position embeddings, to be added to hidden_states.
             output_attentions (:obj:`bool`, `optional`):
                 Whether or not to return the attentions tensors of all attention layers. See ``attentions`` under
                 returned tensors for more detail.
         """
         residual = hidden_states
         hidden_states, attn_weights, _ = self.self_attn(
-            hidden_states=hidden_states, attention_mask=attention_mask, output_attentions=output_attentions
+            hidden_states=hidden_states, attention_mask=attention_mask, position_embeddings=position_embeddings,
+            output_attentions=output_attentions
         )
         hidden_states = F.dropout(hidden_states, p=self.dropout, training=self.training)
         hidden_states = residual + hidden_states
@@ -619,6 +633,8 @@ class DetrDecoderLayer(nn.Module):
         self,
         hidden_states: torch.Tensor,
         attention_mask: Optional[torch.Tensor] = None,
+        position_embeddings: Optional[torch.Tensor] = None,
+        query_position_embeddings: Optional[torch.Tensor] = None,
         encoder_hidden_states: Optional[torch.Tensor] = None,
         encoder_attention_mask: Optional[torch.Tensor] = None,
         past_key_value: Optional[Tuple[torch.Tensor]] = None,
@@ -646,6 +662,7 @@ class DetrDecoderLayer(nn.Module):
         # add present self-attn cache to positions 1,2 of present_key_value tuple
         hidden_states, self_attn_weights, present_key_value = self.self_attn(
             hidden_states=hidden_states,
+            position_embeddings=query_position_embeddings,
             past_key_value=self_attn_past_key_value,
             attention_mask=attention_mask,
             output_attentions=output_attentions,
@@ -664,6 +681,7 @@ class DetrDecoderLayer(nn.Module):
             cross_attn_past_key_value = past_key_value[-2:] if past_key_value is not None else None
             hidden_states, cross_attn_weights, cross_attn_present_key_value = self.encoder_attn(
                 hidden_states=hidden_states,
+                position_embeddings=position_embeddings,
                 key_value_states=encoder_hidden_states,
                 attention_mask=encoder_attention_mask,
                 past_key_value=cross_attn_past_key_value,
@@ -982,6 +1000,7 @@ class DetrEncoder(DetrPreTrainedModel):
                         attention_mask,
                     )
                 else:
+                    # we add position_embeddings as extra input to the encoder_layer
                     layer_outputs = encoder_layer(hidden_states, 
                                                   attention_mask, 
                                                   position_embeddings=position_embeddings, 
@@ -1045,6 +1064,8 @@ class DetrDecoder(DetrPreTrainedModel):
         encoder_attention_mask=None,
         past_key_values=None,
         inputs_embeds=None,
+        position_embeddings=None,
+        query_position_embeddings=None,
         use_cache=None,
         output_attentions=None,
         output_hidden_states=None,
@@ -1199,6 +1220,8 @@ class DetrDecoder(DetrPreTrainedModel):
                 layer_outputs = decoder_layer(
                     hidden_states,
                     attention_mask=combined_attention_mask,
+                    position_embeddings=position_embeddings,
+                    query_position_embeddings=query_position_embeddings,
                     encoder_hidden_states=encoder_hidden_states,
                     encoder_attention_mask=encoder_attention_mask,
                     past_key_value=past_key_value,
@@ -1357,8 +1380,8 @@ class DetrModel(DetrPreTrainedModel):
         decoder_outputs = self.decoder(
             inputs_embeds=tgt,
             attention_mask=None,
-            #position_embeddings=position_embeddings,
-            #query_position_embeddings=query_embeddings,
+            position_embeddings=position_embeddings,
+            query_position_embeddings=query_embeddings,
             encoder_hidden_states=encoder_outputs[0],
             encoder_attention_mask=mask,
             past_key_values=past_key_values,
