@@ -487,13 +487,6 @@ class DetrAttention(nn.Module):
             # if encoder bi-directional self-attention `past_key_value` is always `None`
             past_key_value = (key_states, value_states)
 
-        proj_shape = (bsz * self.num_heads, -1, self.head_dim)
-        query_states = self._shape(query_states, tgt_len, bsz).view(*proj_shape)
-        key_states = key_states.view(*proj_shape)
-        value_states = value_states.view(*proj_shape)
-
-        src_len = key_states.size(1)
-
         # added (Niels): add spatial position embeddings to the query_states and key_states
         print("Shape of query states:")
         print(query_states.shape)
@@ -505,6 +498,13 @@ class DetrAttention(nn.Module):
         print("Shape of position embeddings:")
         print(position_embeddings.shape)
         key_states = self.with_pos_embed(key_states, position_embeddings)
+        
+        proj_shape = (bsz * self.num_heads, -1, self.head_dim)
+        query_states = self._shape(query_states, tgt_len, bsz).view(*proj_shape)
+        key_states = key_states.view(*proj_shape)
+        value_states = value_states.view(*proj_shape)
+
+        src_len = key_states.size(1)
 
         attn_weights = torch.bmm(query_states, key_states.transpose(1, 2))
 
