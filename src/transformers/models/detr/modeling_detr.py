@@ -904,7 +904,10 @@ class DetrEncoder(DetrPreTrainedModel):
         # )
 
         self.layers = nn.ModuleList([DetrEncoderLayer(config) for _ in range(config.encoder_layers)])
-        self.layernorm_embedding = nn.LayerNorm(embed_dim)
+        
+        # (Niels) comment out layernorm embedding of Encoder, as "normalize_before" is set to False of DETR and hence 
+        # no layernorm at the encoder
+        #self.layernorm_embedding = nn.LayerNorm(embed_dim)
 
         self.init_weights()
 
@@ -977,7 +980,8 @@ class DetrEncoder(DetrPreTrainedModel):
         # hidden_states = F.dropout(hidden_states, p=self.dropout, training=self.training)
 
         hidden_states = inputs_embeds
-        hidden_states = self.layernorm_embedding(hidden_states)
+        # (Niels) comment out layernorm, see __init__ above
+        #hidden_states = self.layernorm_embedding(hidden_states)
         hidden_states = F.dropout(hidden_states, p=self.dropout, training=self.training)
 
         # expand attention_mask
