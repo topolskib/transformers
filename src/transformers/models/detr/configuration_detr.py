@@ -44,13 +44,13 @@ class DetrConfig(PretrainedConfig):
             :class:`~transformers.DetrModel` can detect in a single image. For COCO, we recommend 100 queries.
         d_model (:obj:`int`, `optional`, defaults to 256):
             Dimensionality of the layers and the pooler layer.
-        encoder_layers (:obj:`int`, `optional`, defaults to 12):
+        encoder_layers (:obj:`int`, `optional`, defaults to 6):
             Number of encoder layers.
-        decoder_layers (:obj:`int`, `optional`, defaults to 12):
+        decoder_layers (:obj:`int`, `optional`, defaults to 6):
             Number of decoder layers.
-        encoder_attention_heads (:obj:`int`, `optional`, defaults to 16):
+        encoder_attention_heads (:obj:`int`, `optional`, defaults to 8):
             Number of attention heads for each attention layer in the Transformer encoder.
-        decoder_attention_heads (:obj:`int`, `optional`, defaults to 16):
+        decoder_attention_heads (:obj:`int`, `optional`, defaults to 8):
             Number of attention heads for each attention layer in the Transformer decoder.
         decoder_ffn_dim (:obj:`int`, `optional`, defaults to 2048):
             Dimensionality of the "intermediate" (often named feed-forward) layer in decoder.

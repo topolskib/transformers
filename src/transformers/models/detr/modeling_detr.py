@@ -459,22 +459,36 @@ class DetrAttention(nn.Module):
         query_states = self.q_proj(hidden_states) * self.scaling
         # get key, value proj
         if is_cross_attention and past_key_value is not None:
+            # to be added (Nielss)
+            
             # reuse k,v, cross_attentions
             key_states = past_key_value[0]
             value_states = past_key_value[1]
         elif is_cross_attention:
+            # Added (Niels)
+            key_states  = self.k_proj(key_value_states) * self.scaling
+            key_states = self.with_pos_embed(key_states, position_embeddings)
+            # Added (Niels) - end
+            
             # cross_attentions
-            key_states = self._shape(self.k_proj(key_value_states), -1, bsz)
+            key_states = self._shape(key_states, -1, bsz)
             value_states = self._shape(self.v_proj(key_value_states), -1, bsz)
         elif past_key_value is not None:
+            # to be added (Niels)
+            
             # reuse k, v, self_attention
-            key_states = self._shape(self.k_proj(hidden_states), -1, bsz)
+            key_states = self._shape(key_states, -1, bsz)
             value_states = self._shape(self.v_proj(hidden_states), -1, bsz)
             key_states = torch.cat([past_key_value[0], key_states], dim=2)
             value_states = torch.cat([past_key_value[1], value_states], dim=2)
         else:          
+            # Added (Niels)
+            key_states  = self.k_proj(hidden_states) * self.scaling
+            key_states = self.with_pos_embed(key_states, position_embeddings)
+            # Added (Niels) - end
+            
             # self_attention
-            key_states = self._shape(self.k_proj(hidden_states), -1, bsz)
+            key_states = self._shape(key_states, -1, bsz)
             value_states = self._shape(self.v_proj(hidden_states), -1, bsz)
 
         if self.is_decoder:
@@ -486,18 +500,6 @@ class DetrAttention(nn.Module):
             # can concat previous decoder key/value_states to current projected key/value_states (third "elif" case)
             # if encoder bi-directional self-attention `past_key_value` is always `None`
             past_key_value = (key_states, value_states)
-
-        # added (Niels): add spatial position embeddings to the query_states and key_states
-        print("Shape of query states:")
-        print(query_states.shape)
-        print("Shape of position embeddings:")
-        print(position_embeddings.shape)
-        query_states = self.with_pos_embed(query_states, position_embeddings)
-        print("Shape of key states:")
-        print(key_states.shape)
-        print("Shape of position embeddings:")
-        print(position_embeddings.shape)
-        key_states = self.with_pos_embed(key_states, position_embeddings)
         
         proj_shape = (bsz * self.num_heads, -1, self.head_dim)
         query_states = self._shape(query_states, tgt_len, bsz).view(*proj_shape)
