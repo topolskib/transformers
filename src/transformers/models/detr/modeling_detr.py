@@ -444,6 +444,12 @@ class DetrAttention(nn.Module):
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         """Input shape: Batch x Time x Channel"""
         
+        print("Shape of hidden states in DetrAttention:")
+        print(hidden_states.shape)
+
+        print("Shape of position embeddings in DetrAttention:")
+        print(position_embeddings.shape)
+        
         # if key_value_states are provided this layer is used as a cross-attention layer
         # for the decoder
         is_cross_attention = key_value_states is not None
