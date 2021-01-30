@@ -397,8 +397,9 @@ def build_position_encoding(config):
 
 class DetrAttention(nn.Module):
     """
-    Multi-headed attention from 'Attention Is All You Need' paper, with an addition: we add position embeddings
-    to the queries and keys. 
+    Multi-headed attention from 'Attention Is All You Need' paper.
+    
+    Here, we add position embeddings to the queries and keys (as explained in the DETR paper). 
     
     """
 
@@ -451,6 +452,7 @@ class DetrAttention(nn.Module):
 
         # get query proj
         query_states = self.q_proj(hidden_states) * self.scaling
+        query_states = self.with_pos_embed(query_states, position_embeddings)
         # get key, value proj
         if is_cross_attention and past_key_value is not None:
             # to be added (Niels)
