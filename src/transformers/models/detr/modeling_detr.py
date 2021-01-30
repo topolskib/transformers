@@ -512,7 +512,7 @@ class DetrAttention(nn.Module):
         print(attention_mask.shape)
 
         print("Attention scores before mask:")
-        print(attn_weights[0,:3,:3])
+        print(attn_weights[0])
         
         if attention_mask is not None:
             assert attention_mask.size() == (
