@@ -1175,6 +1175,7 @@ class DetrDecoder(DetrPreTrainedModel):
 
         # added this (Niels) to infer input_shape:
         if inputs_embeds is not None:
+           hidden_states = inputs_embeds
            input_shape = inputs_embeds.size()[:-1]
         
         combined_attention_mask = None
@@ -1202,11 +1203,10 @@ class DetrDecoder(DetrPreTrainedModel):
         # embed positions
         # positions = self.embed_positions(input_shape, past_key_values_length)
 
-        # (Niels): not required because we have special query embeddings here
+        # (Niels): following lines are not required because we have special query embeddings here
         # hidden_states = inputs_embeds + positions
-        #hidden_states = self.layernorm_embedding(inputs_embeds)
-
-        hidden_states = F.dropout(hidden_states, p=self.dropout, training=self.training)
+        # hidden_states = self.layernorm_embedding(inputs_embeds)
+        # hidden_states = F.dropout(hidden_states, p=self.dropout, training=self.training)
 
         # decoder layers
         all_hidden_states = () if output_hidden_states else None
