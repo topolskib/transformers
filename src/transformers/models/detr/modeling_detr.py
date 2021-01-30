@@ -437,10 +437,11 @@ class DetrAttention(nn.Module):
     def forward(
         self,
         hidden_states: torch.Tensor,
-        key_value_states: Optional[torch.Tensor] = None,
-        past_key_value: Optional[Tuple[torch.Tensor]] = None,
         attention_mask: Optional[torch.Tensor] = None,
         position_embeddings: Optional[torch.Tensor] = None,
+        key_value_states: Optional[torch.Tensor] = None,
+        key_value_position_embeddings: Optional[torch.Tensor] = None,
+        past_key_value: Optional[Tuple[torch.Tensor]] = None,
         output_attentions: bool = False,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         """Input shape: Batch x Time x Channel"""
@@ -451,8 +452,14 @@ class DetrAttention(nn.Module):
         bsz, tgt_len, embed_dim = hidden_states.size()
 
         # Added (Niels): add position embeddings to the hidden states before projecting to queries and keys
-        hidden_states_original = hidden_states
-        hidden_states = self.with_pos_embed(hidden_states, position_embeddings)
+        if position_embeddings is not None:
+            hidden_states_original = hidden_states
+            hidden_states = self.with_pos_embed(hidden_states, position_embeddings)
+
+        # Added (Niels): add key-value position embeddings to the key value states 
+        if key_value_position_embeddings is not None:
+            key_value_states_original = key_value_states
+            key_value_states = self.with_pos_embed(key_value_states, key_value_position_embeddings)
         
         # get query proj
         query_states = self.q_proj(hidden_states) * self.scaling
@@ -464,7 +471,7 @@ class DetrAttention(nn.Module):
         elif is_cross_attention:
             # cross_attentions
             key_states = self._shape(self.k_proj(key_value_states), -1, bsz)
-            value_states = self._shape(self.v_proj(key_value_states), -1, bsz)
+            value_states = self._shape(self.v_proj(key_value_states_original), -1, bsz)
         elif past_key_value is not None:
             # reuse k, v, self_attention
             key_states = self._shape(self.k_proj(hidden_states), -1, bsz)
@@ -702,6 +709,9 @@ class DetrDecoderLayer(nn.Module):
         if encoder_hidden_states is not None:
             residual = hidden_states
 
+            print("Shape of encoder hidden states in cross-attention:")
+            print(encoder_hidden_states.shape)
+
             # cross_attn cached key/values tuple is at positions 3,4 of present_key_value tuple
             cross_attn_past_key_value = past_key_value[-2:] if past_key_value is not None else None
             hidden_states, cross_attn_weights, cross_attn_present_key_value = self.encoder_attn(
@@ -709,6 +719,7 @@ class DetrDecoderLayer(nn.Module):
                 position_embeddings=query_position_embeddings,
                 key_value_states=encoder_hidden_states,
                 attention_mask=encoder_attention_mask,
+                key_value_position_embeddings=position_embeddings,
                 past_key_value=cross_attn_past_key_value,
                 output_attentions=output_attentions,
             )
