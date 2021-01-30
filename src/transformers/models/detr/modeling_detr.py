@@ -1359,11 +1359,15 @@ class DetrModel(DetrPreTrainedModel):
         #print("Shape of mask to the encoder:")
         #print(mask.shape)
         
+        print("Shape of encoder input:")
+        print(src.shape) 
         print("First few elements of encoder input:")
         print(src[0,:3,:3])
 
         print("First few elements of input mask:")
         print(mask[0,:3])
+        print("Number of true elements in input mask:")
+        print(torch.sum(mask))
 
         # Fourth, sent src + mask + position embeddings through encoder 
         # src is a Tensor of shape (batch_size, heigth*width, hidden_size) 
