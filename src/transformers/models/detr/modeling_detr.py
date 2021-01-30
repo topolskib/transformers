@@ -460,7 +460,7 @@ class DetrAttention(nn.Module):
         hidden_states = self.with_pos_embed(hidden_states, position_embeddings)
 
         print("Hidden states after adding position embeddings:")
-        print(position_embeddings[0,:3,:3])
+        print(hidden_states[0,:3,:3])
         
         # get query proj
         query_states = self.q_proj(hidden_states) * self.scaling
