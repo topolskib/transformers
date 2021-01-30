@@ -686,12 +686,15 @@ class DetrDecoderLayer(nn.Module):
             output_attentions=output_attentions,
         )
 
-        print("Hidden states after self-attention:")
+        print("Decoder hidden states after self-attention:")
         print(hidden_states[0,:3,:3])
 
         hidden_states = F.dropout(hidden_states, p=self.dropout, training=self.training)
         hidden_states = residual + hidden_states
         hidden_states = self.self_attn_layer_norm(hidden_states)
+
+        print("Decoder hidden states after self-attention layer norm:")
+        print(hidden_states[0,:3,:3])
 
         # Cross-Attention Block
         cross_attn_present_key_value = None
@@ -709,6 +712,10 @@ class DetrDecoderLayer(nn.Module):
                 past_key_value=cross_attn_past_key_value,
                 output_attentions=output_attentions,
             )
+            
+            print("Decoder hidden states after cross-attention:")
+            print(hidden_states[0,:3,:3])
+            
             hidden_states = F.dropout(hidden_states, p=self.dropout, training=self.training)
             hidden_states = residual + hidden_states
             hidden_states = self.encoder_attn_layer_norm(hidden_states)
