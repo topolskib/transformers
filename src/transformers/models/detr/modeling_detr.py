@@ -492,12 +492,13 @@ class DetrAttention(nn.Module):
 
         src_len = key_states.size(1)
 
-        print("First few query states:")
-        print(query_states[0,:3,:3])
-        print("First few key states:")
-        print(key_states[0,:3,:3])
-        print("First few value states:")
-        print(value_states[0,:3,:3])
+        # query, key and value states look OK
+        # print("First few query states:")
+        # print(query_states[0,:3,:3])
+        # print("First few key states:")
+        # print(key_states[0,:3,:3])
+        # print("First few value states:")
+        # print(value_states[0,:3,:3])
 
         attn_weights = torch.bmm(query_states, key_states.transpose(1, 2))
 
@@ -507,6 +508,12 @@ class DetrAttention(nn.Module):
             src_len,
         ), f"Attention weights should be of size {(bsz * self.num_heads, tgt_len, src_len)}, but is {attn_weights.size()}"
 
+        print("Attention mask shape:")
+        print(attention_mask.shape)
+
+        print("Attention scores before mask:")
+        print(attn_weights[0,:3,:3])
+        
         if attention_mask is not None:
             assert attention_mask.size() == (
                 bsz,
@@ -517,6 +524,9 @@ class DetrAttention(nn.Module):
             attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len) + attention_mask
             attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
 
+        print("Attention scores after mask:")
+        print(attn_weights[0,:3,:3])
+        
         attn_weights = F.softmax(attn_weights, dim=-1)
 
         if output_attentions:
@@ -546,9 +556,6 @@ class DetrAttention(nn.Module):
         )
 
         attn_output = self.out_proj(attn_output)
-
-        print("Attention output:")
-        print(attn_output[0,:3,:3])
 
         return attn_output, attn_weights_reshaped, past_key_value
 
