@@ -685,6 +685,10 @@ class DetrDecoderLayer(nn.Module):
             attention_mask=attention_mask,
             output_attentions=output_attentions,
         )
+
+        print("Hidden states after self-attention:")
+        print(hidden_states[0,:3,:3])
+
         hidden_states = F.dropout(hidden_states, p=self.dropout, training=self.training)
         hidden_states = residual + hidden_states
         hidden_states = self.self_attn_layer_norm(hidden_states)
@@ -1248,6 +1252,9 @@ class DetrDecoder(DetrPreTrainedModel):
 
                 print("First elements of inputs of decoder layer ", idx)
                 print(hidden_states[0,:3,:3])
+
+                print("Combined attention mask shape:")
+                print(combined_attention_mask.shape)
                 
                 layer_outputs = decoder_layer(
                     hidden_states,
