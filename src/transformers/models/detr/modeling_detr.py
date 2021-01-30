@@ -1375,7 +1375,7 @@ class DetrModel(DetrPreTrainedModel):
         #print("Shape of input to the encoder:")
         #print(src.shape)
         position_embeddings = position_embeddings_list[-1].flatten(2).permute(0, 2, 1)
-        mask = mask.flatten(1)
+        mask = ~mask.flatten(1)
         #print("Shape of mask to the encoder:")
         #print(mask.shape)
         
