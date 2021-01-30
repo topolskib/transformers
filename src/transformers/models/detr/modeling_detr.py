@@ -1573,12 +1573,12 @@ class DetrForObjectDetection(DetrPreTrainedModel):
         return self.decoder
 
     @add_start_docstrings_to_model_forward(DETR_INPUTS_DOCSTRING)
-    @add_code_sample_docstrings(
-        tokenizer_class=_TOKENIZER_FOR_DOC,
-        checkpoint="facebook/detr-resnet-50",
-        output_type=DetrObjectDetectionOutput,
-        config_class=_CONFIG_FOR_DOC,
-    )
+    # @add_code_sample_docstrings(
+    #     tokenizer_class=_TOKENIZER_FOR_DOC,
+    #     checkpoint="facebook/detr-resnet-50",
+    #     output_type=DetrObjectDetectionOutput,
+    #     config_class=_CONFIG_FOR_DOC,
+    # )
     def forward(
         self,
         samples: NestedTensor=None,
