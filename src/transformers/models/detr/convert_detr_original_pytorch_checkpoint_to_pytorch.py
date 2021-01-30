@@ -152,8 +152,23 @@ def convert_detr_checkpoint(task, backbone='resnet_50', dilation=False, pytorch_
 
     config = DetrConfig()
 
-    if task == "object_detection":
-        # First, load in original detr from torch hub
+    if task == "base_model":
+        # load model from torch hub
+        detr = torch.hub.load('facebookresearch/detr', 'detr_resnet50', pretrained=True).eval()
+        state_dict = detr.state_dict()
+        # rename keys
+        for src, dest in rename_keys:
+            rename_key(state_dict, src, dest)
+        # query, key and value matrices need special treatment
+        read_in_q_k_v(state_dict)
+        # remove classification heads
+        remove_object_detection_heads_(state_dict)
+        # finally, create model and load state dict
+        model = DetrModel(config)
+        model.load_state_dict(state_dict)
+    
+    elif task == "object_detection":
+        # load model from torch hub
         if backbone == 'resnet_50' and not dilation:
             detr = torch.hub.load('facebookresearch/detr', 'detr_resnet50', pretrained=True).eval()
         elif backbone == 'resnet_50' and dilation:
@@ -164,15 +179,19 @@ def convert_detr_checkpoint(task, backbone='resnet_50', dilation=False, pytorch_
             detr = torch.hub.load('facebookresearch/detr', 'detr_dc5_resnet101', pretrained=True).eval()
         else: 
             print("Not supported:", backbone, dilation)
-
+        
         state_dict = detr.state_dict()
-        # state_dict["model.shared.weight"] = state_dict["model.decoder.embed_tokens.weight"]
-        # for src, dest in rename_keys:
-        #     rename_key(state_dict, src, dest)
-        # model = DetrForObjectDetection(config).eval()
-        # model.load_state_dict(state_dict)
-        # original_output = detr(image)
-        # outputs = model(tokens)[0]  # logits
+        # rename keys
+        for src, dest in rename_keys:
+            rename_key(state_dict, src, dest)
+        # query, key and value matrices need special treatment
+        read_in_q_k_v(state_dict)
+        # rename classification heads
+        for src, dest in rename_keys_object_detection_model:
+            rename_key(state_dict, src, dest)
+        # finally, create model and load state dict
+        model = DetrForObjectDetection(config)
+        model.load_state_dict(state_dict)
     elif task == "panoptic_segmentation":
         # First, load in original detr from torch hub
         if backbone == 'resnet_50' and not dilation:
@@ -189,21 +208,6 @@ def convert_detr_checkpoint(task, backbone='resnet_50', dilation=False, pytorch_
             detr.eval()
         else:
             print("Not supported:", backbone, dilation)
-        
-    elif task == "base_model":
-        # load model from torch hub
-        detr = torch.hub.load('facebookresearch/detr', 'detr_resnet50', pretrained=True).eval()
-        state_dict = detr.state_dict()
-        # rename keys
-        for src, dest in rename_keys:
-            rename_key(state_dict, src, dest)
-        # query, key and value matrices need special treatment
-        read_in_q_k_v(state_dict)
-        # remove classification heads
-        remove_object_detection_heads_(state_dict)
-        # finally, create model and load state dict
-        model = DetrModel(config)
-        model.load_state_dict(state_dict)
 
     else:
         print("Task not in list of supported tasks:", task)
@@ -225,10 +229,16 @@ def convert_detr_checkpoint(task, backbone='resnet_50', dilation=False, pytorch_
     # propagate through the model
     outputs = model(img)
 
-    assert outputs.last_hidden_state.shape == (1, 100, 256)
-    print("Output shape seems OK!")
-    #assert original_output.shape == outputs.shape
-    #assert (original_output == outputs).all().item()
+    # verify outputs
+    if task == "base_model":
+        assert outputs.last_hidden_state.shape == (1, 100, 256)
+        assert outputs.shape == outputs.shape
+        #assert (original_output == outputs).all().item()
+    elif task == "object_detection":
+        raise NotImplementedError
+    elif task == "panoptic_segmenation":
+        raise NotImplementedError
+    
     # Save model
     Path(pytorch_dump_folder_path).mkdir(exist_ok=True)
     model.save_pretrained(pytorch_dump_folder_path)
