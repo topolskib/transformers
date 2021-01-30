@@ -1383,7 +1383,7 @@ class DetrModel(DetrPreTrainedModel):
         print(encoder_outputs[0].shape)
 
         print("First elements of encoder outputs:")
-        print(encoder_outputs[0,:3,:3])
+        print(encoder_outputs[0][0,:3,:3])
         
         # Fifth, sent query embeddings + position embeddings through the decoder (which is conditioned on the encoder output)
         query_embeddings = self.query_embeddings.weight.unsqueeze(0).repeat(batch_size, 1, 1)
