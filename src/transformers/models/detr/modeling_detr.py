@@ -512,7 +512,7 @@ class DetrAttention(nn.Module):
         print(attention_mask.shape)
 
         print("Attention scores before mask:")
-        print(attn_weights[0])
+        print(attn_weights[0,:3,:3])
         
         if attention_mask is not None:
             assert attention_mask.size() == (
@@ -525,9 +525,12 @@ class DetrAttention(nn.Module):
             attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
 
         print("Attention scores after mask:")
-        print(attn_weights[0,:3,:3])
+        print(attn_weights[0])
         
         attn_weights = F.softmax(attn_weights, dim=-1)
+
+        print("Attention weights after softmax:")
+        print(attn_weights[0,:3,:3])
 
         if output_attentions:
             # this operation is a bit akward, but it's required to
