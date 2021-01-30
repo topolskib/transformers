@@ -451,16 +451,7 @@ class DetrAttention(nn.Module):
         bsz, tgt_len, embed_dim = hidden_states.size()
 
         # Added (Niels): add position embeddings to the hidden states before projecting to queries, keys and values
-        print("First elements of position embeddings:")
-        print(position_embeddings[0,:3,:3])
-
-        print("Shape of position embeddings:")
-        print(position_embeddings.shape)
-        
         hidden_states = self.with_pos_embed(hidden_states, position_embeddings)
-
-        print("Hidden states after adding position embeddings:")
-        print(hidden_states[0,:3,:3])
         
         # get query proj
         query_states = self.q_proj(hidden_states) * self.scaling
@@ -500,6 +491,13 @@ class DetrAttention(nn.Module):
         value_states = value_states.view(*proj_shape)
 
         src_len = key_states.size(1)
+
+        print("First few query states:")
+        print(query_states[0,:3,:3])
+        print("First few key states:")
+        print(key_states[0,:3,:3])
+        print("First few value states:")
+        print(value_states[0,:3,:3])
 
         attn_weights = torch.bmm(query_states, key_states.transpose(1, 2))
 
