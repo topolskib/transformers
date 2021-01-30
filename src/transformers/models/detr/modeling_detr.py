@@ -17,6 +17,7 @@
 
 import math
 import random
+from dataclasses import dataclass
 from typing import Optional, Tuple, Dict, List
 
 import torch
