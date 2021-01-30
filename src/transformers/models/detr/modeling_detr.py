@@ -703,7 +703,7 @@ class DetrDecoderLayer(nn.Module):
             cross_attn_past_key_value = past_key_value[-2:] if past_key_value is not None else None
             hidden_states, cross_attn_weights, cross_attn_present_key_value = self.encoder_attn(
                 hidden_states=hidden_states,
-                position_embeddings=position_embeddings,
+                position_embeddings=query_position_embeddings,
                 key_value_states=encoder_hidden_states,
                 attention_mask=encoder_attention_mask,
                 past_key_value=cross_attn_past_key_value,
@@ -1175,6 +1175,7 @@ class DetrDecoder(DetrPreTrainedModel):
         past_key_values_length = past_key_values[0][0].shape[2] if past_key_values is not None else 0
 
         if inputs_embeds is None:
+            # to do: should be updated, because no input_ids here
             inputs_embeds = self.embed_tokens(input_ids) * self.embed_scale
 
         # added this (Niels) to infer input_shape:
