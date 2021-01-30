@@ -451,7 +451,13 @@ class DetrAttention(nn.Module):
         bsz, tgt_len, embed_dim = hidden_states.size()
 
         # Added (Niels): add position embeddings to the hidden states before projecting to queries, keys and values
+        print("First elements of position embeddings:")
+        print(position_embeddings[0,:3,:3])
+        
         hidden_states = self.with_pos_embed(hidden_states, position_embeddings)
+
+        print("Hidden states after adding position embeddings:")
+        print(position_embeddings[0,:3,:3])
         
         # get query proj
         query_states = self.q_proj(hidden_states) * self.scaling
