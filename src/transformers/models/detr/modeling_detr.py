@@ -1658,6 +1658,7 @@ class DetrForObjectDetection(DetrPreTrainedModel):
         pred_boxes = self.bbox_embed(decoder_outputs[0]).sigmoid()
 
         if config.aux_loss:
+            return -1
             # to do: add aux_outputs
             #aux_outputs = self._set_aux_loss(outputs_class, outputs_coord)
         
