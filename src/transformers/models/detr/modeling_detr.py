@@ -1021,7 +1021,7 @@ class DetrEncoder(DetrPreTrainedModel):
                     )
 
                     print("First elements of outputs of encoder layer ", i)
-                    print(layer_outputs[0,:3,3])
+                    print(layer_outputs[0][0,:3,3])
 
                 hidden_states = layer_outputs[0]
 
