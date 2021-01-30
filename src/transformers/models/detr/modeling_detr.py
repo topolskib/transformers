@@ -1576,7 +1576,7 @@ class DetrForObjectDetection(DetrPreTrainedModel):
     @add_code_sample_docstrings(
         tokenizer_class=_TOKENIZER_FOR_DOC,
         checkpoint="facebook/detr-resnet-50",
-        output_type=Seq2SeqModelOutput,
+        output_type=DetrObjectDetectionOutput,
         config_class=_CONFIG_FOR_DOC,
     )
     def forward(
