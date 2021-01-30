@@ -579,6 +579,9 @@ class DetrEncoderLayer(nn.Module):
             output_attentions=output_attentions
         )
 
+        print("Output after self-attention:")
+        print(hidden_states[0,:3,:3])
+
         hidden_states = F.dropout(hidden_states, p=self.dropout, training=self.training)
         hidden_states = residual + hidden_states
         hidden_states = self.self_attn_layer_norm(hidden_states)
