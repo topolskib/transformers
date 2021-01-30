@@ -547,6 +547,9 @@ class DetrAttention(nn.Module):
 
         attn_output = self.out_proj(attn_output)
 
+        print("Attention output:")
+        print(attn_output[0,:3,:3])
+
         return attn_output, attn_weights_reshaped, past_key_value
 
 
