@@ -450,7 +450,8 @@ class DetrAttention(nn.Module):
         is_cross_attention = key_value_states is not None
         bsz, tgt_len, embed_dim = hidden_states.size()
 
-        # Added (Niels): add position embeddings to the hidden states before projecting to queries, keys and values
+        # Added (Niels): add position embeddings to the hidden states before projecting to queries and keys
+        hidden_states_original = hidden_states
         hidden_states = self.with_pos_embed(hidden_states, position_embeddings)
         
         # get query proj
@@ -467,13 +468,13 @@ class DetrAttention(nn.Module):
         elif past_key_value is not None:
             # reuse k, v, self_attention
             key_states = self._shape(self.k_proj(hidden_states), -1, bsz)
-            value_states = self._shape(self.v_proj(hidden_states), -1, bsz)
+            value_states = self._shape(self.v_proj(hidden_states_original), -1, bsz)
             key_states = torch.cat([past_key_value[0], key_states], dim=2)
             value_states = torch.cat([past_key_value[1], value_states], dim=2)
         else:          
             # self_attention
             key_states = self._shape(self.k_proj(hidden_states), -1, bsz)
-            value_states = self._shape(self.v_proj(hidden_states), -1, bsz)
+            value_states = self._shape(self.v_proj(hidden_states_original), -1, bsz)
 
         if self.is_decoder:
             # if cross_attention save Tuple(torch.Tensor, torch.Tensor) of all cross attention key/value_states.
@@ -492,14 +493,6 @@ class DetrAttention(nn.Module):
 
         src_len = key_states.size(1)
 
-        # query, key and value states look OK
-        # print("First few query states:")
-        # print(query_states[0,:3,:3])
-        # print("First few key states:")
-        # print(key_states[0,:3,:3])
-        # print("First few value states:")
-        # print(value_states[0,:3,:3])
-
         attn_weights = torch.bmm(query_states, key_states.transpose(1, 2))
 
         assert attn_weights.size() == (
@@ -507,12 +500,6 @@ class DetrAttention(nn.Module):
             tgt_len,
             src_len,
         ), f"Attention weights should be of size {(bsz * self.num_heads, tgt_len, src_len)}, but is {attn_weights.size()}"
-
-        print("Attention mask shape:")
-        print(attention_mask.shape)
-
-        print("Attention scores before mask:")
-        print(attn_weights[0,:3,:3])
         
         if attention_mask is not None:
             assert attention_mask.size() == (
@@ -523,14 +510,8 @@ class DetrAttention(nn.Module):
             ), f"Attention mask should be of size {(bsz, 1, tgt_len, src_len)}, but is {attention_mask.size()}"
             attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len) + attention_mask
             attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
-
-        print("Attention scores after mask:")
-        print(attn_weights[0])
         
         attn_weights = F.softmax(attn_weights, dim=-1)
-
-        print("Attention weights after softmax:")
-        print(attn_weights[0,:3,:3])
 
         if output_attentions:
             # this operation is a bit akward, but it's required to
@@ -597,9 +578,6 @@ class DetrEncoderLayer(nn.Module):
             hidden_states=hidden_states, attention_mask=attention_mask, position_embeddings=position_embeddings,
             output_attentions=output_attentions
         )
-
-        print("Output of hidden states after self-attention:")
-        print(hidden_states[0,:3,:3])
 
         hidden_states = F.dropout(hidden_states, p=self.dropout, training=self.training)
         hidden_states = residual + hidden_states
@@ -1370,24 +1348,9 @@ class DetrModel(DetrPreTrainedModel):
         # Third, flatten the feature map + position embeddings of shape NxCxHxW to NxCxHW, and permute it to NxHWxC
         # In other words, turn their shape into (batch_size, sequence_length, hidden_size)
         batch_size, c, h, w = src.shape
-        #print(src.shape)
         src = src.flatten(2).permute(0, 2, 1)
-        #print("Shape of input to the encoder:")
-        #print(src.shape)
         position_embeddings = position_embeddings_list[-1].flatten(2).permute(0, 2, 1)
         mask = ~mask.flatten(1)
-        #print("Shape of mask to the encoder:")
-        #print(mask.shape)
-        
-        print("Shape of encoder input:")
-        print(src.shape) 
-        print("First few elements of encoder input:")
-        print(src[0,:3,:3])
-
-        print("First few elements of input mask:")
-        print(mask[0,:3])
-        print("Number of true elements in input mask:")
-        print(torch.sum(mask))
 
         # Fourth, sent src + mask + position embeddings through encoder 
         # src is a Tensor of shape (batch_size, heigth*width, hidden_size) 
@@ -1418,10 +1381,6 @@ class DetrModel(DetrPreTrainedModel):
         # Fifth, sent query embeddings + position embeddings through the decoder (which is conditioned on the encoder output)
         query_embeddings = self.query_embeddings.weight.unsqueeze(0).repeat(batch_size, 1, 1)
         tgt = torch.zeros_like(query_embeddings)
-        print("Shape of tgt as input to decoder:")
-        print(tgt.shape)
-        print("Shape of query embeddings as input to decoder:")
-        print(query_embeddings.shape)
         # decoder outputs consists of (dec_features, past_key_value, dec_hidden, dec_attn)
         decoder_outputs = self.decoder(
             inputs_embeds=tgt,
