@@ -1252,9 +1252,6 @@ class DetrDecoder(DetrPreTrainedModel):
 
                 print("First elements of inputs of decoder layer ", idx)
                 print(hidden_states[0,:3,:3])
-
-                print("Combined attention mask shape:")
-                print(combined_attention_mask.shape)
                 
                 layer_outputs = decoder_layer(
                     hidden_states,
