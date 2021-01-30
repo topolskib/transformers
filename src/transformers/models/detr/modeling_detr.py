@@ -1267,7 +1267,7 @@ class DetrDecoder(DetrPreTrainedModel):
                 )
 
                 print("First elements of outputs of decoder layer ", idx)
-                print(layer_outputs[0,:3,:3])
+                print(layer_outputs[0][0,:3,:3])
 
             hidden_states = layer_outputs[0]
 
