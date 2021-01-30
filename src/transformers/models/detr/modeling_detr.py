@@ -1350,14 +1350,14 @@ class DetrModel(DetrPreTrainedModel):
         # Third, flatten the feature map + position embeddings of shape NxCxHxW to NxCxHW, and permute it to NxHWxC
         # In other words, turn their shape into (batch_size, sequence_length, hidden_size)
         batch_size, c, h, w = src.shape
-        print(src.shape)
+        #print(src.shape)
         src = src.flatten(2).permute(0, 2, 1)
-        print("Shape of input to the encoder:")
-        print(src.shape)
+        #print("Shape of input to the encoder:")
+        #print(src.shape)
         position_embeddings = position_embeddings_list[-1].flatten(2).permute(0, 2, 1)
         mask = mask.flatten(1)
-        print("Shape of mask to the encoder:")
-        print(mask.shape)
+        #print("Shape of mask to the encoder:")
+        #print(mask.shape)
         
         # Fourth, sent src + mask + position embeddings through encoder 
         # src is a Tensor of shape (batch_size, heigth*width, hidden_size) 
@@ -1381,6 +1381,9 @@ class DetrModel(DetrPreTrainedModel):
 
         print("Shape of encoder outputs:")
         print(encoder_outputs[0].shape)
+
+        print("First elements of encoder outputs:")
+        print(encoder_outputs[0,:3,:3])
         
         # Fifth, sent query embeddings + position embeddings through the decoder (which is conditioned on the encoder output)
         query_embeddings = self.query_embeddings.weight.unsqueeze(0).repeat(batch_size, 1, 1)
