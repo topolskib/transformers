@@ -138,7 +138,7 @@ rename_keys_object_detection_model = [
 ("bbox_embed.layers.0.weight", "bbox_predictor.layers.0.weight"),
 ("bbox_embed.layers.0.bias", "bbox_predictor.layers.0.bias"),
 ("bbox_embed.layers.1.weight", "bbox_predictor.layers.1.weight"),
-("bbox_embed.layers.1.bias", "bbox_predictor.layers.1.weight"),
+("bbox_embed.layers.1.bias", "bbox_predictor.layers.1.bias"),
 ("bbox_embed.layers.2.weight","bbox_predictor.layers.2.weight"),
 ("bbox_embed.layers.2.bias","bbox_predictor.layers.2.bias"),
 ]

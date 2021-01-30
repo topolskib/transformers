@@ -1659,8 +1659,8 @@ class DetrForObjectDetection(DetrPreTrainedModel):
         )
 
         # class logits + boxes
-        pred_logits = self.class_embed(decoder_outputs[0])
-        pred_boxes = self.bbox_embed(decoder_outputs[0]).sigmoid()
+        pred_logits = self.class_labels_classifier(decoder_outputs[0])
+        pred_boxes = self.bbox_predictor(decoder_outputs[0]).sigmoid()
 
         if config.aux_loss:
             return -1
