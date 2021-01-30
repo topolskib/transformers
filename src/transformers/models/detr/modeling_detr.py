@@ -67,12 +67,13 @@ class DetrObjectDetectionOutput(ModelOutput):
             Total loss as the sum of (...).
         pred_logits (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, num_queries, num_classes + 1)`): 
             Classification logits (including no-object) for all queries.
-        pred_boxes (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, ...)`): 
+        pred_boxes (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, num_queries, 4)`): 
             Normalized boxes coordinates for all queries, represented as (center_x, center_y, height, width). These values are normalized in [0, 1],
             relative to the size of each individual image (disregarding possible padding). See PostProcess for information on how to retrieve the 
             unnormalized bounding box.
         aux_outputs (:obj:`list[Dict]`, `optional`): 
-            Optional, only returned when auxilary losses are activated. It is a list of dictionnaries containing the two above keys for each decoder layer.
+            Optional, only returned when auxilary losses are activated (i.e. config.aux_loss is set to True). It is a list of dictionnaries containing 
+            the two above keys for each decoder layer.
         past_key_values (:obj:`tuple(tuple(torch.FloatTensor))`, `optional`, returned when ``use_cache=True`` is passed or when ``config.use_cache=True``):
             Tuple of :obj:`tuple(torch.FloatTensor)` of length :obj:`config.n_layers`, with each tuple having 2 tensors
             of shape :obj:`(batch_size, num_heads, sequence_length, embed_size_per_head)`) and 2 additional tensors of
@@ -109,6 +110,7 @@ class DetrObjectDetectionOutput(ModelOutput):
     loss: Optional[torch.FloatTensor] = None
     pred_logits: torch.FloatTensor = None
     pred_boxes: torch.FloatTensor = None
+    aux_outputs: Optional[List[Dict]] = None
     past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
     decoder_hidden_states: Optional[Tuple[torch.FloatTensor]] = None
     decoder_attentions: Optional[Tuple[torch.FloatTensor]] = None
