@@ -453,6 +453,9 @@ class DetrAttention(nn.Module):
         # Added (Niels): add position embeddings to the hidden states before projecting to queries, keys and values
         print("First elements of position embeddings:")
         print(position_embeddings[0,:3,:3])
+
+        print("Shape of position embeddings:")
+        print(position_embeddings.shape)
         
         hidden_states = self.with_pos_embed(hidden_states, position_embeddings)
 
