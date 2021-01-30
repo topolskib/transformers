@@ -1012,16 +1012,16 @@ class DetrEncoder(DetrPreTrainedModel):
                         hidden_states,
                         attention_mask,
                     )
-                else:
-                    print("First elements of outputs of encoder layer ", i)
-                    print(layer_outputs[0,:3,3])
-                    
+                else:                 
                     # we add position_embeddings as extra input to the encoder_layer
                     layer_outputs = encoder_layer(hidden_states, 
                                                   attention_mask, 
                                                   position_embeddings=position_embeddings, 
                                                   output_attentions=output_attentions
                     )
+
+                    print("First elements of outputs of encoder layer ", i)
+                    print(layer_outputs[0,:3,3])
 
                 hidden_states = layer_outputs[0]
 
