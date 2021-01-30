@@ -30,6 +30,7 @@ from torch import Tensor
 
 from ...activations import ACT2FN
 from ...file_utils import (
+    ModelOutput,
     add_code_sample_docstrings,
     add_end_docstrings,
     add_start_docstrings,
