@@ -1202,8 +1202,9 @@ class DetrDecoder(DetrPreTrainedModel):
         # embed positions
         # positions = self.embed_positions(input_shape, past_key_values_length)
 
+        # (Niels): not required because we have special query embeddings here
         # hidden_states = inputs_embeds + positions
-        hidden_states = self.layernorm_embedding(inputs_embeds)
+        #hidden_states = self.layernorm_embedding(inputs_embeds)
 
         hidden_states = F.dropout(hidden_states, p=self.dropout, training=self.training)
 
