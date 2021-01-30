@@ -58,6 +58,66 @@ DETR_PRETRAINED_MODEL_ARCHIVE_LIST = [
 ]
 
 
+@dataclass
+class DetrObjectDetectionOutput(ModelOutput):
+    """
+    Output type of :class:`~transformers.DetrForObjectDetection`.
+    Args:
+        loss (:obj:`torch.FloatTensor` of shape :obj:`(1,)`, `optional`, returned when :obj:`labels` are provided)):
+            Total loss as the sum of (...).
+        pred_logits (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, num_queries, num_classes + 1)`): 
+            Classification logits (including no-object) for all queries.
+        pred_boxes (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, ...)`): 
+            Normalized boxes coordinates for all queries, represented as (center_x, center_y, height, width). These values are normalized in [0, 1],
+            relative to the size of each individual image (disregarding possible padding). See PostProcess for information on how to retrieve the 
+            unnormalized bounding box.
+        aux_outputs (:obj:`list[Dict]`, `optional`): 
+            Optional, only returned when auxilary losses are activated. It is a list of dictionnaries containing the two above keys for each decoder layer.
+        past_key_values (:obj:`tuple(tuple(torch.FloatTensor))`, `optional`, returned when ``use_cache=True`` is passed or when ``config.use_cache=True``):
+            Tuple of :obj:`tuple(torch.FloatTensor)` of length :obj:`config.n_layers`, with each tuple having 2 tensors
+            of shape :obj:`(batch_size, num_heads, sequence_length, embed_size_per_head)`) and 2 additional tensors of
+            shape :obj:`(batch_size, num_heads, encoder_sequence_length, embed_size_per_head)`.
+            Contains pre-computed hidden-states (key and values in the self-attention blocks and in the cross-attention
+            blocks) that can be used (see :obj:`past_key_values` input) to speed up sequential decoding.
+        decoder_hidden_states (:obj:`tuple(torch.FloatTensor)`, `optional`, returned when ``output_hidden_states=True`` is passed or when ``config.output_hidden_states=True``):
+            Tuple of :obj:`torch.FloatTensor` (one for the output of the embeddings + one for the output of each layer)
+            of shape :obj:`(batch_size, sequence_length, hidden_size)`.
+            Hidden-states of the decoder at the output of each layer plus the initial embedding outputs.
+        decoder_attentions (:obj:`tuple(torch.FloatTensor)`, `optional`, returned when ``output_attentions=True`` is passed or when ``config.output_attentions=True``):
+            Tuple of :obj:`torch.FloatTensor` (one for each layer) of shape :obj:`(batch_size, num_heads,
+            sequence_length, sequence_length)`.
+            Attentions weights of the decoder, after the attention softmax, used to compute the weighted average in the
+            self-attention heads.
+        cross_attentions (:obj:`tuple(torch.FloatTensor)`, `optional`, returned when ``output_attentions=True`` is passed or when ``config.output_attentions=True``):
+            Tuple of :obj:`torch.FloatTensor` (one for each layer) of shape :obj:`(batch_size, num_heads,
+            sequence_length, sequence_length)`.
+            Attentions weights of the decoder's cross-attention layer, after the attention softmax, used to compute the
+            weighted average in the cross-attention heads.
+        encoder_last_hidden_state (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length, hidden_size)`, `optional`):
+            Sequence of hidden-states at the output of the last layer of the encoder of the model.
+        encoder_hidden_states (:obj:`tuple(torch.FloatTensor)`, `optional`, returned when ``output_hidden_states=True`` is passed or when ``config.output_hidden_states=True``):
+            Tuple of :obj:`torch.FloatTensor` (one for the output of the embeddings + one for the output of each layer)
+            of shape :obj:`(batch_size, sequence_length, hidden_size)`.
+            Hidden-states of the encoder at the output of each layer plus the initial embedding outputs.
+        encoder_attentions (:obj:`tuple(torch.FloatTensor)`, `optional`, returned when ``output_attentions=True`` is passed or when ``config.output_attentions=True``):
+            Tuple of :obj:`torch.FloatTensor` (one for each layer) of shape :obj:`(batch_size, num_heads,
+            sequence_length, sequence_length)`.
+            Attentions weights of the encoder, after the attention softmax, used to compute the weighted average in the
+            self-attention heads.
+    """
+
+    loss: Optional[torch.FloatTensor] = None
+    pred_logits: torch.FloatTensor = None
+    pred_boxes: torch.FloatTensor = None
+    past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
+    decoder_hidden_states: Optional[Tuple[torch.FloatTensor]] = None
+    decoder_attentions: Optional[Tuple[torch.FloatTensor]] = None
+    cross_attentions: Optional[Tuple[torch.FloatTensor]] = None
+    encoder_last_hidden_state: Optional[torch.FloatTensor] = None
+    encoder_hidden_states: Optional[Tuple[torch.FloatTensor]] = None
+    encoder_attentions: Optional[Tuple[torch.FloatTensor]] = None
+
+
 ## BELOW: utilities copied from 
 # https://github.com/facebookresearch/detr/blob/a54b77800eb8e64e3ad0d8237789fcbf2f8350c5/util/misc.py
 
@@ -1333,7 +1393,7 @@ class DetrModel(DetrPreTrainedModel):
         # Create projection layer
         self.input_projection = nn.Conv2d(backbone.num_channels, config.d_model, kernel_size=1)
 
-        self.query_embeddings = nn.Embedding(config.num_queries, config.d_model)
+        self.query_position_embeddings = nn.Embedding(config.num_queries, config.d_model)
         
         self.encoder = DetrEncoder(config)
         self.decoder = DetrDecoder(config)
@@ -1427,21 +1487,21 @@ class DetrModel(DetrPreTrainedModel):
         print(encoder_outputs[0][0,:3,:3])
         
         # Fifth, sent query embeddings + position embeddings through the decoder (which is conditioned on the encoder output)
-        query_embeddings = self.query_embeddings.weight.unsqueeze(0).repeat(batch_size, 1, 1)
-        tgt = torch.zeros_like(query_embeddings)
+        query_position_embeddings = self.query_position_embeddings.weight.unsqueeze(0).repeat(batch_size, 1, 1)
+        tgt = torch.zeros_like(query_position_embeddings)
 
         print("Query embeddings shape:")
-        print(query_embeddings.shape)
+        print(query_position_embeddings.shape)
 
         print("Query embeddings first few elements:")
-        print(query_embeddings[0,:3,:3])
+        print(query_position_embeddings[0,:3,:3])
 
         # decoder outputs consists of (dec_features, past_key_value, dec_hidden, dec_attn)
         decoder_outputs = self.decoder(
             inputs_embeds=tgt,
             attention_mask=None,
             position_embeddings=position_embeddings,
-            query_position_embeddings=query_embeddings,
+            query_position_embeddings=query_position_embeddings,
             encoder_hidden_states=encoder_outputs[0],
             encoder_attention_mask=mask,
             past_key_values=past_key_values,
@@ -1466,3 +1526,174 @@ class DetrModel(DetrPreTrainedModel):
         )
 
 
+@add_start_docstrings(
+    """DETR Model (consisting of a backbone and encoder-decoder Transformer) with an object detection head on top,
+    for tasks such as COCO.""",
+    DETR_START_DOCSTRING,
+)
+class DetrForObjectDetection(DetrPreTrainedModel):
+    def __init__(self, config: DetrConfig):
+        super().__init__(config)
+
+        # Create backbone + positional encoding
+        backbone = Backbone(config.backbone, config.train_backbone, config.masks, config.dilation)
+        position_embeddings = build_position_encoding(config)
+        self.backbone = Joiner(backbone, position_embeddings)
+
+        # Create projection layer
+        self.input_projection = nn.Conv2d(backbone.num_channels, config.d_model, kernel_size=1)
+
+        self.query_position_embeddings = nn.Embedding(config.num_queries, config.d_model)
+        
+        self.encoder = DetrEncoder(config)
+        self.decoder = DetrDecoder(config)
+
+        # Object detection heads
+        self.class_labels_classifier = nn.Linear(config.d_model, config.num_labels + 1)
+        self.bbox_predictor = MLP(config.d_model, config.d_model, 4, 3)
+
+        self.init_weights()
+
+    # def get_input_embeddings(self):
+    #     return self.shared
+
+    # def set_input_embeddings(self, value):
+    #     self.shared = value
+    #     self.encoder.embed_tokens = self.shared
+    #     self.decoder.embed_tokens = self.shared
+
+    def get_encoder(self):
+        return self.encoder
+
+    def get_decoder(self):
+        return self.decoder
+
+    @add_start_docstrings_to_model_forward(DETR_INPUTS_DOCSTRING)
+    @add_code_sample_docstrings(
+        tokenizer_class=_TOKENIZER_FOR_DOC,
+        checkpoint="facebook/detr-resnet-50",
+        output_type=Seq2SeqModelOutput,
+        config_class=_CONFIG_FOR_DOC,
+    )
+    def forward(
+        self,
+        samples: NestedTensor=None,
+        decoder_input_ids=None,
+        decoder_attention_mask=None,
+        encoder_outputs=None,
+        past_key_values=None,
+        inputs_embeds=None,
+        decoder_inputs_embeds=None,
+        use_cache=None,
+        output_attentions=None,
+        output_hidden_states=None,
+        return_dict=None,
+    ):
+        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
+        output_hidden_states = (
+            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
+        )
+        use_cache = use_cache if use_cache is not None else self.config.use_cache
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        # First, sent images through Backbone to obtain the features (includes features map, mask and position embeddings)
+        if isinstance(samples, (list, torch.Tensor)):
+            samples = nested_tensor_from_tensor_list(samples)
+        features, position_embeddings_list = self.backbone(samples)
+
+        src, mask = features[-1].decompose()
+        assert mask is not None
+
+        # Second, apply 1x1 convolution to reduce the channel dimension to d_model (256 by default)
+        src = self.input_projection(src)
+        
+        # Third, flatten the feature map + position embeddings of shape NxCxHxW to NxCxHW, and permute it to NxHWxC
+        # In other words, turn their shape into (batch_size, sequence_length, hidden_size)
+        batch_size, c, h, w = src.shape
+        src = src.flatten(2).permute(0, 2, 1)
+        position_embeddings = position_embeddings_list[-1].flatten(2).permute(0, 2, 1)
+        mask = ~mask.flatten(1)
+
+        # Fourth, sent src + mask + position embeddings through encoder 
+        # src is a Tensor of shape (batch_size, heigth*width, hidden_size) 
+        # mask is a Tensor of shape (batch_size, heigth*width)
+        if encoder_outputs is None:
+            encoder_outputs = self.encoder(
+                inputs_embeds=src, 
+                attention_mask=mask,
+                position_embeddings=position_embeddings,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+            )
+        # If the user passed a tuple for encoder_outputs, we wrap it in a BaseModelOutput when return_dict=True
+        elif return_dict and not isinstance(encoder_outputs, BaseModelOutput):
+            encoder_outputs = BaseModelOutput(
+                last_hidden_state=encoder_outputs[0],
+                hidden_states=encoder_outputs[1] if len(encoder_outputs) > 1 else None,
+                attentions=encoder_outputs[2] if len(encoder_outputs) > 2 else None,
+            )
+        
+        # Fifth, sent query embeddings + position embeddings through the decoder (which is conditioned on the encoder output)
+        query_position_embeddings = self.query_position_embeddings.weight.unsqueeze(0).repeat(batch_size, 1, 1)
+        tgt = torch.zeros_like(query_position_embeddings)
+
+        # decoder outputs consists of (dec_features, past_key_value, dec_hidden, dec_attn)
+        decoder_outputs = self.decoder(
+            inputs_embeds=tgt,
+            attention_mask=None,
+            position_embeddings=position_embeddings,
+            query_position_embeddings=query_position_embeddings,
+            encoder_hidden_states=encoder_outputs[0],
+            encoder_attention_mask=mask,
+            past_key_values=past_key_values,
+            use_cache=use_cache,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+
+        # class logits + boxes
+        pred_logits = self.class_embed(decoder_outputs[0])
+        pred_boxes = self.bbox_embed(decoder_outputs[0]).sigmoid()
+
+        if config.aux_loss:
+            # to do: add aux_outputs
+            #aux_outputs = self._set_aux_loss(outputs_class, outputs_coord)
+        
+        if not return_dict:
+            return decoder_outputs + encoder_outputs
+
+        return DetrObjectDetectionOutput(
+            loss=None,
+            pred_logits=pred_logits,
+            pred_boxes=pred_boxes,
+            aux_outputs=None,
+            past_key_values=decoder_outputs.past_key_values,
+            decoder_hidden_states=decoder_outputs.hidden_states,
+            decoder_attentions=decoder_outputs.attentions,
+            cross_attentions=decoder_outputs.cross_attentions,
+            encoder_last_hidden_state=encoder_outputs.last_hidden_state,
+            encoder_hidden_states=encoder_outputs.hidden_states,
+            encoder_attentions=encoder_outputs.attentions,
+        )
+
+
+class MLP(nn.Module):
+    """
+    Very simple multi-layer perceptron (also called FFN). 
+
+    Copied from https://github.com/facebookresearch/detr/blob/master/models/detr.py
+    
+    """
+
+    def __init__(self, input_dim, hidden_dim, output_dim, num_layers):
+        super().__init__()
+        self.num_layers = num_layers
+        h = [hidden_dim] * (num_layers - 1)
+        self.layers = nn.ModuleList(nn.Linear(n, k) for n, k in zip([input_dim] + h, h + [output_dim]))
+
+    def forward(self, x):
+        for i, layer in enumerate(self.layers):
+            x = F.relu(layer(x)) if i < self.num_layers - 1 else layer(x)
+        return x
