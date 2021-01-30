@@ -592,8 +592,16 @@ class DetrEncoderLayer(nn.Module):
         residual = hidden_states
         hidden_states = self.activation_fn(self.fc1(hidden_states))
         hidden_states = F.dropout(hidden_states, p=self.activation_dropout, training=self.training)
+        
+        print("Output after first dropout:")
+        print(hidden_states[0,:3,:3])
+        
         hidden_states = self.fc2(hidden_states)
         hidden_states = F.dropout(hidden_states, p=self.dropout, training=self.training)
+
+        print("Output after second dropout:")
+        print(hidden_states[0,:3,:3])
+
         hidden_states = residual + hidden_states
         hidden_states = self.final_layer_norm(hidden_states)
 

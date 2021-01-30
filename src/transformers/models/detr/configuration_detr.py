@@ -56,7 +56,7 @@ class DetrConfig(PretrainedConfig):
             Dimensionality of the "intermediate" (often named feed-forward) layer in decoder.
         encoder_ffn_dim (:obj:`int`, `optional`, defaults to 2048):
             Dimensionality of the "intermediate" (often named feed-forward) layer in decoder.
-        activation_function (:obj:`str` or :obj:`function`, `optional`, defaults to :obj:`"gelu"`):
+        activation_function (:obj:`str` or :obj:`function`, `optional`, defaults to :obj:`"relu"`):
             The non-linear activation function (function or string) in the encoder and pooler. If string,
             :obj:`"gelu"`, :obj:`"relu"`, :obj:`"silu"` and :obj:`"gelu_new"` are supported.
         dropout (:obj:`float`, `optional`, defaults to 0.1):
@@ -121,7 +121,7 @@ class DetrConfig(PretrainedConfig):
         decoder_layerdrop=0.0,
         use_cache=True,
         is_encoder_decoder=True,
-        activation_function="gelu",
+        activation_function="relu",
         d_model=256,
         dropout=0.1,
         attention_dropout=0.0,
