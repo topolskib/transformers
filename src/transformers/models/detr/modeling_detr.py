@@ -1553,7 +1553,8 @@ class DetrForObjectDetection(DetrPreTrainedModel):
         self.decoder = DetrDecoder(config)
 
         # Object detection heads
-        self.class_labels_classifier = nn.Linear(config.d_model, config.num_labels + 1)
+        # to do: replace 91 by config.num_labels
+        self.class_labels_classifier = nn.Linear(config.d_model, 91 + 1)
         self.bbox_predictor = MLP(config.d_model, config.d_model, 4, 3)
 
         self.init_weights()

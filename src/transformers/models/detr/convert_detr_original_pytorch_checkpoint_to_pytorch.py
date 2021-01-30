@@ -131,6 +131,19 @@ def read_in_q_k_v(state_dict):
         state_dict["decoder.layers." + str(i) + ".encoder_attn.v_proj.bias"] = in_proj_bias_cross_attn[-256:]
     
 
+# since we renamed the classification heads of the object detection model, we need to rename the original keys:
+rename_keys_object_detection_model = [
+("class_embed.weight", "class_labels_classifier.weight"),
+("class_embed.bias", "class_labels_classifier.bias"),
+("bbox_embed.layers.0.weight", "bbox_predictor.layers.0.weight"),
+("bbox_embed.layers.0.bias", "bbox_predictor.layers.0.bias"),
+("bbox_embed.layers.1.weight", "bbox_predictor.layers.1.weight"),
+("bbox_embed.layers.1.bias", "bbox_predictor.layers.1.weight"),
+("bbox_embed.layers.2.weight","bbox_predictor.layers.2.weight"),
+("bbox_embed.layers.2.bias","bbox_predictor.layers.2.bias"),
+]
+
+
 @torch.no_grad()
 def convert_detr_checkpoint(task, backbone='resnet_50', dilation=False, pytorch_dump_folder_path=None):
     """
