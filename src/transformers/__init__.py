@@ -370,6 +370,7 @@ if is_torch_available():
             "DetrForQuestionAnswering",
             "DetrForSequenceClassification",
             "DetrModel",
+            "DetrForObjectDetection",
         ]
     )
     _import_structure["models.albert"].extend(
@@ -1412,6 +1413,7 @@ if TYPE_CHECKING:
             DetrForQuestionAnswering,
             DetrForSequenceClassification,
             DetrModel,
+            DetrForObjectDetection,
         )
 
         # Benchmarks

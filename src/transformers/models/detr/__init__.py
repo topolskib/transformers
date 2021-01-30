@@ -33,6 +33,7 @@ if is_torch_available():
         "DetrForSequenceClassification",
         "DetrModel",
         "DetrPreTrainedModel",
+        "DetrForObjectDetection",
     ]
 
 
@@ -53,6 +54,7 @@ if TYPE_CHECKING:
             DetrForSequenceClassification,
             DetrModel,
             DetrPreTrainedModel,
+            DetrForObjectDetection,
         )
 
 

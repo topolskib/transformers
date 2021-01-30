@@ -69,7 +69,7 @@ for i in range(6):
 # convolutional projection + query embeddings + layernorm of decoder
 rename_keys.extend([("input_proj.weight", "input_projection.weight"),
 ("input_proj.bias", "input_projection.bias"),
-("query_embed.weight", "query_embeddings.weight"),
+("query_embed.weight", "query_position_embeddings.weight"),
 ("transformer.decoder.norm.weight", "decoder.layernorm_embedding.weight"),
 ("transformer.decoder.norm.bias", "decoder.layernorm_embedding.bias")])
 
