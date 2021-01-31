@@ -28,6 +28,7 @@ import requests
 from transformers import (
     DetrConfig,
     DetrModel,
+    DetrForObjectDetection,
 )
 from transformers.utils import logging
 
@@ -74,7 +75,6 @@ rename_keys.extend([("input_proj.weight", "input_projection.weight"),
 ("transformer.decoder.norm.bias", "decoder.layernorm.bias")])
 
 
-
 def remove_object_detection_heads_(state_dict):
     ignore_keys = [
         "class_embed.weight", 
@@ -93,6 +93,7 @@ def remove_object_detection_heads_(state_dict):
 def rename_key(state_dict, old, new):
     val = state_dict.pop(old)
     state_dict[new] = val
+
 
 def read_in_q_k_v(state_dict):
     # first: transformer encoder
@@ -144,75 +145,8 @@ rename_keys_object_detection_model = [
 ]
 
 
-@torch.no_grad()
-def convert_detr_checkpoint(task, backbone='resnet_50', dilation=False, pytorch_dump_folder_path=None):
-    """
-    Copy/paste/tweak model's weights to our DETR structure.
-    """
-
-    config = DetrConfig()
-
-    if task == "base_model":
-        # load model from torch hub
-        detr = torch.hub.load('facebookresearch/detr', 'detr_resnet50', pretrained=True).eval()
-        state_dict = detr.state_dict()
-        # rename keys
-        for src, dest in rename_keys:
-            rename_key(state_dict, src, dest)
-        # query, key and value matrices need special treatment
-        read_in_q_k_v(state_dict)
-        # remove classification heads
-        remove_object_detection_heads_(state_dict)
-        # finally, create model and load state dict
-        model = DetrModel(config)
-        model.load_state_dict(state_dict)
-    
-    elif task == "object_detection":
-        # load model from torch hub
-        if backbone == 'resnet_50' and not dilation:
-            detr = torch.hub.load('facebookresearch/detr', 'detr_resnet50', pretrained=True).eval()
-        elif backbone == 'resnet_50' and dilation:
-            detr = torch.hub.load('facebookresearch/detr', 'detr_dc5_resnet50', pretrained=True).eval()
-        elif backbone == 'resnet_101' and not dilation:
-            detr = torch.hub.load('facebookresearch/detr', 'detr_resnet101', pretrained=True).eval()
-        elif backbone == 'resnet_101' and dilation:
-            detr = torch.hub.load('facebookresearch/detr', 'detr_dc5_resnet101', pretrained=True).eval()
-        else: 
-            print("Not supported:", backbone, dilation)
-        
-        state_dict = detr.state_dict()
-        # rename keys
-        for src, dest in rename_keys:
-            rename_key(state_dict, src, dest)
-        # query, key and value matrices need special treatment
-        read_in_q_k_v(state_dict)
-        # rename classification heads
-        for src, dest in rename_keys_object_detection_model:
-            rename_key(state_dict, src, dest)
-        # finally, create model and load state dict
-        model = DetrForObjectDetection(config)
-        model.load_state_dict(state_dict)
-    elif task == "panoptic_segmentation":
-        # First, load in original detr from torch hub
-        if backbone == 'resnet_50' and not dilation:
-            detr, postprocessor = torch.hub.load('facebookresearch/detr', 'detr_resnet50_panoptic', 
-                                                pretrained=True, return_postprocessor=True, num_classes=250)
-            detr.eval()
-        elif backbone == 'resnet_50' and dilation:
-            detr, postprocessor = torch.hub.load('facebookresearch/detr', 'detr_dc5_resnet50_panoptic', 
-                                                pretrained=True, return_postprocessor=True, num_classes=250)
-            detr.eval()
-        elif backbone == 'resnet_101' and not dilation:
-            detr, postprocessor = torch.hub.load('facebookresearch/detr', 'detr_resnet101_panoptic', 
-                                                pretrained=True, return_postprocessor=True, num_classes=250)
-            detr.eval()
-        else:
-            print("Not supported:", backbone, dilation)
-
-    else:
-        print("Task not in list of supported tasks:", task)
-
-    # Check results on an image of cute cats
+# We will verify our results on an image of cute cats
+def prepare_img():
     url = 'http://images.cocodataset.org/val2017/000000039769.jpg'
     im = Image.open(requests.get(url, stream=True).raw)
 
@@ -226,31 +160,111 @@ def convert_detr_checkpoint(task, backbone='resnet_50', dilation=False, pytorch_
     # mean-std normalize the input image (batch-size: 1)
     img = transform(im).unsqueeze(0)
 
-    # propagate through the model
-    outputs = model(img)
+    return img
 
-    # verify outputs
+
+@torch.no_grad()
+def convert_detr_checkpoint(task, backbone, dilation, pytorch_dump_folder_path):
+    """
+    Copy/paste/tweak model's weights to our DETR structure.
+    """
+
+    config = DetrConfig()
+    img = prepare_img()
+
+    logger.info(f"Converting model for task {task}, with a {backbone} backbone, dilation set to {dilation}...")
+
     if task == "base_model":
+        # load model from torch hub
+        detr = torch.hub.load('facebookresearch/detr', 'detr_resnet50', pretrained=True).eval()
+        state_dict = detr.state_dict()
+        # rename keys
+        for src, dest in rename_keys:
+            rename_key(state_dict, src, dest)
+        # query, key and value matrices need special treatment
+        read_in_q_k_v(state_dict)
+        # remove classification heads
+        remove_object_detection_heads_(state_dict)
+        # finally, create model and load state dict
+        model = DetrModel(config).eval()
+        model.load_state_dict(state_dict)
+        # verify our conversion on the image
+        outputs = model(img)
         assert outputs.last_hidden_state.shape == (1, 100, 256)
-        assert outputs.shape == outputs.shape
-        #assert (original_output == outputs).all().item()
+        expected_slice = torch.tensor([[0.0616, -0.5146, -0.4032],
+        [-0.7629, -0.4934, -1.7153],
+        [-0.4768, -0.6403, -0.7826]])
+        assert torch.allclose(outputs.last_hidden_state[0,:3,:3], expected_slice, atol=1e-4)
+    
     elif task == "object_detection":
-        raise NotImplementedError
-    elif task == "panoptic_segmenation":
-        raise NotImplementedError
+        # load model from torch hub
+        if backbone == 'resnet_50' and not dilation:
+            detr = torch.hub.load('facebookresearch/detr', 'detr_resnet50', pretrained=True).eval()
+        elif backbone == 'resnet_50' and dilation:
+            detr = torch.hub.load('facebookresearch/detr', 'detr_dc5_resnet50', pretrained=True).eval()
+            config.dilation = True
+        elif backbone == 'resnet_101' and not dilation:
+            detr = torch.hub.load('facebookresearch/detr', 'detr_resnet101', pretrained=True).eval()
+            config.backbone = 'resnet_101'
+        elif backbone == 'resnet_101' and dilation:
+            detr = torch.hub.load('facebookresearch/detr', 'detr_dc5_resnet101', pretrained=True).eval()
+            config.backbone = 'resnet_101'
+            config.dilation = True
+        else: 
+            raise ValueError(f"Not supported: {backbone} with {dilation}")
+        
+        state_dict = detr.state_dict()
+        # rename keys
+        for src, dest in rename_keys:
+            rename_key(state_dict, src, dest)
+        # query, key and value matrices need special treatment
+        read_in_q_k_v(state_dict)
+        # rename classification heads
+        for src, dest in rename_keys_object_detection_model:
+            rename_key(state_dict, src, dest)
+        # finally, create model and load state dict
+        model = DetrForObjectDetection(config).eval()
+        model.load_state_dict(state_dict)
+        # verify our conversion
+        original_outputs = detr(img)
+        outputs = model(img)
+        assert torch.allclose(outputs.pred_logits, original_outputs['pred_logits'], atol=1e-4)
+        assert torch.allclose(outputs.pred_boxes, original_outputs['pred_boxes'], atol=1e-4)
+
+    elif task == "panoptic_segmentation":
+        # First, load in original detr from torch hub
+        if backbone == 'resnet_50' and not dilation:
+            detr, postprocessor = torch.hub.load('facebookresearch/detr', 'detr_resnet50_panoptic', 
+                                                pretrained=True, return_postprocessor=True, num_classes=250)
+            detr.eval()
+        elif backbone == 'resnet_50' and dilation:
+            detr, postprocessor = torch.hub.load('facebookresearch/detr', 'detr_dc5_resnet50_panoptic', 
+                                                pretrained=True, return_postprocessor=True, num_classes=250)
+            detr.eval()
+            config.dilation = True
+        elif backbone == 'resnet_101' and not dilation:
+            detr, postprocessor = torch.hub.load('facebookresearch/detr', 'detr_resnet101_panoptic', 
+                                                pretrained=True, return_postprocessor=True, num_classes=250)
+            detr.eval()
+            config.backbone = 'resnet_101'
+        else:
+            print("Not supported:", backbone, dilation)
+
+    else:
+        print("Task not in list of supported tasks:", task)
     
     # Save model
+    logger.info(f"Saving PyTorch model to {pytorch_dump_folder_path}...")
     Path(pytorch_dump_folder_path).mkdir(exist_ok=True)
     model.save_pretrained(pytorch_dump_folder_path)
 
 
 if __name__ == "__main__":
-    # parser = argparse.ArgumentParser()
-    # parser.add_argument("task", default='base_model', type=str, help="""Task for which to convert a checkpoint. One of 'base_model', 
-    # 'object_detection' or 'panoptic_segmentation'. """)
-    # parser.add_argument("backbone", default='resnet_50', type=str, help="Which backbone to use. One of 'resnet50', 'resnet101'.")
-    # parser.add_argument("dilation", default=False, action="store_true", help="Whether to apply dilated convolution.")
-    # parser.add_argument("pytorch_dump_folder_path", default=None, type=str, help="Path to the output PyTorch model.")
-    # args = parser.parse_args()
-    # convert_detr_checkpoint(args.task, args.backbone, args.dilation, args.pytorch_dump_folder_path)
-    convert_detr_checkpoint(task='base_model')
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--task", default='base_model', type=str, help="""Task for which to convert a checkpoint. One of 'base_model', 
+    'object_detection' or 'panoptic_segmentation'.""")
+    parser.add_argument("--backbone", default='resnet_50', type=str, help="Which backbone to use. One of 'resnet50', 'resnet101'.")
+    parser.add_argument("--dilation", default=False, action="store_true", help="Whether to apply dilated convolution.")
+    parser.add_argument("--pytorch_dump_folder_path", default=None, type=str, help="Path to the output PyTorch model.")
+    args = parser.parse_args()
+    convert_detr_checkpoint(args.task, args.backbone, args.dilation, args.pytorch_dump_folder_path)
