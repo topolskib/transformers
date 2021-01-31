@@ -1355,8 +1355,6 @@ class DetrDecoder(DetrPreTrainedModel):
                     print(torch.sum(layer_outputs[0]))
 
             hidden_states = layer_outputs[0]
-            # finally, apply layernorm
-            #hidden_states = self.layernorm(hidden_states)
 
             if use_cache:
                 next_decoder_cache += (layer_outputs[3 if output_attentions else 1],)
@@ -1365,7 +1363,11 @@ class DetrDecoder(DetrPreTrainedModel):
                 all_self_attns += (layer_outputs[1],)
                 all_cross_attentions += (layer_outputs[2],)
 
+        # finally, apply layernorm
+        hidden_states = self.layernorm(hidden_states)
+        
         # add hidden states from the last decoder layer
+        # !! to do (Niels): apply layernorm to each intermediate hidden state
         if output_hidden_states:
             all_hidden_states += (hidden_states,)
 
