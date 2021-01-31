@@ -1351,6 +1351,10 @@ class DetrDecoder(DetrPreTrainedModel):
                 print("First elements of outputs of decoder layer ", idx)
                 print(layer_outputs[0][0,:3,:3])
 
+                if idx == 5:
+                    print("Sum of outputs of decoder layer ", idx)
+                    print(torch.sum(layer_outputs[0]))
+
             hidden_states = layer_outputs[0]
 
             if use_cache:
