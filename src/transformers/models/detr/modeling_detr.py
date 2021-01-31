@@ -1000,9 +1000,7 @@ class DetrEncoder(DetrPreTrainedModel):
 
         self.layers = nn.ModuleList([DetrEncoderLayer(config) for _ in range(config.encoder_layers)])
         
-        # (Niels) comment out layernorm embedding of Encoder, as "normalize_before" is set to False of DETR and hence 
-        # no layernorm at the encoder
-        #self.layernorm_embedding = nn.LayerNorm(embed_dim)
+        # (Niels) in the original DETR, no layernorm is used for the Encoder, as "normalize_before" is set to False
 
         self.init_weights()
 
@@ -1166,7 +1164,8 @@ class DetrDecoder(DetrPreTrainedModel):
         #     self.padding_idx,
         # )
         self.layers = nn.ModuleList([DetrDecoderLayer(config) for _ in range(config.decoder_layers)])
-        self.layernorm_embedding = nn.LayerNorm(config.d_model)
+        # in DETR, the decoder uses layernorm after the last decoder layer output
+        self.layernorm = nn.LayerNorm(config.d_model)
 
         self.init_weights()
 
@@ -1356,6 +1355,8 @@ class DetrDecoder(DetrPreTrainedModel):
                     print(torch.sum(layer_outputs[0]))
 
             hidden_states = layer_outputs[0]
+            # finally, apply layernorm
+            hidden_states = self.layernorm(hidden_states)
 
             if use_cache:
                 next_decoder_cache += (layer_outputs[3 if output_attentions else 1],)
