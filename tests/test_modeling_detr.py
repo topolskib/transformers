@@ -33,11 +33,9 @@ if is_torch_available():
 
     from transformers import (
         DetrConfig,
-        DetrForConditionalGeneration,
-        DetrForQuestionAnswering,
-        DetrForSequenceClassification,
         DetrModel,
         DetrTokenizer,
+        DetrForObjectDetection,
     )
     from transformers.models.detr.modeling_detr import (
         DetrDecoder,
@@ -305,82 +303,65 @@ def _long_tensor(tok_lst):
 TOLERANCE = 1e-4
 
 
+# We will verify our outputs against the original implementation on an image of cute cats
+def prepare_img():
+    url = 'http://images.cocodataset.org/val2017/000000039769.jpg'
+    im = Image.open(requests.get(url, stream=True).raw)
+
+    # standard PyTorch mean-std input image normalization
+    transform = T.Compose([
+        T.Resize(800),
+        T.ToTensor(),
+        T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ])
+
+    # mean-std normalize the input image (batch-size: 1)
+    img = transform(im).unsqueeze(0)
+
+    return img
+
+
 @require_torch
-@require_sentencepiece
-@require_tokenizers
 @slow
 class DetrModelIntegrationTests(unittest.TestCase):
-    @cached_property
-    def default_tokenizer(self):
-        return DetrTokenizer.from_pretrained('facebook/detr-resnet-50')
+    # @cached_property
+    # def default_tokenizer(self):
+    #     return DetrTokenizer.from_pretrained('facebook/detr-resnet-50')
 
     def test_inference_no_head(self):
-        model = DetrModel.from_pretrained('facebook/detr-resnet-50').to(torch_device)
-        input_ids = _long_tensor([[0, 31414, 232, 328, 740, 1140, 12695, 69, 46078, 1588, 2]])
-        decoder_input_ids = _long_tensor([[2, 0, 31414, 232, 328, 740, 1140, 12695, 69, 46078, 1588]])
-        inputs_dict = prepare_detr_inputs_dict(model.config, input_ids, decoder_input_ids)
+        model = DetrModel.from_pretrained('nielsr/detr-resnet-50').to(torch_device)
+        model.eval()
+        img = prepare_img().to(torch_device)
+        
         with torch.no_grad():
-            output = model(**inputs_dict)[0]
-        expected_shape = torch.Size((1, 11, 1024))
-        self.assertEqual(output.shape, expected_shape)
-        # change to expected output here
-        expected_slice = torch.tensor(
-            [[0.7144, 0.8143, -1.2813], [0.7144, 0.8143, -1.2813], [-0.0467, 2.5911, -2.1845]], device=torch_device
-        )
-        self.assertTrue(torch.allclose(output[:, :3, :3], expected_slice, atol=TOLERANCE))
+            outputs = model(img)
+        
+        expected_shape = torch.Size((1, 100, 256))
+        assert outputs.last_hidden_state.shape == expected_shape
+        expected_slice = torch.tensor([[0.0616, -0.5146, -0.4032],
+        [-0.7629, -0.4934, -1.7153],
+        [-0.4768, -0.6403, -0.7826]]).to(torch_device)
+        self.assertTrue(torch.allclose(outputs.last_hidden_state[0,:3,:3], expected_slice, atol=1e-4))    
 
-    def test_inference_head(self):
-        model = DetrForConditionalGeneration.from_pretrained('facebook/detr-resnet-50').to(torch_device)
 
-        # change to intended input
-        input_ids = _long_tensor([[0, 31414, 232, 328, 740, 1140, 12695, 69, 46078, 1588, 2]])
-        decoder_input_ids = _long_tensor([[0, 31414, 232, 328, 740, 1140, 12695, 69, 46078, 1588, 2]])
-        inputs_dict = prepare_detr_inputs_dict(model.config, input_ids, decoder_input_ids)
+    def test_inference_object_detection_head(self):    
+        model = DetrForObjectDetection.from_pretrained('nielsr/detr-resnet-50').to(torch_device)
+        model.eval()
+        img = prepare_img().to(torch_device)
+
         with torch.no_grad():
-            output = model(**inputs_dict)[0]
-        expected_shape = torch.Size((1, 11, model.config.vocab_size))
-        self.assertEqual(output.shape, expected_shape)
-        # change to expected output here
-        expected_slice = torch.tensor(
-            [[0.7144, 0.8143, -1.2813], [0.7144, 0.8143, -1.2813], [-0.0467, 2.5911, -2.1845]], device=torch_device
-        )
-        self.assertTrue(torch.allclose(output[:, :3, :3], expected_slice, atol=TOLERANCE))
+            outputs = model(img)
+        
+        expected_shape_logits = torch.Size((1, model.config.num_queries, model.config.num_labels + 1))
+        self.assertEqual(outputs.pred_logits.shape, expected_shape_logits)
+        expected_slice_logits = torch.tensor([[-19.1194,  -0.0893, -11.0154],
+        [-17.3640,  -1.8035, -14.0219],
+        [-20.0461,  -0.5837, -11.1060]]).to(torch_device)
+        self.assertTrue(torch.allclose(outputs.pred_logits[0,:3,:3], expected_slice_logits, atol=1e-4))  
 
-    def test_seq_to_seq_generation(self):
-        hf = DetrForConditionalGeneration.from_pretrained('facebook/detr-resnet-50').to(torch_device)
-        tok = DetrTokenizer.from_pretrained('facebook/detr-resnet-50')
-
-        batch_input = [
-            # string 1,
-            # string 2,
-            # string 3,
-            # string 4,
-        ]
-
-        # The below article tests that we don't add any hypotheses outside of the top n_beams
-        dct = tok.batch_encode_plus(
-            batch_input,
-            max_length=512,
-            padding="max_length",
-            truncation_strategy="only_first",
-            truncation=True,
-            return_tensors="pt",
-        )
-
-        hypotheses_batch = hf.generate(
-            input_ids=dct["input_ids"].to(torch_device),
-            attention_mask=dct["attention_mask"].to(torch_device),
-            num_beams=2,
-        )
-
-        EXPECTED = [
-            # here expected 1,
-            # here expected 2,
-            # here expected 3,
-            # here expected 4,
-        ]
-
-        generated = tok.batch_decode(
-            hypotheses_batch.tolist(), clean_up_tokenization_spaces=True, skip_special_tokens=True
-        )
-        assert generated == EXPECTED
+        expected_shape_boxes = torch.Size((1, model.config.num_queries, 4))
+        self.assertEqual(outputs.pred_boxes.shape, expected_shape_coords)
+        expected_slice_boxes = torch.tensor([[0.4433, 0.5302, 0.8853],
+        [0.5494, 0.2517, 0.0529],
+        [0.4998, 0.5360, 0.9956]]).to(torch_device)
+        self.assertTrue(torch.allclose(outputs.pred_boxes[0,:3,:3], expected_slice_boxes, atol=1e-4)) 

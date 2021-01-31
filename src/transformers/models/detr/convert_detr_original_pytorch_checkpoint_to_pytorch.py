@@ -163,6 +163,25 @@ def prepare_img():
     return img
 
 
+# COCO classes
+CLASSES = [
+    'N/A', 'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus',
+    'train', 'truck', 'boat', 'traffic light', 'fire hydrant', 'N/A',
+    'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse',
+    'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe', 'N/A', 'backpack',
+    'umbrella', 'N/A', 'N/A', 'handbag', 'tie', 'suitcase', 'frisbee', 'skis',
+    'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove',
+    'skateboard', 'surfboard', 'tennis racket', 'bottle', 'N/A', 'wine glass',
+    'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple', 'sandwich',
+    'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake',
+    'chair', 'couch', 'potted plant', 'bed', 'N/A', 'dining table', 'N/A',
+    'N/A', 'toilet', 'N/A', 'tv', 'laptop', 'mouse', 'remote', 'keyboard',
+    'cell phone', 'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'N/A',
+    'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier',
+    'toothbrush'
+]
+
+
 @torch.no_grad()
 def convert_detr_checkpoint(task, backbone, dilation, pytorch_dump_folder_path):
     """
@@ -190,13 +209,16 @@ def convert_detr_checkpoint(task, backbone, dilation, pytorch_dump_folder_path):
         model.load_state_dict(state_dict)
         # verify our conversion on the image
         outputs = model(img)
-        assert outputs.last_hidden_state.shape == (1, 100, 256)
+        assert outputs.last_hidden_state.shape == (1, config.num_queries, config.d_model)
         expected_slice = torch.tensor([[0.0616, -0.5146, -0.4032],
         [-0.7629, -0.4934, -1.7153],
         [-0.4768, -0.6403, -0.7826]])
         assert torch.allclose(outputs.last_hidden_state[0,:3,:3], expected_slice, atol=1e-4)
     
     elif task == "object_detection":
+        # coco has 91 labels
+        config.num_labels = 91
+        config.id2label = {v: k for v, k in enumerate(CLASSES)}
         # load model from torch hub
         if backbone == 'resnet_50' and not dilation:
             detr = torch.hub.load('facebookresearch/detr', 'detr_resnet50', pretrained=True).eval()

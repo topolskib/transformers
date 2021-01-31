@@ -361,7 +361,7 @@ def _expand_mask(
     return inverted_mask.masked_fill(inverted_mask.bool(), torch.finfo(dtype).min)
 
 
-class PositionEmbeddingSine(nn.Module):
+class DetrSinePositionEmbedding(nn.Module):
     """
     This is a more standard version of the position embedding, very similar to the one
     used by the Attention is all you need paper, generalized to work on images.
@@ -400,7 +400,7 @@ class PositionEmbeddingSine(nn.Module):
         return pos
 
 
-class PositionEmbeddingLearned(nn.Module):
+class DetrLearnedPositionEmbedding(nn.Module):
     """
     This module learns positional embeddings up to a fixed maximum size. 
     """
@@ -432,9 +432,9 @@ def build_position_encoding(config):
     N_steps = config.d_model // 2
     if config.position_embedding_type == 'sine':
         # TODO find a better way of exposing other arguments
-        position_embedding = PositionEmbeddingSine(N_steps, normalize=True)
+        position_embedding = DetrSinePositionEmbedding(N_steps, normalize=True)
     elif config.position_embedding_type == 'learned':
-        position_embedding = PositionEmbeddingLearned(N_steps)
+        position_embedding = DetrLearnedPositionEmbedding(N_steps)
     else:
         raise ValueError(f"not supported {config.position_embedding_type}")
 
@@ -1561,7 +1561,7 @@ class DetrForObjectDetection(DetrPreTrainedModel):
 
         # Object detection heads
         # to do: replace 91 by config.num_labels
-        self.class_labels_classifier = nn.Linear(config.d_model, 91 + 1)
+        self.class_labels_classifier = nn.Linear(config.d_model, config.num_labels + 1)
         self.bbox_predictor = MLP(config.d_model, config.d_model, 4, 3)
 
         self.init_weights()
@@ -1646,7 +1646,8 @@ class DetrForObjectDetection(DetrPreTrainedModel):
                 attentions=encoder_outputs[2] if len(encoder_outputs) > 2 else None,
             )
         
-        # Fifth, sent query embeddings + position embeddings through the decoder (which is conditioned on the encoder output)
+        # Fifth, sent queries i.e. tgt (initialized with zeros), query position embeddings + position embeddings 
+        # through the decoder (which is conditioned on the encoder output)
         query_position_embeddings = self.query_position_embeddings.weight.unsqueeze(0).repeat(batch_size, 1, 1)
         tgt = torch.zeros_like(query_position_embeddings)
 

@@ -29,7 +29,7 @@ DETR_PRETRAINED_CONFIG_ARCHIVE_MAP = {
 class DetrConfig(PretrainedConfig):
     r"""
     This is the configuration class to store the configuration of a :class:`~transformers.DetrModel`.
-    It is used to instantiate an DETR model according to the specified arguments, defining the model
+    It is used to instantiate a DETR model according to the specified arguments, defining the model
     architecture. Instantiating a configuration with the defaults will yield a similar configuration to that of
     the DETR `facebook/detr-resnet-50 <https://huggingface.co/facebook/detr-resnet-50>`__ architecture.
 
