@@ -1356,7 +1356,7 @@ class DetrDecoder(DetrPreTrainedModel):
 
             hidden_states = layer_outputs[0]
             # finally, apply layernorm
-            hidden_states = self.layernorm(hidden_states)
+            #hidden_states = self.layernorm(hidden_states)
 
             if use_cache:
                 next_decoder_cache += (layer_outputs[3 if output_attentions else 1],)
