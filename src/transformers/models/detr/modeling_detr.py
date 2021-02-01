@@ -650,34 +650,19 @@ class DetrEncoderLayer(nn.Module):
             output_attentions=output_attentions
         )
 
-        # print("Output after self-attention:")
-        # print(hidden_states[0,:3,:3])
-
         hidden_states = F.dropout(hidden_states, p=self.dropout, training=self.training)
         hidden_states = residual + hidden_states
         hidden_states = self.self_attn_layer_norm(hidden_states)
-
-        # print("Output after self-attention layer norm:")
-        # print(hidden_states[0,:3,:3])
 
         residual = hidden_states
         hidden_states = self.activation_fn(self.fc1(hidden_states))
         hidden_states = F.dropout(hidden_states, p=self.activation_dropout, training=self.training)
         
-        # print("Output after first dropout:")
-        # print(hidden_states[0,:3,:3])
-        
         hidden_states = self.fc2(hidden_states)
         hidden_states = F.dropout(hidden_states, p=self.dropout, training=self.training)
 
-        # print("Output after second dropout:")
-        # print(hidden_states[0,:3,:3])
-
         hidden_states = residual + hidden_states
         hidden_states = self.final_layer_norm(hidden_states)
-
-        # print("Output after final layer norm:")
-        # print(hidden_states[0,:3,:3])
 
         if torch.isinf(hidden_states).any() or torch.isnan(hidden_states).any():
             clamp_value = torch.finfo(hidden_states.dtype).max - 1000
@@ -757,24 +742,15 @@ class DetrDecoderLayer(nn.Module):
             output_attentions=output_attentions,
         )
 
-        print("Decoder hidden states after self-attention:")
-        print(hidden_states[0,:3,:3])
-
         hidden_states = F.dropout(hidden_states, p=self.dropout, training=self.training)
         hidden_states = residual + hidden_states
         hidden_states = self.self_attn_layer_norm(hidden_states)
-
-        print("Decoder hidden states after self-attention layer norm:")
-        print(hidden_states[0,:3,:3])
 
         # Cross-Attention Block
         cross_attn_present_key_value = None
         cross_attn_weights = None
         if encoder_hidden_states is not None:
             residual = hidden_states
-
-            print("Shape of encoder hidden states in cross-attention:")
-            print(encoder_hidden_states.shape)
 
             # cross_attn cached key/values tuple is at positions 3,4 of present_key_value tuple
             cross_attn_past_key_value = past_key_value[-2:] if past_key_value is not None else None
@@ -787,9 +763,6 @@ class DetrDecoderLayer(nn.Module):
                 past_key_value=cross_attn_past_key_value,
                 output_attentions=output_attentions,
             )
-            
-            print("Decoder hidden states after cross-attention:")
-            print(hidden_states[0,:3,:3])
             
             hidden_states = F.dropout(hidden_states, p=self.dropout, training=self.training)
             hidden_states = residual + hidden_states
@@ -1105,19 +1078,13 @@ class DetrEncoder(DetrPreTrainedModel):
                         hidden_states,
                         attention_mask,
                     )
-                else:                 
-                    # print("First elements of inputs of encoder layer ", i)
-                    # print(hidden_states[0,:3,:3])
-                    
+                else:                          
                     # we add position_embeddings as extra input to the encoder_layer
                     layer_outputs = encoder_layer(hidden_states, 
                                                   attention_mask, 
                                                   position_embeddings=position_embeddings, 
                                                   output_attentions=output_attentions
                     )
-
-                    # print("First elements of outputs of encoder layer ", i)
-                    # print(layer_outputs[0][0,:3,:3])
 
                 hidden_states = layer_outputs[0]
 
@@ -1331,10 +1298,6 @@ class DetrDecoder(DetrPreTrainedModel):
                     None,
                 )
             else:
-
-                print("First elements of inputs of decoder layer ", idx)
-                print(hidden_states[0,:3,:3])
-                
                 layer_outputs = decoder_layer(
                     hidden_states,
                     attention_mask=combined_attention_mask,
@@ -1346,13 +1309,6 @@ class DetrDecoder(DetrPreTrainedModel):
                     output_attentions=output_attentions,
                     use_cache=use_cache,
                 )
-
-                print("First elements of outputs of decoder layer ", idx)
-                print(layer_outputs[0][0,:3,:3])
-
-                if idx == 5:
-                    print("Sum of outputs of decoder layer ", idx)
-                    print(torch.sum(layer_outputs[0]))
 
             hidden_states = layer_outputs[0]
 
@@ -1490,22 +1446,10 @@ class DetrModel(DetrPreTrainedModel):
                 hidden_states=encoder_outputs[1] if len(encoder_outputs) > 1 else None,
                 attentions=encoder_outputs[2] if len(encoder_outputs) > 2 else None,
             )
-
-        print("Shape of encoder outputs:")
-        print(encoder_outputs[0].shape)
-
-        print("First elements of encoder outputs:")
-        print(encoder_outputs[0][0,:3,:3])
         
         # Fifth, sent query embeddings + position embeddings through the decoder (which is conditioned on the encoder output)
         query_position_embeddings = self.query_position_embeddings.weight.unsqueeze(0).repeat(batch_size, 1, 1)
         tgt = torch.zeros_like(query_position_embeddings)
-
-        print("Query embeddings shape:")
-        print(query_position_embeddings.shape)
-
-        print("Query embeddings first few elements:")
-        print(query_position_embeddings[0,:3,:3])
 
         # decoder outputs consists of (dec_features, past_key_value, dec_hidden, dec_attn)
         decoder_outputs = self.decoder(
