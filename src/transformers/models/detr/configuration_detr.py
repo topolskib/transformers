@@ -207,11 +207,11 @@ class DetrConfig(PretrainedConfig):
         self.bbox_cost = bbox_cost
         self.giou_cost = giou_cost
         # Loss coefficients
-        mask_loss_coefficient = mask_loss_coefficient
-        dice_loss_coefficient = dice_loss_coefficient
-        bbox_loss_coefficient = bbox_loss_coefficient
-        giou_loss_coefficient = giou_loss_coefficient
-        eos_coefficient = eos_coefficient
+        self.mask_loss_coefficient = mask_loss_coefficient
+        self.dice_loss_coefficient = dice_loss_coefficient
+        self.bbox_loss_coefficient = bbox_loss_coefficient
+        self.giou_loss_coefficient = giou_loss_coefficient
+        self.eos_coefficient = eos_coefficient
 
 
         
