@@ -1637,6 +1637,7 @@ class DetrForObjectDetection(DetrPreTrainedModel):
                                 eos_coef=self.config.eos_coefficient, losses=losses)
             criterion.to(self.device)
             # Compute the loss
+            outputs = {}
             outputs['pred_logits'] = pred_logits
             outputs['pred_boxes'] = pred_boxes
             if self.config.aux_loss:
