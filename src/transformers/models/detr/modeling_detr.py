@@ -221,7 +221,7 @@ def _onnx_nested_tensor_from_tensor_list(tensor_list: List[Tensor]) -> NestedTen
 
 
 ## BELOW: utilities copied from 
-# https://github.com/facebookresearch/detr/blob/a54b77800eb8e64e3ad0d8237789fcbf2f8350c5/backbone.py
+# https://github.com/facebookresearch/detr/blob/master/backbone.py
 
 
 class FrozenBatchNorm2d(torch.nn.Module):
@@ -1702,7 +1702,8 @@ class SetCriterion(nn.Module):
         empty_weight[-1] = self.eos_coef
         self.register_buffer('empty_weight', empty_weight)
 
-    def loss_labels(self, outputs, targets, indices, num_boxes, log=True):
+    # (Niels): set log to False because we don't want to include accuracy in the modeling file
+    def loss_labels(self, outputs, targets, indices, num_boxes, log=False):
         """Classification loss (NLL)
         targets dicts must contain the key "class_labels" containing a tensor of dim [nb_target_boxes]
         """
