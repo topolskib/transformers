@@ -83,7 +83,7 @@ class DetrConfig(PretrainedConfig):
         aux_loss (:obj:`bool`, `optional`, defaults to :obj:`False`):
             Whether auxiliary decoding losses (loss at each decoder layer) are to be used.
         position_embedding_type (:obj:`str`, `optional`, defaults to :obj:`sine`):
-            Type of position embeddings to be used. One of 'sine' or 'learned'.
+            Type of position embeddings to be used on top of the image features. One of 'sine' or 'learned'.
         backbone (:obj:`bool`, `optional`, defaults to :obj:`resnet50`): 
             Name of convolutional backbone to use. Currently only resnet of the Torchvision package is supported. 
         train_backbone (:obj:`bool`, `optional`, defaults to :obj:`True`): 
@@ -92,6 +92,22 @@ class DetrConfig(PretrainedConfig):
             Whether to replace stride with dilation in the last convolutional block (DC5).
         masks (:obj:`bool`, `optional`, defaults to :obj:`False`): 
             Whether to train the segmentation head.
+        class_cost (:obj:`float`, `optional`, defaults to 1):
+            Relative weight of the classification error in the Hungarian matching cost.
+        bbox_cost (:obj:`float`, `optional`, defaults to 5):
+            Relative weight of the L1 error of the bounding box coordinates in the Hungarian matching cost.
+        giou_cost (:obj:`float`, `optional`, defaults to 2):
+            Relative weight of the giou loss of the bounding box in the Hungarian matching cost.
+        mask_loss_coefficient (:obj:`float`, `optional`, defaults to 1):
+            To be added
+        dice_loss_coefficient (:obj:`float`, `optional`, defaults to 1):
+            To be added
+        bbox_loss_coefficient (:obj:`float`, `optional`, defaults to 5):
+            To be added
+        giou_loss_coefficient (:obj:`float`, `optional`, defaults to 2):
+            To be added
+        eos_coefficient (:obj:`float`, `optional`, defaults to 0.1):
+            Relative classification weight of the 'no-object' class.
         Example::
 
         >>> from transformers import DetrModel, DetrConfig
@@ -140,6 +156,14 @@ class DetrConfig(PretrainedConfig):
         train_backbone=True,
         dilation=False,
         masks=False,
+        class_cost=1,
+        bbox_cost=5,
+        giou_cost=2,
+        mask_loss_coefficient=1,
+        dice_loss_coefficient=1,
+        bbox_loss_coefficient=5,
+        giou_loss_coefficient=2,
+        eos_coefficient=0.1,
         **kwargs
     ):
         super().__init__(
@@ -178,6 +202,17 @@ class DetrConfig(PretrainedConfig):
         self.train_backbone = train_backbone
         self.dilation = dilation
         self.masks = masks
+        # Hungarian matcher
+        self.class_cost = class_cost
+        self.bbox_cost = bbox_cost
+        self.giou_cost = giou_cost
+        # Loss coefficients
+        mask_loss_coefficient = mask_loss_coefficient
+        dice_loss_coefficient = dice_loss_coefficient
+        bbox_loss_coefficient = bbox_loss_coefficient
+        giou_loss_coefficient = giou_loss_coefficient
+        eos_coefficient = eos_coefficient
+
 
         
     @property
