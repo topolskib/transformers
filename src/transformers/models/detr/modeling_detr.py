@@ -29,6 +29,7 @@ from torchvision.ops.boxes import box_area
 from torch import nn
 from torch.nn import CrossEntropyLoss
 from torch import Tensor
+import torch.distributed as dist 
 
 from ...activations import ACT2FN
 from ...file_utils import (
@@ -1815,9 +1816,11 @@ class SetCriterion(nn.Module):
         # Compute the average number of target boxes accross all nodes, for normalization purposes
         num_boxes = sum(len(t["class_labels"]) for t in targets)
         num_boxes = torch.as_tensor([num_boxes], dtype=torch.float, device=next(iter(outputs.values())).device)
-        if is_dist_avail_and_initialized():
-            torch.distributed.all_reduce(num_boxes)
-        num_boxes = torch.clamp(num_boxes / get_world_size(), min=1).item()
+        # (Niels): comment out function below, distributed training to be added
+        # if is_dist_avail_and_initialized():
+        #     torch.distributed.all_reduce(num_boxes)
+        # (Niels) in original implementation, num_boxes is divided by get_world_size()
+        num_boxes = torch.clamp(num_boxes, min=1).item()
 
         # Compute all the requested losses
         losses = {}
