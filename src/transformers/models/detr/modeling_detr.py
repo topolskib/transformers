@@ -1626,11 +1626,27 @@ class DetrForObjectDetection(DetrPreTrainedModel):
         loss = None
         aux_outputs = None
         if labels is not None:
-            # Create the matcher
+            # First: create the matcher
             matcher = HungarianMatcher(class_cost=self.config.class_cost, 
                                        bbox_cost=self.config.bbox_cost, 
                                        giou_cost=self.config.giou_cost)
-            # Create the criterion, based on the matcher
+            # Second: create the criterion
+            weight_dict = {'loss_ce': 1, 'loss_bbox': self.config.bbox_loss_coefficient}
+            weight_dict['loss_giou'] = self.config.giou_loss_coefficient
+            if self.config.masks:
+                weight_dict["loss_mask"] = self.config.mask_loss_coef
+                weight_dict["loss_dice"] = self.config.dice_loss_coef
+            # TODO this is a hack
+            if self.config.aux_loss:
+                raise NotImplementedError
+                # aux_weight_dict = {}
+                # for i in range(args.dec_layers - 1):
+                #     aux_weight_dict.update({k + f'_{i}': v for k, v in weight_dict.items()})
+                # weight_dict.update(aux_weight_dict)
+                # to do: add aux_outputs
+                #aux_outputs = self._set_aux_loss(outputs_class, outputs_coord)
+                #outputs['aux_outputs'] = aux_outputs
+            
             losses = ['labels', 'boxes', 'cardinality']
             if self.config.masks:
                 losses += ["masks"]
@@ -1644,17 +1660,13 @@ class DetrForObjectDetection(DetrPreTrainedModel):
             # For more details on this, check the following discussion
             # https://github.com/facebookresearch/detr/issues/108#issuecomment-650269223 
             criterion = SetCriterion(matcher=matcher, num_classes=self.config.num_labels, 
-                                eos_coef=self.config.eos_coefficient, losses=losses)
+                                weight_dict=weight_dict, eos_coef=self.config.eos_coefficient, losses=losses)
             criterion.to(self.device)
-            # Compute the loss
+            # Third: compute the loss, based on outputs and labels
             outputs = {}
             outputs['pred_logits'] = pred_logits
             outputs['pred_boxes'] = pred_boxes
-            if self.config.aux_loss:
-                raise NotImplementedError
-                # to do: add aux_outputs
-                #aux_outputs = self._set_aux_loss(outputs_class, outputs_coord)
-                #outputs['aux_outputs'] = aux_outputs
+            
             loss_dict = criterion(outputs, labels)
             weight_dict = criterion.weight_dict
             loss = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
@@ -1685,18 +1697,20 @@ class SetCriterion(nn.Module):
         1) we compute hungarian assignment between ground truth boxes and the outputs of the model
         2) we supervise each pair of matched ground-truth / prediction (supervise class and box)
     """
-    def __init__(self, matcher, num_classes, eos_coef, losses):
+    def __init__(self, matcher, num_classes, weight_dict, eos_coef, losses):
         """ Create the criterion.
         Parameters:
             matcher: module able to compute a matching between targets and proposals
             num_classes: number of object categories, omitting the special no-object category
+            weight_dict: dict containing as key the names of the losses and as values their relative weight.
             eos_coef: relative classification weight applied to the no-object category
             losses: list of all the losses to be applied. See get_loss for list of available losses.
         """
         super().__init__()
-        self.num_classes = num_classes 
+        self.num_classes = num_classes
         self.matcher = matcher
-        self.eos_coef = eos_coef 
+        self.weight_dict = weight_dict
+        self.eos_coef = eos_coef
         self.losses = losses
         empty_weight = torch.ones(self.num_classes + 1)
         empty_weight[-1] = self.eos_coef
