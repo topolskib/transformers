@@ -1506,7 +1506,6 @@ class DetrForObjectDetection(DetrPreTrainedModel):
         self.decoder = DetrDecoder(config)
 
         # Object detection heads
-        # to do: replace 91 by config.num_labels
         self.class_labels_classifier = nn.Linear(config.d_model, config.num_labels + 1)
         self.bbox_predictor = MLP(config.d_model, config.d_model, 4, 3)
 
@@ -1635,7 +1634,16 @@ class DetrForObjectDetection(DetrPreTrainedModel):
             losses = ['labels', 'boxes', 'cardinality']
             if self.config.masks:
                 losses += ["masks"]
-            criterion = SetCriterion(matcher=matcher, num_classes=self.config.num_labels + 1, 
+            # (copied from original repo in detr.py):
+            # the `num_classes` naming here is somewhat misleading.
+            # it indeed corresponds to `max_obj_id + 1`, where max_obj_id
+            # is the maximum id for a class in your dataset. For example,
+            # COCO has a max_obj_id of 90, so we pass `num_classes` to be 91.
+            # As another example, for a dataset that has a single class with id 1,
+            # you should pass `num_classes` to be 2 (max_obj_id + 1).
+            # For more details on this, check the following discussion
+            # https://github.com/facebookresearch/detr/issues/108#issuecomment-650269223 
+            criterion = SetCriterion(matcher=matcher, num_classes=self.config.num_labels, 
                                 eos_coef=self.config.eos_coefficient, losses=losses)
             criterion.to(self.device)
             # Compute the loss
