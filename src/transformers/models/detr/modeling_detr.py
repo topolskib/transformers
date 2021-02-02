@@ -1679,11 +1679,6 @@ class DetrForObjectDetection(DetrPreTrainedModel):
                 for i in range(self.config.decoder_layers - 1):
                     aux_weight_dict.update({k + f'_{i}': v for k, v in weight_dict.items()})
                 weight_dict.update(aux_weight_dict)
-                intermediate = decoder_outputs.intermediate_hidden_states if return_dict else decoder_outputs[5]
-                outputs_class = self.class_labels_classifier(intermediate)
-                outputs_coord = self.bbox_predictor(intermediate)
-                auxiliary_outputs = self._set_aux_loss(outputs_class, outputs_coord)
-                outputs['auxiliary_outputs'] = auxiliary_outputs
             
             losses = ['labels', 'boxes', 'cardinality']
             # to do: move the following two lines to DetrForPanopticSegmentation
@@ -1705,6 +1700,12 @@ class DetrForObjectDetection(DetrPreTrainedModel):
             outputs = {}
             outputs['pred_logits'] = pred_logits
             outputs['pred_boxes'] = pred_boxes
+            if self.config.auxiliary_loss:
+                intermediate = decoder_outputs.intermediate_hidden_states if return_dict else decoder_outputs[5]
+                outputs_class = self.class_labels_classifier(intermediate)
+                outputs_coord = self.bbox_predictor(intermediate)
+                auxiliary_outputs = self._set_aux_loss(outputs_class, outputs_coord)
+                outputs['auxiliary_outputs'] = auxiliary_outputs
             
             loss_dict = criterion(outputs, labels)
             weight_dict = criterion.weight_dict
