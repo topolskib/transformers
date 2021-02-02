@@ -87,9 +87,9 @@ class DetrObjectDetectionOutput(ModelOutput):
             Normalized boxes coordinates for all queries, represented as (center_x, center_y, height, width). These values are normalized in [0, 1],
             relative to the size of each individual image (disregarding possible padding). See PostProcess for information on how to retrieve the 
             unnormalized bounding box.
-        aux_outputs (:obj:`list[Dict]`, `optional`): 
-            Optional, only returned when auxilary losses are activated (i.e. config.auxiliary_loss is set to True). It is a list of dictionnaries containing 
-            the two above keys (pred_logits and pred_boxes) for each decoder layer.
+        auxiliary_outputs (:obj:`list[Dict]`, `optional`): 
+            Optional, only returned when auxilary losses are activated (i.e. config.auxiliary_loss is set to True) and labels are provided. It is a 
+            list of dictionnaries containing the two above keys (pred_logits and pred_boxes) for each decoder layer.
         past_key_values (:obj:`tuple(tuple(torch.FloatTensor))`, `optional`, returned when ``use_cache=True`` is passed or when ``config.use_cache=True``):
             Tuple of :obj:`tuple(torch.FloatTensor)` of length :obj:`config.n_layers`, with each tuple having 2 tensors
             of shape :obj:`(batch_size, num_heads, sequence_length, embed_size_per_head)`) and 2 additional tensors of
@@ -126,7 +126,7 @@ class DetrObjectDetectionOutput(ModelOutput):
     loss: Optional[torch.FloatTensor] = None
     pred_logits: torch.FloatTensor = None
     pred_boxes: torch.FloatTensor = None
-    aux_outputs: Optional[List[Dict]] = None
+    auxiliary_outputs: Optional[List[Dict]] = None
     past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
     decoder_hidden_states: Optional[Tuple[torch.FloatTensor]] = None
     decoder_attentions: Optional[Tuple[torch.FloatTensor]] = None
@@ -1660,8 +1660,7 @@ class DetrForObjectDetection(DetrPreTrainedModel):
         pred_logits = self.class_labels_classifier(decoder_outputs[0])
         pred_boxes = self.bbox_predictor(decoder_outputs[0]).sigmoid()
 
-        loss = None
-        aux_outputs = None
+        loss, auxiliary_outputs = None, None
         if labels is not None:
             # First: create the matcher
             matcher = HungarianMatcher(class_cost=self.config.class_cost, 
@@ -1670,7 +1669,7 @@ class DetrForObjectDetection(DetrPreTrainedModel):
             # Second: create the criterion
             weight_dict = {'loss_ce': 1, 'loss_bbox': self.config.bbox_loss_coefficient}
             weight_dict['loss_giou'] = self.config.giou_loss_coefficient
-            # to do: move this to DetrForPanopticSegmentation
+            # to do: move the following three lines to DetrForPanopticSegmentation
             if self.config.masks:
                 weight_dict["loss_mask"] = self.config.mask_loss_coef
                 weight_dict["loss_dice"] = self.config.dice_loss_coef
@@ -1683,10 +1682,11 @@ class DetrForObjectDetection(DetrPreTrainedModel):
                 intermediate = decoder_outputs.intermediate_hidden_states if return_dict else decoder_outputs[5]
                 outputs_class = self.class_labels_classifier(intermediate)
                 outputs_coord = self.bbox_predictor(intermediate)
-                aux_outputs = self._set_aux_loss(outputs_class, outputs_coord)
-                outputs['aux_outputs'] = aux_outputs
+                auxiliary_outputs = self._set_aux_loss(outputs_class, outputs_coord)
+                outputs['auxiliary_outputs'] = auxiliary_outputs
             
             losses = ['labels', 'boxes', 'cardinality']
+            # to do: move the following two lines to DetrForPanopticSegmentation
             if self.config.masks:
                 losses += ["masks"]
             # (copied from original repo in detr.py):
@@ -1712,8 +1712,8 @@ class DetrForObjectDetection(DetrPreTrainedModel):
         
         if not return_dict:
             # to be verified
-            if aux_outputs is not None:
-                output = (pred_logits, pred_boxes) + aux_outputs + decoder_outputs + encoder_outputs 
+            if auxiliary_outputs is not None:
+                output = (pred_logits, pred_boxes) + auxiliary_outputs + decoder_outputs + encoder_outputs 
             else:
                 output = (pred_logits, pred_boxes) + decoder_outputs + encoder_outputs 
             return ((loss,) + output) if loss is not None else output
@@ -1722,7 +1722,7 @@ class DetrForObjectDetection(DetrPreTrainedModel):
             loss=loss,
             pred_logits=pred_logits,
             pred_boxes=pred_boxes,
-            aux_outputs=aux_outputs,
+            auxiliary_outputs=auxiliary_outputs,
             #past_key_values=decoder_outputs.past_key_values,
             decoder_hidden_states=decoder_outputs.hidden_states,
             decoder_attentions=decoder_outputs.attentions,
@@ -1874,7 +1874,7 @@ class SetCriterion(nn.Module):
              targets: list of dicts, such that len(targets) == batch_size.
                       The expected keys in each dict depends on the losses applied, see each loss' doc
         """
-        outputs_without_aux = {k: v for k, v in outputs.items() if k != 'aux_outputs'}
+        outputs_without_aux = {k: v for k, v in outputs.items() if k != 'auxiliary_outputs'}
 
         # Retrieve the matching between the outputs of the last layer and the targets
         indices = self.matcher(outputs_without_aux, targets)
@@ -1894,9 +1894,9 @@ class SetCriterion(nn.Module):
             losses.update(self.get_loss(loss, outputs, targets, indices, num_boxes))
 
         # In case of auxiliary losses, we repeat this process with the output of each intermediate layer.
-        if 'aux_outputs' in outputs:
-            for i, aux_outputs in enumerate(outputs['aux_outputs']):
-                indices = self.matcher(aux_outputs, targets)
+        if 'auxiliary_outputs' in outputs:
+            for i, auxiliary_outputs in enumerate(outputs['auxiliary_outputs']):
+                indices = self.matcher(auxiliary_outputs, targets)
                 for loss in self.losses:
                     if loss == 'masks':
                         # Intermediate masks losses are too costly to compute, we ignore them.
@@ -1905,7 +1905,7 @@ class SetCriterion(nn.Module):
                     if loss == 'labels':
                         # Logging is enabled only for the last layer
                         kwargs = {'log': False}
-                    l_dict = self.get_loss(loss, aux_outputs, targets, indices, num_boxes, **kwargs)
+                    l_dict = self.get_loss(loss, auxiliary_outputs, targets, indices, num_boxes, **kwargs)
                     l_dict = {k + f'_{i}': v for k, v in l_dict.items()}
                     losses.update(l_dict)
 
