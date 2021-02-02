@@ -1673,12 +1673,12 @@ class DetrForObjectDetection(DetrPreTrainedModel):
             if self.config.masks:
                 weight_dict["loss_mask"] = self.config.mask_loss_coef
                 weight_dict["loss_dice"] = self.config.dice_loss_coef
-            # TODO this is a hack
-            if self.config.auxiliary_loss:
-                aux_weight_dict = {}
-                for i in range(self.config.decoder_layers - 1):
-                    aux_weight_dict.update({k + f'_{i}': v for k, v in weight_dict.items()})
-                weight_dict.update(aux_weight_dict)
+            # TODO this is a hack (doesn't work yet)
+            # if self.config.auxiliary_loss:
+            #     aux_weight_dict = {}
+            #     for i in range(self.config.decoder_layers - 1):
+            #         aux_weight_dict.update({k + f'_{i}': v for k, v in weight_dict.items()})
+            #     weight_dict.update(aux_weight_dict)
             
             losses = ['labels', 'boxes', 'cardinality']
             # to do: move the following two lines to DetrForPanopticSegmentation
@@ -1705,7 +1705,7 @@ class DetrForObjectDetection(DetrPreTrainedModel):
                 outputs_class = self.class_labels_classifier(intermediate)
                 outputs_coord = self.bbox_predictor(intermediate)
                 auxiliary_outputs = self._set_aux_loss(outputs_class, outputs_coord)
-                outputs['auxiliary_outputs'] = auxiliary_outputs
+                #outputs['auxiliary_outputs'] = auxiliary_outputs
             
             loss_dict = criterion(outputs, labels)
             weight_dict = criterion.weight_dict
@@ -1960,7 +1960,7 @@ class HungarianMatcher(nn.Module):
     def forward(self, outputs, targets):
         """ Performs the matching.
         Params:
-            outputs: This is an object of tyep DetrObjectDetectionOutput, with the following attributes:
+            outputs: This is a dict that contains at least these entries:
                  "pred_logits": Tensor of dim [batch_size, num_queries, num_classes] with the classification logits
                  "pred_boxes": Tensor of dim [batch_size, num_queries, 4] with the predicted box coordinates
             targets: This is a list of targets (len(targets) = batch_size), where each target is a dict containing:
@@ -1992,7 +1992,7 @@ class HungarianMatcher(nn.Module):
         # Compute the L1 cost between boxes
         bbox_cost = torch.cdist(out_bbox, tgt_bbox, p=1)
 
-        # Compute the giou cost betwen boxes
+        # Compute the giou cost between boxes
         giou_cost = -generalized_box_iou(box_cxcywh_to_xyxy(out_bbox), box_cxcywh_to_xyxy(tgt_bbox))
 
         # Final cost matrix
