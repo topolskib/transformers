@@ -1657,6 +1657,7 @@ class DetrForObjectDetection(DetrPreTrainedModel):
         )
 
         # class logits + predicted bounding boxes
+        # to do: make this as efficient as the original implementation
         pred_logits = self.class_labels_classifier(decoder_outputs[0])
         pred_boxes = self.bbox_predictor(decoder_outputs[0]).sigmoid()
 
@@ -1674,11 +1675,11 @@ class DetrForObjectDetection(DetrPreTrainedModel):
                 weight_dict["loss_mask"] = self.config.mask_loss_coef
                 weight_dict["loss_dice"] = self.config.dice_loss_coef
             # TODO this is a hack (doesn't work yet)
-            # if self.config.auxiliary_loss:
-            #     aux_weight_dict = {}
-            #     for i in range(self.config.decoder_layers - 1):
-            #         aux_weight_dict.update({k + f'_{i}': v for k, v in weight_dict.items()})
-            #     weight_dict.update(aux_weight_dict)
+            if self.config.auxiliary_loss:
+                aux_weight_dict = {}
+                for i in range(self.config.decoder_layers - 1):
+                    aux_weight_dict.update({k + f'_{i}': v for k, v in weight_dict.items()})
+                weight_dict.update(aux_weight_dict)
             
             losses = ['labels', 'boxes', 'cardinality']
             # to do: move the following two lines to DetrForPanopticSegmentation
@@ -1705,7 +1706,7 @@ class DetrForObjectDetection(DetrPreTrainedModel):
                 outputs_class = self.class_labels_classifier(intermediate)
                 outputs_coord = self.bbox_predictor(intermediate).sigmoid()
                 auxiliary_outputs = self._set_aux_loss(outputs_class, outputs_coord)
-                #outputs['auxiliary_outputs'] = auxiliary_outputs
+                outputs['auxiliary_outputs'] = auxiliary_outputs
             
             loss_dict = criterion(outputs, labels)
             weight_dict = criterion.weight_dict
