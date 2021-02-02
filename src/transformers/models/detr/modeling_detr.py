@@ -1703,7 +1703,7 @@ class DetrForObjectDetection(DetrPreTrainedModel):
             if self.config.auxiliary_loss:
                 intermediate = decoder_outputs.intermediate_hidden_states if return_dict else decoder_outputs[5]
                 outputs_class = self.class_labels_classifier(intermediate)
-                outputs_coord = self.bbox_predictor(intermediate)
+                outputs_coord = self.bbox_predictor(intermediate).sigmoid()
                 auxiliary_outputs = self._set_aux_loss(outputs_class, outputs_coord)
                 #outputs['auxiliary_outputs'] = auxiliary_outputs
             
