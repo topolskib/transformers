@@ -43,7 +43,7 @@ class DetrConfig(PretrainedConfig):
             Number of object queries, i.e. detection slots. This is the maximal number of objects
             :class:`~transformers.DetrModel` can detect in a single image. For COCO, we recommend 100 queries.
         d_model (:obj:`int`, `optional`, defaults to 256):
-            Dimensionality of the layers and the pooler layer.
+            Dimensionality of the layers.
         encoder_layers (:obj:`int`, `optional`, defaults to 6):
             Number of encoder layers.
         decoder_layers (:obj:`int`, `optional`, defaults to 6):
@@ -80,7 +80,7 @@ class DetrConfig(PretrainedConfig):
             https://arxiv.org/abs/1909.11556>`__ for more details.
         use_cache (:obj:`bool`, `optional`, defaults to :obj:`True`):
             Whether or not the model should return the last key/values attentions (not used by all models).
-        aux_loss (:obj:`bool`, `optional`, defaults to :obj:`False`):
+        auxiliary_loss (:obj:`bool`, `optional`, defaults to :obj:`False`):
             Whether auxiliary decoding losses (loss at each decoder layer) are to be used.
         position_embedding_type (:obj:`str`, `optional`, defaults to :obj:`sine`):
             Type of position embeddings to be used on top of the image features. One of 'sine' or 'learned'.
@@ -97,17 +97,17 @@ class DetrConfig(PretrainedConfig):
         bbox_cost (:obj:`float`, `optional`, defaults to 5):
             Relative weight of the L1 error of the bounding box coordinates in the Hungarian matching cost.
         giou_cost (:obj:`float`, `optional`, defaults to 2):
-            Relative weight of the giou loss of the bounding box in the Hungarian matching cost.
+            Relative weight of the generalized IoU loss of the bounding box in the Hungarian matching cost.
         mask_loss_coefficient (:obj:`float`, `optional`, defaults to 1):
-            To be added
+            Relative weight of the Focal loss in the panoptic segmentation loss.
         dice_loss_coefficient (:obj:`float`, `optional`, defaults to 1):
-            To be added
+            Relative weight of the DICE/F-1 loss in the panoptic segmentation loss.
         bbox_loss_coefficient (:obj:`float`, `optional`, defaults to 5):
-            To be added
+            Relative weight of the L1 bounding box loss in the object detection loss.
         giou_loss_coefficient (:obj:`float`, `optional`, defaults to 2):
-            To be added
+            Relative weight of the generalized IoU loss in the object detection loss.
         eos_coefficient (:obj:`float`, `optional`, defaults to 0.1):
-            Relative classification weight of the 'no-object' class.
+            Relative classification weight of the 'no-object' class in the object detection loss.
         Example::
 
         >>> from transformers import DetrModel, DetrConfig
@@ -150,7 +150,7 @@ class DetrConfig(PretrainedConfig):
         pad_token_id=1,
         bos_token_id=0,
         eos_token_id=2,
-        aux_loss=False,
+        auxiliary_loss=False,
         position_embedding_type='sine',
         backbone='resnet50',
         train_backbone=True,
@@ -196,7 +196,7 @@ class DetrConfig(PretrainedConfig):
         self.num_hidden_layers = encoder_layers
         self.gradient_checkpointing = gradient_checkpointing
         self.scale_embedding = scale_embedding  # scale factor will be sqrt(d_model) if True
-        self.aux_loss = aux_loss
+        self.auxiliary_loss = auxiliary_loss
         self.position_embedding_type = position_embedding_type
         self.backbone = backbone
         self.train_backbone = train_backbone

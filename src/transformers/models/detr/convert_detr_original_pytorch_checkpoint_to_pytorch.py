@@ -219,6 +219,7 @@ def convert_detr_checkpoint(task, backbone, dilation, pytorch_dump_folder_path):
         # coco has 91 labels
         config.num_labels = 91
         config.id2label = {v: k for v, k in enumerate(CLASSES)}
+        config.label2id = {k: v for v, k in enumerate(CLASSES)}
         # load model from torch hub
         if backbone == 'resnet_50' and not dilation:
             detr = torch.hub.load('facebookresearch/detr', 'detr_resnet50', pretrained=True).eval()

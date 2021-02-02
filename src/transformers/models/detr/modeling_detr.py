@@ -42,7 +42,8 @@ from ...file_utils import (
 )
 from ...modeling_outputs import (
     BaseModelOutput,
-    BaseModelOutputWithPastAndCrossAttentions,
+    BaseModelOutputWithCrossAttentions,
+    # BaseModelOutputWithPastAndCrossAttentions, (Niels): don't think we need this one as DETR uses parallel decoding
     Seq2SeqModelOutput,
 )
 from ...modeling_utils import PreTrainedModel
@@ -63,6 +64,17 @@ DETR_PRETRAINED_MODEL_ARCHIVE_LIST = [
 
 
 @dataclass
+class BaseModelOutputWithCrossAttentionsAndIntermediateHiddenStates(BaseModelOutputWithCrossAttentions):
+    """
+    This class adds one attribute to BaseModelOutputWithCrossAttentions, namely an optional stack of intermediate decoder 
+    activations, i.e. the output of each decoder layer, each of them gone through a layernorm.
+    Args:
+        intermediate_hidden_states (:obj:`torch.FloatTensor` of shape :obj:`(config.decoder_layers, batch_size, sequence_length, hidden_size)`):
+    """
+
+    intermediate_hidden_states: Optional[torch.FloatTensor] = None
+
+@dataclass
 class DetrObjectDetectionOutput(ModelOutput):
     """
     Output type of :class:`~transformers.DetrForObjectDetection`.
@@ -76,8 +88,8 @@ class DetrObjectDetectionOutput(ModelOutput):
             relative to the size of each individual image (disregarding possible padding). See PostProcess for information on how to retrieve the 
             unnormalized bounding box.
         aux_outputs (:obj:`list[Dict]`, `optional`): 
-            Optional, only returned when auxilary losses are activated (i.e. config.aux_loss is set to True). It is a list of dictionnaries containing 
-            the two above keys for each decoder layer.
+            Optional, only returned when auxilary losses are activated (i.e. config.auxiliary_loss is set to True). It is a list of dictionnaries containing 
+            the two above keys (pred_logits and pred_boxes) for each decoder layer.
         past_key_values (:obj:`tuple(tuple(torch.FloatTensor))`, `optional`, returned when ``use_cache=True`` is passed or when ``config.use_cache=True``):
             Tuple of :obj:`tuple(torch.FloatTensor)` of length :obj:`config.n_layers`, with each tuple having 2 tensors
             of shape :obj:`(batch_size, num_heads, sequence_length, embed_size_per_head)`) and 2 additional tensors of
@@ -1105,7 +1117,11 @@ class DetrEncoder(DetrPreTrainedModel):
 
 class DetrDecoder(DetrPreTrainedModel):
     """
-    Transformer decoder consisting of *config.decoder_layers* layers. Each layer is a :class:`DetrDecoderLayer`
+    Transformer decoder consisting of *config.decoder_layers* layers. Each layer is a :class:`DetrDecoderLayer`.
+    
+    Some small tweaks for DETR: 
+    - position_embeddings and query_position_embeddings are added to the forward pass. 
+    - if self.config.auxiliary_loss is set to True, also returns a stack of activations from all decoding layers.
 
     Args:
         config: DetrConfig
@@ -1232,9 +1248,9 @@ class DetrDecoder(DetrPreTrainedModel):
         if inputs_embeds is not None:
            hidden_states = inputs_embeds
            input_shape = inputs_embeds.size()[:-1]
-        
+
         combined_attention_mask = None
-        # comment this out (Niels) as DETR doesn't require causal mask
+        # (Niels): following lines are not required as DETR uses parallel decoding instead of autoregressive 
         # # create causal mask
         # # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
         # combined_attention_mask = None
@@ -1255,14 +1271,17 @@ class DetrDecoder(DetrPreTrainedModel):
             # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
             encoder_attention_mask = _expand_mask(encoder_attention_mask, inputs_embeds.dtype, tgt_len=input_shape[-1])
 
+        # (Niels): following lines are not required because adding position embeddings happens in DetrDecoderLayer
         # embed positions
         # positions = self.embed_positions(input_shape, past_key_values_length)
 
-        # (Niels): following lines are not required because we have special query embeddings here
         # hidden_states = inputs_embeds + positions
         # hidden_states = self.layernorm_embedding(inputs_embeds)
         # hidden_states = F.dropout(hidden_states, p=self.dropout, training=self.training)
 
+        # (Niels): added an optional list:
+        intermediate = [] if self.config.auxiliary_loss else None
+        
         # decoder layers
         all_hidden_states = () if output_hidden_states else None
         all_self_attns = () if output_attentions else None
@@ -1314,6 +1333,9 @@ class DetrDecoder(DetrPreTrainedModel):
 
             hidden_states = layer_outputs[0]
 
+            if self.config.auxiliary_loss:
+                intermediate.append(self.layernorm(hidden_states))
+
             if use_cache:
                 next_decoder_cache += (layer_outputs[3 if output_attentions else 1],)
 
@@ -1325,23 +1347,28 @@ class DetrDecoder(DetrPreTrainedModel):
         hidden_states = self.layernorm(hidden_states)
         
         # add hidden states from the last decoder layer
-        # !! to do (Niels): apply layernorm to each intermediate hidden state
         if output_hidden_states:
             all_hidden_states += (hidden_states,)
+
+        # stack intermediate decoder activations
+        if self.config.auxiliary_loss:
+            intermediate = torch.stack(intermediate)
 
         next_cache = next_decoder_cache if use_cache else None
         if not return_dict:
             return tuple(
                 v
-                for v in [hidden_states, next_cache, all_hidden_states, all_self_attns, all_cross_attentions]
+                for v in [hidden_states, next_cache, all_hidden_states, all_self_attns, all_cross_attentions,
+                intermediate]
                 if v is not None
             )
-        return BaseModelOutputWithPastAndCrossAttentions(
+        return BaseModelOutputWithCrossAttentionsAndIntermediateHiddenStates(
             last_hidden_state=hidden_states,
-            past_key_values=next_cache,
+            #past_key_values=next_cache,
             hidden_states=all_hidden_states,
             attentions=all_self_attns,
             cross_attentions=all_cross_attentions,
+            intermediate_hidden_states=intermediate,
         )
 
 
@@ -1473,7 +1500,7 @@ class DetrModel(DetrPreTrainedModel):
 
         return Seq2SeqModelOutput(
             last_hidden_state=decoder_outputs.last_hidden_state,
-            past_key_values=decoder_outputs.past_key_values,
+            #past_key_values=decoder_outputs.past_key_values,
             decoder_hidden_states=decoder_outputs.hidden_states,
             decoder_attentions=decoder_outputs.attentions,
             cross_attentions=decoder_outputs.cross_attentions,
@@ -1507,7 +1534,8 @@ class DetrForObjectDetection(DetrPreTrainedModel):
 
         # Object detection heads
         self.class_labels_classifier = nn.Linear(config.d_model, config.num_labels + 1)
-        self.bbox_predictor = MLP(config.d_model, config.d_model, 4, 3)
+        self.bbox_predictor = MLP(input_dim=config.d_model, hidden_dim=config.d_model, 
+                                  output_dim=4, num_layers=3)
 
         self.init_weights()
 
@@ -1525,6 +1553,15 @@ class DetrForObjectDetection(DetrPreTrainedModel):
     def get_decoder(self):
         return self.decoder
 
+    # copied from https://github.com/facebookresearch/detr/blob/master/models/detr.py
+    @torch.jit.unused
+    def _set_aux_loss(self, outputs_class, outputs_coord):
+        # this is a workaround to make torchscript happy, as torchscript
+        # doesn't support dictionary with non-homogeneous values, such
+        # as a dict having both a Tensor and a list.
+        return [{'pred_logits': a, 'pred_boxes': b}
+                for a, b in zip(outputs_class[:-1], outputs_coord[:-1])]
+    
     @add_start_docstrings_to_model_forward(DETR_INPUTS_DOCSTRING)
     # @add_code_sample_docstrings(
     #     tokenizer_class=_TOKENIZER_FOR_DOC,
@@ -1633,25 +1670,27 @@ class DetrForObjectDetection(DetrPreTrainedModel):
             # Second: create the criterion
             weight_dict = {'loss_ce': 1, 'loss_bbox': self.config.bbox_loss_coefficient}
             weight_dict['loss_giou'] = self.config.giou_loss_coefficient
+            # to do: move this to DetrForPanopticSegmentation
             if self.config.masks:
                 weight_dict["loss_mask"] = self.config.mask_loss_coef
                 weight_dict["loss_dice"] = self.config.dice_loss_coef
             # TODO this is a hack
-            if self.config.aux_loss:
-                raise NotImplementedError
-                # aux_weight_dict = {}
-                # for i in range(args.dec_layers - 1):
-                #     aux_weight_dict.update({k + f'_{i}': v for k, v in weight_dict.items()})
-                # weight_dict.update(aux_weight_dict)
-                # to do: add aux_outputs
-                #aux_outputs = self._set_aux_loss(outputs_class, outputs_coord)
-                #outputs['aux_outputs'] = aux_outputs
+            if self.config.auxiliary_loss:
+                aux_weight_dict = {}
+                for i in range(self.config.decoder_layers - 1):
+                    aux_weight_dict.update({k + f'_{i}': v for k, v in weight_dict.items()})
+                weight_dict.update(aux_weight_dict)
+                intermediate = decoder_outputs.intermediate_hidden_states if return_dict else decoder_outputs[5]
+                outputs_class = self.class_labels_classifier(intermediate)
+                outputs_coord = self.bbox_predictor(intermediate)
+                aux_outputs = self._set_aux_loss(outputs_class, outputs_coord)
+                outputs['aux_outputs'] = aux_outputs
             
             losses = ['labels', 'boxes', 'cardinality']
             if self.config.masks:
                 losses += ["masks"]
             # (copied from original repo in detr.py):
-            # the `num_classes` naming here is somewhat misleading.
+            # the naming of the `num_classes` parameter of the criterion is somewhat misleading.
             # it indeed corresponds to `max_obj_id + 1`, where max_obj_id
             # is the maximum id for a class in your dataset. For example,
             # COCO has a max_obj_id of 90, so we pass `num_classes` to be 91.
@@ -1672,15 +1711,19 @@ class DetrForObjectDetection(DetrPreTrainedModel):
             loss = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
         
         if not return_dict:
-            # to be updated
-            return decoder_outputs + encoder_outputs
+            # to be verified
+            if aux_outputs is not None:
+                output = (pred_logits, pred_boxes) + aux_outputs + decoder_outputs + encoder_outputs 
+            else:
+                output = (pred_logits, pred_boxes) + decoder_outputs + encoder_outputs 
+            return ((loss,) + output) if loss is not None else output
 
         return DetrObjectDetectionOutput(
             loss=loss,
             pred_logits=pred_logits,
             pred_boxes=pred_boxes,
             aux_outputs=aux_outputs,
-            past_key_values=decoder_outputs.past_key_values,
+            #past_key_values=decoder_outputs.past_key_values,
             decoder_hidden_states=decoder_outputs.hidden_states,
             decoder_attentions=decoder_outputs.attentions,
             cross_attentions=decoder_outputs.cross_attentions,
@@ -1700,10 +1743,10 @@ class SetCriterion(nn.Module):
     def __init__(self, matcher, num_classes, weight_dict, eos_coef, losses):
         """ Create the criterion.
         Parameters:
-            matcher: module able to compute a matching between targets and proposals
-            num_classes: number of object categories, omitting the special no-object category
+            matcher: module able to compute a matching between targets and proposals.
+            num_classes: number of object categories, omitting the special no-object category.
             weight_dict: dict containing as key the names of the losses and as values their relative weight.
-            eos_coef: relative classification weight applied to the no-object category
+            eos_coef: relative classification weight applied to the no-object category.
             losses: list of all the losses to be applied. See get_loss for list of available losses.
         """
         super().__init__()
@@ -1872,7 +1915,8 @@ class SetCriterion(nn.Module):
 # copied from https://github.com/facebookresearch/detr/blob/master/models/detr.py
 class MLP(nn.Module):
     """
-    Very simple multi-layer perceptron (also called FFN). 
+    Very simple multi-layer perceptron (also called FFN), used to predict the normalized
+    center coordinates, height and width of a bounding box w.r.t. an image. 
 
     Copied from https://github.com/facebookresearch/detr/blob/master/models/detr.py
     
