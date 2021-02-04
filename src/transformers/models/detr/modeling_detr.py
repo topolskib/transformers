@@ -151,8 +151,10 @@ def _max_by_axis(the_list):
 
 class NestedTensor(object):
     """
-    Data type that handles different types of inputs (either list of images or list of sequences),
+    Data type that handles different types of inputs (either list of images or single image),
     and computes the padded output (with masking).
+
+    For more information, see https://github.com/facebookresearch/detr/issues/116#issuecomment-651047468. 
     """
     def __init__(self, tensors, mask: Optional[Tensor]):
         self.tensors = tensors
@@ -329,34 +331,34 @@ class Joiner(nn.Sequential):
         return out, pos
 
 
-def shift_tokens_right(input_ids: torch.Tensor, pad_token_id: int, decoder_start_token_id: int):
-    """
-    Shift input ids one token to the right.
-    """
-    shifted_input_ids = input_ids.new_zeros(input_ids.shape)
-    shifted_input_ids[:, 1:] = input_ids[:, :-1].clone()
-    shifted_input_ids[:, 0] = decoder_start_token_id
+# def shift_tokens_right(input_ids: torch.Tensor, pad_token_id: int, decoder_start_token_id: int):
+#     """
+#     Shift input ids one token to the right.
+#     """
+#     shifted_input_ids = input_ids.new_zeros(input_ids.shape)
+#     shifted_input_ids[:, 1:] = input_ids[:, :-1].clone()
+#     shifted_input_ids[:, 0] = decoder_start_token_id
 
-    assert pad_token_id is not None, "self.model.config.pad_token_id has to be defined."
-    # replace possible -100 values in labels by `pad_token_id`
-    shifted_input_ids.masked_fill_(shifted_input_ids == -100, pad_token_id)
+#     assert pad_token_id is not None, "self.model.config.pad_token_id has to be defined."
+#     # replace possible -100 values in labels by `pad_token_id`
+#     shifted_input_ids.masked_fill_(shifted_input_ids == -100, pad_token_id)
 
-    return shifted_input_ids
+#     return shifted_input_ids
 
 
-def _make_causal_mask(input_ids_shape: torch.Size, dtype: torch.dtype, past_key_values_length: int = 0):
-    """
-    Make causal mask used for bi-directional self-attention.
-    """
-    bsz, tgt_len = input_ids_shape
-    mask = torch.full((tgt_len, tgt_len), float("-inf"))
-    mask_cond = torch.arange(mask.size(-1))
-    mask.masked_fill_(mask_cond < (mask_cond + 1).view(mask.size(-1), 1), 0)
-    mask = mask.to(dtype)
+# def _make_causal_mask(input_ids_shape: torch.Size, dtype: torch.dtype, past_key_values_length: int = 0):
+#     """
+#     Make causal mask used for bi-directional self-attention.
+#     """
+#     bsz, tgt_len = input_ids_shape
+#     mask = torch.full((tgt_len, tgt_len), float("-inf"))
+#     mask_cond = torch.arange(mask.size(-1))
+#     mask.masked_fill_(mask_cond < (mask_cond + 1).view(mask.size(-1), 1), 0)
+#     mask = mask.to(dtype)
 
-    if past_key_values_length > 0:
-        mask = torch.cat([torch.zeros(tgt_len, past_key_values_length, dtype=dtype), mask], dim=-1)
-    return mask[None, None, :, :].expand(bsz, 1, tgt_len, tgt_len + past_key_values_length)
+#     if past_key_values_length > 0:
+#         mask = torch.cat([torch.zeros(tgt_len, past_key_values_length, dtype=dtype), mask], dim=-1)
+#     return mask[None, None, :, :].expand(bsz, 1, tgt_len, tgt_len + past_key_values_length)
 
 
 def _expand_mask(
@@ -477,7 +479,7 @@ class DetrAttention(nn.Module):
     """
     Multi-headed attention from 'Attention Is All You Need' paper.
     
-    Here, we add position embeddings to the queries and keys (as explained in the DETR paper). 
+    Here, we add position embeddings to the hidden states before projecting to queries and keys (as explained in the DETR paper). 
     
     """
 
@@ -599,7 +601,7 @@ class DetrAttention(nn.Module):
         attn_weights = F.softmax(attn_weights, dim=-1)
 
         if output_attentions:
-            # this operation is a bit akward, but it's required to
+            # this operation is a bit awkward, but it's required to
             # make sure that attn_weights keeps its gradient.
             # In order to do so, attn_weights have to reshaped
             # twice and have to be reused in the following
@@ -1674,7 +1676,7 @@ class DetrForObjectDetection(DetrPreTrainedModel):
             if self.config.masks:
                 weight_dict["loss_mask"] = self.config.mask_loss_coef
                 weight_dict["loss_dice"] = self.config.dice_loss_coef
-            # TODO this is a hack (doesn't work yet)
+            # TODO this is a hack 
             if self.config.auxiliary_loss:
                 aux_weight_dict = {}
                 for i in range(self.config.decoder_layers - 1):
