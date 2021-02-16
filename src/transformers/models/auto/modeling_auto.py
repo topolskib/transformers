@@ -23,15 +23,6 @@ from ...file_utils import add_start_docstrings
 from ...utils import logging
 
 # Add modeling imports here
-from ..luke.modeling_luke import (
-    LukeForMaskedLM,
-    LukeForCausalLM,
-    LukeForMultipleChoice,
-    LukeForQuestionAnswering,
-    LukeForSequenceClassification,
-    LukeForTokenClassification,
-    LukeModel,
-)
 from ..albert.modeling_albert import (
     AlbertForMaskedLM,
     AlbertForMultipleChoice,
@@ -78,12 +69,7 @@ from ..camembert.modeling_camembert import (
 
 # Add modeling imports here
 from ..luke.modeling_luke import (
-    LukeForMaskedLM,
-    LukeForCausalLM,
-    LukeForMultipleChoice,
-    LukeForQuestionAnswering,
-    LukeForSequenceClassification,
-    LukeForTokenClassification,
+    LukeEntityAwareAttentionModel,
     LukeModel,
 )
 from ..convbert.modeling_convbert import (
@@ -396,7 +382,6 @@ MODEL_FOR_PRETRAINING_MAPPING = OrderedDict(
 MODEL_WITH_LM_HEAD_MAPPING = OrderedDict(
     [
         # Model with LM heads mapping
-(LukeConfig, LukeForMaskedLM),
         (Wav2Vec2Config, Wav2Vec2ForMaskedLM),
         (ConvBertConfig, ConvBertForMaskedLM),
         (LEDConfig, LEDForConditionalGeneration),
@@ -435,7 +420,6 @@ MODEL_WITH_LM_HEAD_MAPPING = OrderedDict(
 MODEL_FOR_CAUSAL_LM_MAPPING = OrderedDict(
     [
         # Model for Causal LM mapping
-        (LukeConfig, LukeForCausalLM),
         (CamembertConfig, CamembertForCausalLM),
         (XLMRobertaConfig, XLMRobertaForCausalLM),
         (RobertaConfig, RobertaForCausalLM),
@@ -465,7 +449,6 @@ MODEL_FOR_CAUSAL_LM_MAPPING = OrderedDict(
 MODEL_FOR_MASKED_LM_MAPPING = OrderedDict(
     [
         # Model for Masked LM mapping
-(LukeConfig, LukeForMaskedLM),
         (Wav2Vec2Config, Wav2Vec2ForMaskedLM),
         (ConvBertConfig, ConvBertForMaskedLM),
         (LayoutLMConfig, LayoutLMForMaskedLM),
@@ -513,7 +496,6 @@ MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING = OrderedDict(
 MODEL_FOR_SEQUENCE_CLASSIFICATION_MAPPING = OrderedDict(
     [
         # Model for Sequence Classification mapping
-        (LukeConfig, LukeForSequenceClassification),
         (ConvBertConfig, ConvBertForSequenceClassification),
         (LEDConfig, LEDForSequenceClassification),
         (DistilBertConfig, DistilBertForSequenceClassification),
@@ -547,7 +529,6 @@ MODEL_FOR_SEQUENCE_CLASSIFICATION_MAPPING = OrderedDict(
 MODEL_FOR_QUESTION_ANSWERING_MAPPING = OrderedDict(
     [
         # Model for Question Answering mapping
-        (LukeConfig, LukeForQuestionAnswering),
         (ConvBertConfig, ConvBertForQuestionAnswering),
         (LEDConfig, LEDForQuestionAnswering),
         (DistilBertConfig, DistilBertForQuestionAnswering),
@@ -583,7 +564,6 @@ MODEL_FOR_TABLE_QUESTION_ANSWERING_MAPPING = OrderedDict(
 MODEL_FOR_TOKEN_CLASSIFICATION_MAPPING = OrderedDict(
     [
         # Model for Token Classification mapping
-(LukeConfig, LukeForTokenClassification),
         (ConvBertConfig, ConvBertForTokenClassification),
         (LayoutLMConfig, LayoutLMForTokenClassification),
         (DistilBertConfig, DistilBertForTokenClassification),
@@ -609,7 +589,6 @@ MODEL_FOR_TOKEN_CLASSIFICATION_MAPPING = OrderedDict(
 MODEL_FOR_MULTIPLE_CHOICE_MAPPING = OrderedDict(
     [
         # Model for Multiple Choice mapping
-(LukeConfig, LukeForMultipleChoice),
         (ConvBertConfig, ConvBertForMultipleChoice),
         (CamembertConfig, CamembertForMultipleChoice),
         (ElectraConfig, ElectraForMultipleChoice),
