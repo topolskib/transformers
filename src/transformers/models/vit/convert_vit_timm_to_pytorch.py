@@ -46,12 +46,12 @@ def create_rename_keys(config, base_model=False):
     rename_keys = []
     for i in range(config.num_hidden_layers):  
         # encoder layers: output projection, 2 feedforward neural networks and 2 layernorms
-        rename_keys.append(("blocks." + str(i) + ".norm1.weight", "vit.encoder.layer." + str(i) + ".attention.output.LayerNorm.weight"))
-        rename_keys.append(("blocks." + str(i) + ".norm1.bias", "vit.encoder.layer." + str(i) + ".attention.output.LayerNorm.bias"))
+        rename_keys.append(("blocks." + str(i) + ".norm1.weight", "vit.encoder.layer." + str(i) + ".layernorm_before.weight"))
+        rename_keys.append(("blocks." + str(i) + ".norm1.bias", "vit.encoder.layer." + str(i) + ".layernorm_before.bias"))
         rename_keys.append(("blocks." + str(i) + ".attn.proj.weight", "vit.encoder.layer." + str(i) + ".attention.output.dense.weight"))
         rename_keys.append(("blocks." + str(i) + ".attn.proj.bias", "vit.encoder.layer." + str(i) + ".attention.output.dense.bias"))
-        rename_keys.append(("blocks." + str(i) + ".norm2.weight", "vit.encoder.layer." + str(i) + ".output.LayerNorm.weight"))
-        rename_keys.append(("blocks." + str(i) + ".norm2.bias", "vit.encoder.layer." + str(i) + ".output.LayerNorm.bias"))
+        rename_keys.append(("blocks." + str(i) + ".norm2.weight", "vit.encoder.layer." + str(i) + ".layernorm_after.weight"))
+        rename_keys.append(("blocks." + str(i) + ".norm2.bias", "vit.encoder.layer." + str(i) + ".layernorm_after.bias"))
         rename_keys.append(("blocks." + str(i) + ".mlp.fc1.weight", "vit.encoder.layer." + str(i) + ".intermediate.dense.weight"))
         rename_keys.append(("blocks." + str(i) + ".mlp.fc1.bias", "vit.encoder.layer." + str(i) + ".intermediate.dense.bias"))
         rename_keys.append(("blocks." + str(i) + ".mlp.fc2.weight", "vit.encoder.layer." + str(i) + ".output.dense.weight"))
