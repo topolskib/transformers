@@ -352,6 +352,8 @@ class ViTSelfAttention(nn.Module):
 
 
 class ViTSelfOutput(nn.Module):
+    """ The residual connection is defined in VitLayer instead of here (as is the case with our models). """
+    
     def __init__(self, config):
         super().__init__()
         self.dense = nn.Linear(config.hidden_size, config.hidden_size)
@@ -366,6 +368,9 @@ class ViTSelfOutput(nn.Module):
 
         print("Hidden states after dense + dropout:")
         print(hidden_states[0,:3,:3])
+
+        # first residual connection
+        #hidden_states = hidden_states + input_tensor
 
         return hidden_states
 
@@ -440,22 +445,33 @@ class ViTIntermediate(nn.Module):
         
         hidden_states = self.dense(hidden_states)
         hidden_states = self.intermediate_act_fn(hidden_states)
+
+        print("Hidden states after intermediate:")
+        print(hidden_states[0,:3,:3])
+
         return hidden_states
 
 
 class ViTOutput(nn.Module):
-    """ The residual connection is added in VitLayer instead of here."""
-
     def __init__(self, config):
         super().__init__()
         self.dense = nn.Linear(config.intermediate_size, config.hidden_size)
         #self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
-    def forward(self, hidden_states):
+    def forward(self, hidden_states, input_tensor):
         hidden_states = self.dense(hidden_states)
         hidden_states = self.dropout(hidden_states)
         #hidden_states = self.LayerNorm(hidden_states + input_tensor)
+
+        print("Hidden states after fc2:")
+        print(hidden_states[0,:3,:3])
+
+        hidden_states = hidden_states + input_tensor
+
+        print("Hidden states after adding second residual connection:")
+        print(hidden_states[0,:3,:3])
+
         return hidden_states
 
 
@@ -530,21 +546,28 @@ class ViTLayer(nn.Module):
             cross_attn_present_key_value = cross_attention_outputs[-1]
             present_key_value = present_key_value + cross_attn_present_key_value
 
-        # residual connection
-        attention_output = attention_output + hidden_states
+        # first residual connection
+        hidden_states = attention_output + hidden_states
         
         print("Hidden states before second layernorm:")
-        print(attention_output[0,:3,:3])
+        print(hidden_states[0,:3,:3])
         
         # in ViT, layernorm is also applied after self-attention
-        attention_output = self.layernorm_after(attention_output)   
+        layer_output = self.layernorm_after(hidden_states)   
         
         print("Hidden states after second layer norm:")
-        print(attention_output[0,:3,:3]) 
+        print(layer_output[0,:3,:3]) 
         
-        layer_output = apply_chunking_to_forward(
-            self.feed_forward_chunk, self.chunk_size_feed_forward, self.seq_len_dim, attention_output
-        )
+        # feedforward chunking not working for now
+        # layer_output = apply_chunking_to_forward(
+        #     self.feed_forward_chunk, self.chunk_size_feed_forward, self.seq_len_dim, layer_output
+        # )
+
+        layer_output = self.intermediate(layer_output)
+
+        # second residual connection is done here
+        layer_output = self.output(layer_output, hidden_states)
+        
         outputs = (layer_output,) + outputs
 
         # if decoder, return the attn key/values as the last output
