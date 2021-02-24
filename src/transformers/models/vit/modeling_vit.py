@@ -336,9 +336,9 @@ class ViTSelfAttention(nn.Module):
 
         context_layer = torch.matmul(attention_probs, value_layer)
 
-        print("Hidden states after self-attention:")
-        print(context_layer.shape)
-        print(context_layer[0,:3,:3,:3])
+        #print("Hidden states after self-attention:")
+        #print(context_layer.shape)
+        #print(context_layer[0,:3,:3,:3])
 
         context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
         new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
@@ -352,7 +352,8 @@ class ViTSelfAttention(nn.Module):
 
 
 class ViTSelfOutput(nn.Module):
-    """ The residual connection is defined in VitLayer instead of here (as is the case with our models). """
+    """ The residual connection is defined in VitLayer instead of here (as is the case with our models),
+        due to the layernorm applied before each block. """
     
     def __init__(self, config):
         super().__init__()
@@ -366,8 +367,8 @@ class ViTSelfOutput(nn.Module):
         hidden_states = self.dropout(hidden_states)
         #hidden_states = self.LayerNorm(hidden_states + input_tensor)
 
-        print("Hidden states after dense + dropout:")
-        print(hidden_states[0,:3,:3])
+        #print("Hidden states after dense + dropout:")
+        #print(hidden_states[0,:3,:3])
 
         # first residual connection
         #hidden_states = hidden_states + input_tensor
@@ -440,14 +441,14 @@ class ViTIntermediate(nn.Module):
 
     def forward(self, hidden_states):
         
-        print("Hidden states before intermediate:")
-        print(hidden_states[0,:3,:3])
+        #print("Hidden states before intermediate:")
+        #print(hidden_states[0,:3,:3])
         
         hidden_states = self.dense(hidden_states)
         hidden_states = self.intermediate_act_fn(hidden_states)
 
-        print("Hidden states after intermediate:")
-        print(hidden_states[0,:3,:3])
+        #print("Hidden states after intermediate:")
+        #print(hidden_states[0,:3,:3])
 
         return hidden_states
 
@@ -464,13 +465,13 @@ class ViTOutput(nn.Module):
         hidden_states = self.dropout(hidden_states)
         #hidden_states = self.LayerNorm(hidden_states + input_tensor)
 
-        print("Hidden states after fc2:")
-        print(hidden_states[0,:3,:3])
+        #print("Hidden states after fc2:")
+        #print(hidden_states[0,:3,:3])
 
         hidden_states = hidden_states + input_tensor
 
-        print("Hidden states after adding second residual connection:")
-        print(hidden_states[0,:3,:3])
+        #print("Hidden states after adding second residual connection:")
+        #print(hidden_states[0,:3,:3])
 
         return hidden_states
 
@@ -549,14 +550,14 @@ class ViTLayer(nn.Module):
         # first residual connection
         hidden_states = attention_output + hidden_states
         
-        print("Hidden states before second layernorm:")
-        print(hidden_states[0,:3,:3])
+        #print("Hidden states before second layernorm:")
+        #print(hidden_states[0,:3,:3])
         
         # in ViT, layernorm is also applied after self-attention
         layer_output = self.layernorm_after(hidden_states)   
         
-        print("Hidden states after second layer norm:")
-        print(layer_output[0,:3,:3]) 
+        #print("Hidden states after second layer norm:")
+        #print(layer_output[0,:3,:3]) 
         
         # feedforward chunking not working for now
         # layer_output = apply_chunking_to_forward(
@@ -637,8 +638,8 @@ class ViTEncoder(nn.Module):
                     encoder_attention_mask,
                 )
             else:
-                print("Hidden states before layer:", i)
-                print(hidden_states[0,:3,:3])
+                #print("Hidden states before layer:", i)
+                #print(hidden_states[0,:3,:3])
                 
                 layer_outputs = layer_module(
                     hidden_states,
@@ -650,8 +651,8 @@ class ViTEncoder(nn.Module):
                     output_attentions,
                 )
 
-                print("Hidden states after layer:", i)
-                print(hidden_states[0,:3,:3])
+                #print("Hidden states after layer:", i)
+                #print(hidden_states[0,:3,:3])
 
             hidden_states = layer_outputs[0]
             if use_cache:
@@ -1076,8 +1077,8 @@ class ViTForImageClassification(ViTPreTrainedModel):
         sequence_output = self.layernorm(sequence_output[:, 0, :])
         logits = self.classifier(sequence_output)
 
-        print("Logits:")
-        print(logits[0,:3])
+        #print("Logits:")
+        #print(logits[0,:3])
 
         loss = None
         if labels is not None:
