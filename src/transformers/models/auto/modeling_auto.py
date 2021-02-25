@@ -66,12 +66,6 @@ from ..camembert.modeling_camembert import (
     CamembertForTokenClassification,
     CamembertModel,
 )
-
-# Add modeling imports here
-from ..luke.modeling_luke import (
-    LukeEntityAwareAttentionModel,
-    LukeModel,
-)
 from ..convbert.modeling_convbert import (
     ConvBertForMaskedLM,
     ConvBertForMultipleChoice,
@@ -153,6 +147,9 @@ from ..longformer.modeling_longformer import (
     LongformerForTokenClassification,
     LongformerModel,
 )
+
+# Add modeling imports here
+from ..luke.modeling_luke import LukeEntityAwareAttentionModel, LukeModel
 from ..lxmert.modeling_lxmert import LxmertForPreTraining, LxmertForQuestionAnswering, LxmertModel
 from ..marian.modeling_marian import MarianForCausalLM, MarianModel, MarianMTModel
 from ..mbart.modeling_mbart import (
@@ -254,7 +251,6 @@ from ..xlnet.modeling_xlnet import (
     XLNetModel,
 )
 from .configuration_auto import (
-    LukeConfig,
     AlbertConfig,
     AutoConfig,
     BartConfig,
@@ -278,6 +274,7 @@ from .configuration_auto import (
     LayoutLMConfig,
     LEDConfig,
     LongformerConfig,
+    LukeConfig,
     LxmertConfig,
     MarianConfig,
     MBartConfig,

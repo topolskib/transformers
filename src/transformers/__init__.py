@@ -1282,7 +1282,6 @@ if TYPE_CHECKING:
         load_tf2_weights_in_pytorch_model,
     )
     from .models.albert import ALBERT_PRETRAINED_CONFIG_ARCHIVE_MAP, AlbertConfig
-    from .models.luke import LUKE_PRETRAINED_CONFIG_ARCHIVE_MAP, LukeConfig, LukeTokenizer
     from .models.auto import (
         ALL_PRETRAINED_CONFIG_ARCHIVE_MAP,
         CONFIG_MAPPING,
@@ -1332,6 +1331,7 @@ if TYPE_CHECKING:
     from .models.layoutlm import LAYOUTLM_PRETRAINED_CONFIG_ARCHIVE_MAP, LayoutLMConfig, LayoutLMTokenizer
     from .models.led import LED_PRETRAINED_CONFIG_ARCHIVE_MAP, LEDConfig, LEDTokenizer
     from .models.longformer import LONGFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP, LongformerConfig, LongformerTokenizer
+    from .models.luke import LUKE_PRETRAINED_CONFIG_ARCHIVE_MAP, LukeConfig, LukeTokenizer
     from .models.lxmert import LXMERT_PRETRAINED_CONFIG_ARCHIVE_MAP, LxmertConfig, LxmertTokenizer
     from .models.marian import MarianConfig
     from .models.mbart import MBartConfig
@@ -1469,21 +1469,6 @@ if TYPE_CHECKING:
 
     # Modeling
     if is_torch_available():
-
-        from .models.luke import (
-            LUKE_PRETRAINED_MODEL_ARCHIVE_LIST,
-            LukeEntityAwareAttentionModel,
-            LukeForMaskedLM,
-            LukeForCausalLM,
-            LukeForMultipleChoice,
-            LukeForQuestionAnswering,
-            LukeForSequenceClassification,
-            LukeForTokenClassification,
-            LukeLayer,
-            LukeModel,
-            LukePreTrainedModel,
-            load_tf_weights_in_luke,
-        )
 
         # Benchmarks
         from .benchmark.benchmark import PyTorchBenchmark
@@ -1743,6 +1728,20 @@ if TYPE_CHECKING:
             LongformerForTokenClassification,
             LongformerModel,
             LongformerSelfAttention,
+        )
+        from .models.luke import (
+            LUKE_PRETRAINED_MODEL_ARCHIVE_LIST,
+            LukeEntityAwareAttentionModel,
+            LukeForCausalLM,
+            LukeForMaskedLM,
+            LukeForMultipleChoice,
+            LukeForQuestionAnswering,
+            LukeForSequenceClassification,
+            LukeForTokenClassification,
+            LukeLayer,
+            LukeModel,
+            LukePreTrainedModel,
+            load_tf_weights_in_luke,
         )
         from .models.lxmert import (
             LxmertEncoder,
