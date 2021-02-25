@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Convert ViT checkpoint."""
+"""Convert ViT checkpoints from the timm library."""
 
 
 import argparse
@@ -174,7 +174,6 @@ def convert_vit_checkpoint(vit_name, pytorch_dump_folder_path, base_model=False)
     logits = vit(img)
     outputs = model(img)
 
-    print("Shape of logits:", outputs.logits.shape)
     assert logits.shape == outputs.logits.shape
     assert torch.allclose(logits, outputs.logits, atol=1e-4)
     
