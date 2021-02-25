@@ -37,7 +37,7 @@ class Luke(TokenizerTesterMixin, unittest.TestCase):
         #self.merges_file = os.path.join(r"C:\Users\niels.rogge\Documents\LUKE\tokenizer_files\merges.txt")
 
     def get_tokenizer(self):
-        return self.tokenizer_class.from_pretrained(r"C:\Users\niels.rogge\Documents\LUKE\luke-large")
+        return self.tokenizer_class.from_pretrained(nielsr/luke-large)
 
     def get_input_output_texts(self, tokenizer):
         input_text = "lower newer"
