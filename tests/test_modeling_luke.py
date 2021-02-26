@@ -308,66 +308,60 @@ class LukeModelTest(ModelTesterMixin, unittest.TestCase):
             self.assertIsNotNone(model)
 
 
-# def prepare_luke_batch_inputs():
-#         # Taken from Open Entity dev set
-#         text = """Top seed Ana Ivanovic said on Thursday she could hardly believe her luck as a fortuitous netcord helped the new world number one avoid a humiliating second- round exit at Wimbledon ."""
-#         span = (39,42)
+def prepare_luke_batch_inputs_original(tokenizer):
+        # Taken from Open Entity dev set
+        text = """Top seed Ana Ivanovic said on Thursday she could hardly believe her luck as a fortuitous netcord helped the new world number one avoid a humiliating second- round exit at Wimbledon ."""
+        span = (39,42)
+        
+        ENTITY_TOKEN = '<ent>'
+        max_mention_length = 30
+        
+        conv_tables = (
+            ("-LRB-", "("),
+            ("-LCB-", "("),
+            ("-LSB-", "("),
+            ("-RRB-", ")"),
+            ("-RCB-", ")"),
+            ("-RSB-", ")"),
+        )
+        
+        def preprocess_and_tokenize(text, start, end=None):
+                target_text = text[start:end]
+                for a, b in conv_tables:
+                    target_text = target_text.replace(a, b)
 
-#         ENTITY_TOKEN = '[ENT]'
-#         max_mention_length = 30
+                return tokenizer.tokenize(target_text.strip(), add_prefix_space=True)
 
-#         conv_tables = (
-#             ("-LRB-", "("),
-#             ("-LCB-", "("),
-#             ("-LSB-", "("),
-#             ("-RRB-", ")"),
-#             ("-RCB-", ")"),
-#             ("-RSB-", ")"),
-#         )
+        tokens = [tokenizer.cls_token]
+        tokens += preprocess_and_tokenize(text, 0, span[0])
+        mention_start = len(tokens)
+        tokens.append(ENTITY_TOKEN)
+        tokens += preprocess_and_tokenize(text, span[0], span[1])
+        tokens.append(ENTITY_TOKEN)
+        mention_end = len(tokens)
 
-#         def preprocess_and_tokenize(text, start, end=None):
-#                 target_text = text[start:end]
-#                 for a, b in conv_tables:
-#                     target_text = target_text.replace(a, b)
+        tokens += preprocess_and_tokenize(text, span[1])
+        tokens.append(tokenizer.sep_token)
 
-#                 if isinstance(tokenizer, RobertaTokenizer):
-#                     return tokenizer.tokenize(target_text, add_prefix_space=True)
-#                 else:
-#                     return tokenizer.tokenize(target_text)
+        encoding = {}
+        encoding['input_ids'] = tokenizer.convert_tokens_to_ids(tokens)
+        encoding['attention_mask'] = [1] * len(tokens)
+        encoding['token_type_ids'] = [0] * len(tokens)
 
-#         tokens = [tokenizer.cls_token]
-#         tokens += preprocess_and_tokenize(text, 0, span[0])
-#         mention_start = len(tokens)
-#         tokens.append(ENTITY_TOKEN)
-#         tokens += preprocess_and_tokenize(text, span[0], span[1])
-#         tokens.append(ENTITY_TOKEN)
-#         mention_end = len(tokens)
+        encoding['entity_ids'] = [1]
+        encoding['entity_attention_mask'] = [1]
+        encoding['entity_token_type_ids'] = [0]
+        entity_position_ids = list(range(mention_start, mention_end))[:max_mention_length]
+        entity_position_ids += [-1] * (max_mention_length - mention_end + mention_start)
+        encoding['entity_position_ids'] = [entity_position_ids]
 
-#         tokens += preprocess_and_tokenize(text, span[1])
-#         tokens.append(tokenizer.sep_token)
-
-#         encoding = {}
-#         encoding['input_ids'] = tokenizer.convert_tokens_to_ids(tokens)
-#         encoding['attention_mask'] = [1] * len(tokens)
-#         encoding['token_type_ids'] = [0] * len(tokens)
-
-#         encoding['entity_ids'] = [1, 0]
-#         encoding['entity_attention_mask'] = [1, 0]
-#         encoding['entity_token_type_ids'] = [0, 0]
-#         entity_position_ids = list(range(mention_start, mention_end))[:max_mention_length]
-#         entity_position_ids += [-1] * (max_mention_length - mention_end + mention_start)
-#         entity_position_ids = [entity_position_ids, [-1] * max_mention_length]
-#         encoding['entity_position_ids'] = entity_position_ids
-
-#         return encoding
+        return encoding
 
 
-def prepare_luke_batch_inputs():
+def prepare_luke_batch_inputs(tokenizer):
 
     text = """Top seed Ana Ivanovic said on Thursday she could hardly believe her luck as a fortuitous netcord helped the new world number one avoid a humiliating second- round exit at Wimbledon ."""
     span = (39, 42)
-
-    tokenizer = LukeTokenizer.from_pretrained("nielsr/luke-large")
 
     encoding = tokenizer(text, task="entity_typing", additional_info=span, return_tensors="pt")
 
@@ -381,7 +375,18 @@ class LukeModelIntegrationTests(unittest.TestCase):
         model = LukeEntityAwareAttentionModel.from_pretrained("nielsr/luke-large").eval()
         model.to(torch_device)
 
-        encoding = prepare_luke_batch_inputs()
+        tokenizer = LukeTokenizer.from_pretrained("nielsr/luke-large")
+        encoding = prepare_luke_batch_inputs(tokenizer)
+        encoding_original = prepare_luke_batch_inputs_original(tokenizer)
+        
+        self.assertSequenceEqual(encoding['input_ids'].squeeze().tolist(), encoding_original['input_ids'])
+        self.assertSequenceEqual(encoding['attention_mask'].squeeze().tolist(), encoding_original['attention_mask'])
+        self.assertSequenceEqual(encoding['token_type_ids'].squeeze().tolist(), encoding_original['token_type_ids'])
+        self.assertEqual(encoding['entity_ids'].squeeze().tolist(), encoding_original['entity_ids'][0])
+        self.assertEqual(encoding['entity_attention_mask'].squeeze().tolist(), encoding_original['entity_attention_mask'][0])
+        self.assertEqual(encoding['entity_token_type_ids'].squeeze().tolist(), encoding_original['entity_token_type_ids'][0])
+        self.assertEqual(encoding['entity_position_ids'].squeeze().tolist(), encoding_original['entity_position_ids'][0])
+
         # move all values to device
         for key, value in encoding.items():
             encoding[key] = encoding[key].to(torch_device)
@@ -394,14 +399,12 @@ class LukeModelIntegrationTests(unittest.TestCase):
 
         expected_slice = torch.tensor(
             [[0.0301, 0.0980, 0.0092], [0.2718, -0.2413, -0.9446], [-0.1382, -0.2608, -0.3927]]
-        )
-
+        ).to(torch_device)        
         self.assertTrue(torch.allclose(outputs.last_hidden_state[0, :3, :3], expected_slice, atol=1e-4))
 
         # Verify entity hidden states
         expected_shape = torch.Size((1, 1, 1024))
-        self.assertEqual(outputs.entity_last_hidden_state.shape == expected_shape)
+        self.assertEqual(outputs.entity_last_hidden_state.shape, expected_shape)
 
-        expected_slice = torch.tensor([[0.3251, 0.3981, -0.0689], [-0.0098, 0.1215, 0.3544]])
-
+        expected_slice = torch.tensor([[0.3251, 0.3981, -0.0689]]).to(torch_device)        
         self.assertTrue(torch.allclose(outputs.entity_last_hidden_state[0, :3, :3], expected_slice, atol=1e-4))

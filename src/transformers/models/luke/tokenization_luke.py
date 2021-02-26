@@ -429,11 +429,11 @@ class LukeTokenizer(RobertaTokenizer):
 
             tokens = []
             tokens += preprocess_and_tokenize(text, 0, span[0])
-            mention_start = len(tokens)
+            mention_start = len(tokens) + 1 # we add 1 here because in the original implementation, the special <s> token was already added
             tokens.append(ENTITY_TOKEN)
             tokens += preprocess_and_tokenize(text, span[0], span[1])
             tokens.append(ENTITY_TOKEN)
-            mention_end = len(tokens)
+            mention_end = len(tokens) + 1 # we add 1 here for the same reason
 
             tokens += preprocess_and_tokenize(text, span[1])
 

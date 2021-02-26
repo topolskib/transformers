@@ -31,6 +31,7 @@ if is_torch_available():
         "LUKE_PRETRAINED_MODEL_ARCHIVE_LIST",
         "LukeModel",
         "LukeEntityAwareAttentionModel",
+        "LukeForEntityTyping",
     ]
 
 
