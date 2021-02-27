@@ -45,12 +45,9 @@ class LukeConfig(RobertaConfig):
     """
     model_type = "luke"
 
-    def __init__(self, entity_vocab_size: int = 500000, entity_emb_size: int = None, **kwargs):
+    def __init__(self, entity_vocab_size: int = 500000, entity_emb_size: int = 256, **kwargs):
         """Constructs LukeConfig."""
         super(LukeConfig, self).__init__(**kwargs)
 
         self.entity_vocab_size = entity_vocab_size
-        if entity_emb_size is None:
-            self.entity_emb_size = self.hidden_size
-        else:
-            self.entity_emb_size = entity_emb_size
+        self.entity_emb_size = entity_emb_size
