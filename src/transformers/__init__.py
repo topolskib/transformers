@@ -371,11 +371,13 @@ if is_torch_available():
     _import_structure["models.luke"].extend(
         [
             "LUKE_PRETRAINED_MODEL_ARCHIVE_LIST",
-            "LukeForEntityTyping",
             "LukeLayer",
             "LukeModel",
             "LukeEntityAwareAttentionModel",
             "LukePreTrainedModel",
+            "LukeForEntityClassification",
+            "LukeForEntityPairClassification",
+            "LukeForEntitySpanClassification",
             "load_tf_weights_in_luke",
         ]
     )

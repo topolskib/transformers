@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Tokenization classes for LUKE."""
+import json
 from typing import Dict, List, Optional, Tuple, Union
 
 from transformers import RobertaTokenizer
@@ -43,28 +44,27 @@ logger = logging.get_logger(__name__)
 VOCAB_FILES_NAMES = {
     "vocab_file": "vocab.json",
     "merges_file": "merges.txt",
+    "entity_vocab_file": "entity_vocab.json",
 }
 
 PRETRAINED_VOCAB_FILES_MAP = {
     "vocab_file": {
-        "studio-ouisa/luke-base": "https://huggingface.co/roberta-base/resolve/main/vocab.json",
-        "studio-ouisa/luke-large": "https://huggingface.co/roberta-large/resolve/main/vocab.json",
+        "studio-ousia/luke-base": "https://huggingface.co/luke-base/resolve/main/vocab.json",
+        "studio-ousia/luke-large": "https://huggingface.co/luke-large/resolve/main/vocab.json",
     },
     "merges_file": {
-        "studio-ouisa/luke-base": "https://huggingface.co/roberta-base/resolve/main/merges.txt",
-        "studio-ouisa/luke-large": "https://huggingface.co/roberta-large/resolve/main/merges.txt",
+        "studio-ousia/luke-base": "https://huggingface.co/luke-base/resolve/main/merges.txt",
+        "studio-ousia/luke-large": "https://huggingface.co/luke-large/resolve/main/merges.txt",
+    },
+    "entity_vocab_file": {
+        "studio-ousia/luke-base": "https://huggingface.co/luke-base/resolve/main/entity_vocab.json",
+        "studio-ousia/luke-large": "https://huggingface.co/luke-large/resolve/main/entity_vocab.json",
     },
 }
 
 PRETRAINED_POSITIONAL_EMBEDDINGS_SIZES = {
-    "studio-ouisa/luke-base": 512,
+    "studio-ousia/luke-base": 512,
     "studio-ouisa/luke-large": 512,
-}
-
-
-PRETRAINED_INIT_CONFIGURATION = {
-    "studio-ouisa/luke-base": {"do_lower_case": False},
-    "studio-ouisa/luke-large": {"do_lower_case": False},
 }
 
 
@@ -82,12 +82,12 @@ class LukeTokenizer(RobertaTokenizer):
     vocab_files_names = VOCAB_FILES_NAMES
     pretrained_vocab_files_map = PRETRAINED_VOCAB_FILES_MAP
     max_model_input_sizes = PRETRAINED_POSITIONAL_EMBEDDINGS_SIZES
-    pretrained_init_configuration = PRETRAINED_INIT_CONFIGURATION
 
     def __init__(
         self,
         vocab_file,
         merges_file,
+        entity_vocab_file,
         model_max_length=512,
         max_entity_length=32,
         max_mention_length=30,
@@ -118,6 +118,9 @@ class LukeTokenizer(RobertaTokenizer):
             additional_special_tokens=additional_special_tokens,
             **kwargs,
         )
+
+        with open(entity_vocab_file, encoding="utf-8") as entity_vocab_handle:
+            self.entity_vocab = json.load(entity_vocab_handle)
 
         self.max_entity_length = max_entity_length
         self.max_mention_length = max_mention_length
