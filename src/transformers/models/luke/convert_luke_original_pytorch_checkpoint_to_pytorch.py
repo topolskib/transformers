@@ -14,13 +14,13 @@
 # limitations under the License.
 """Convert LUKE checkpoint."""
 
-
 import argparse
 import json
+import os
 
 import torch
 
-from transformers import LukeConfig, LukeEntityAwareAttentionModel, RobertaTokenizer
+from transformers import LukeConfig, LukeEntityAwareAttentionModel, LukeTokenizer, RobertaTokenizer
 
 
 def prepare_luke_batch_inputs(tokenizer):
@@ -100,6 +100,13 @@ def convert_luke_checkpoint(checkpoint_path, metadata_path, entity_vocab_path, p
     tokenizer = RobertaTokenizer.from_pretrained(metadata["model_config"]["bert_model_name"])
     tokenizer.add_special_tokens(dict(additional_special_tokens=["[ENT]", "[ENT2]"]))
 
+    print("Saving tokenizer to {}".format(pytorch_dump_folder_path))
+    tokenizer.save_pretrained(pytorch_dump_folder_path)
+    with open(os.path.join(pytorch_dump_folder_path, LukeTokenizer.vocab_files_names['entity_vocab_file']), 'w') as f:
+        json.dump(entity_vocab, f)
+
+    tokenizer = LukeTokenizer.from_pretrained(pytorch_dump_folder_path)
+
     # Initialize the embeddings of the special tokens
     word_emb = state_dict["embeddings.word_embeddings.weight"]
     ent_emb = word_emb[tokenizer.convert_tokens_to_ids(["@"])[0]].unsqueeze(0)
@@ -150,9 +157,8 @@ def convert_luke_checkpoint(checkpoint_path, metadata_path, entity_vocab_path, p
     assert torch.allclose(outputs.entity_last_hidden_state[0, :3, :3], expected_slice, atol=1e-4)
 
     # Finally, save our PyTorch model and tokenizer
-    print("Saving PyTorch model and tokenizer to {}".format(pytorch_dump_folder_path))
+    print("Saving PyTorch model to {}".format(pytorch_dump_folder_path))
     model.save_pretrained(pytorch_dump_folder_path)
-    tokenizer.save_pretrained(pytorch_dump_folder_path)
 
 
 def load_entity_vocab(entity_vocab_path):
