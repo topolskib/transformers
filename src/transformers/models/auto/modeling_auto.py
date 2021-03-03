@@ -37,6 +37,7 @@ from ..albert.modeling_albert import (
     AlbertModel,
 )
 from ..bart.modeling_bart import (
+    BartForCausalLM,
     BartForConditionalGeneration,
     BartForQuestionAnswering,
     BartForSequenceClassification,
@@ -54,8 +55,12 @@ from ..bert.modeling_bert import (
     BertModel,
 )
 from ..bert_generation.modeling_bert_generation import BertGenerationDecoder, BertGenerationEncoder
-from ..blenderbot.modeling_blenderbot import BlenderbotForConditionalGeneration, BlenderbotModel
-from ..blenderbot_small.modeling_blenderbot_small import BlenderbotSmallForConditionalGeneration, BlenderbotSmallModel
+from ..blenderbot.modeling_blenderbot import BlenderbotForCausalLM, BlenderbotForConditionalGeneration, BlenderbotModel
+from ..blenderbot_small.modeling_blenderbot_small import (
+    BlenderbotSmallForCausalLM,
+    BlenderbotSmallForConditionalGeneration,
+    BlenderbotSmallModel,
+)
 from ..camembert.modeling_camembert import (
     CamembertForCausalLM,
     CamembertForMaskedLM,
@@ -86,6 +91,13 @@ from ..deberta.modeling_deberta import (
     DebertaForSequenceClassification,
     DebertaForTokenClassification,
     DebertaModel,
+)
+from ..deberta_v2.modeling_deberta_v2 import (
+    DebertaV2ForMaskedLM,
+    DebertaV2ForQuestionAnswering,
+    DebertaV2ForSequenceClassification,
+    DebertaV2ForTokenClassification,
+    DebertaV2Model,
 )
 from ..distilbert.modeling_distilbert import (
     DistilBertForMaskedLM,
@@ -125,6 +137,14 @@ from ..funnel.modeling_funnel import (
     FunnelModel,
 )
 from ..gpt2.modeling_gpt2 import GPT2ForSequenceClassification, GPT2LMHeadModel, GPT2Model
+from ..ibert.modeling_ibert import (
+    IBertForMaskedLM,
+    IBertForMultipleChoice,
+    IBertForQuestionAnswering,
+    IBertForSequenceClassification,
+    IBertForTokenClassification,
+    IBertModel,
+)
 from ..layoutlm.modeling_layoutlm import (
     LayoutLMForMaskedLM,
     LayoutLMForSequenceClassification,
@@ -146,8 +166,9 @@ from ..longformer.modeling_longformer import (
     LongformerModel,
 )
 from ..lxmert.modeling_lxmert import LxmertForPreTraining, LxmertForQuestionAnswering, LxmertModel
-from ..marian.modeling_marian import MarianModel, MarianMTModel
+from ..marian.modeling_marian import MarianForCausalLM, MarianModel, MarianMTModel
 from ..mbart.modeling_mbart import (
+    MBartForCausalLM,
     MBartForConditionalGeneration,
     MBartForQuestionAnswering,
     MBartForSequenceClassification,
@@ -173,7 +194,7 @@ from ..mpnet.modeling_mpnet import (
 )
 from ..mt5.modeling_mt5 import MT5ForConditionalGeneration, MT5Model
 from ..openai.modeling_openai import OpenAIGPTForSequenceClassification, OpenAIGPTLMHeadModel, OpenAIGPTModel
-from ..pegasus.modeling_pegasus import PegasusForConditionalGeneration, PegasusModel
+from ..pegasus.modeling_pegasus import PegasusForCausalLM, PegasusForConditionalGeneration, PegasusModel
 from ..prophetnet.modeling_prophetnet import ProphetNetForCausalLM, ProphetNetForConditionalGeneration, ProphetNetModel
 from ..rag.modeling_rag import (  # noqa: F401 - need to import all RagModels to be in globals() function
     RagModel,
@@ -257,6 +278,7 @@ from .configuration_auto import (
     ConvBertConfig,
     CTRLConfig,
     DebertaConfig,
+    DebertaV2Config,
     DistilBertConfig,
     DPRConfig,
     ElectraConfig,
@@ -265,6 +287,7 @@ from .configuration_auto import (
     FSMTConfig,
     FunnelConfig,
     GPT2Config,
+    IBertConfig,
     LayoutLMConfig,
     LEDConfig,
     LongformerConfig,
@@ -336,12 +359,14 @@ MODEL_MAPPING = OrderedDict(
         (LxmertConfig, LxmertModel),
         (BertGenerationConfig, BertGenerationEncoder),
         (DebertaConfig, DebertaModel),
+        (DebertaV2Config, DebertaV2Model),
         (DPRConfig, DPRQuestionEncoder),
         (XLMProphetNetConfig, XLMProphetNetModel),
         (ProphetNetConfig, ProphetNetModel),
         (MPNetConfig, MPNetModel),
         (TapasConfig, TapasModel),
         (MarianConfig, MarianModel),
+        (IBertConfig, IBertModel),
     ]
 )
 
@@ -374,6 +399,7 @@ MODEL_FOR_PRETRAINING_MAPPING = OrderedDict(
         (FunnelConfig, FunnelForPreTraining),
         (MPNetConfig, MPNetForMaskedLM),
         (TapasConfig, TapasForMaskedLM),
+        (IBertConfig, IBertForMaskedLM),
     ]
 )
 
@@ -413,6 +439,8 @@ MODEL_WITH_LM_HEAD_MAPPING = OrderedDict(
         (MPNetConfig, MPNetForMaskedLM),
         (TapasConfig, TapasForMaskedLM),
         (DebertaConfig, DebertaForMaskedLM),
+        (DebertaV2Config, DebertaV2ForMaskedLM),
+        (IBertConfig, IBertForMaskedLM),
     ]
 )
 
@@ -436,6 +464,12 @@ MODEL_FOR_CAUSAL_LM_MAPPING = OrderedDict(
         (BertGenerationConfig, BertGenerationDecoder),
         (XLMProphetNetConfig, XLMProphetNetForCausalLM),
         (ProphetNetConfig, ProphetNetForCausalLM),
+        (BartConfig, BartForCausalLM),
+        (MBartConfig, MBartForCausalLM),
+        (PegasusConfig, PegasusForCausalLM),
+        (MarianConfig, MarianForCausalLM),
+        (BlenderbotConfig, BlenderbotForCausalLM),
+        (BlenderbotSmallConfig, BlenderbotSmallForCausalLM),
     ]
 )
 
@@ -464,6 +498,8 @@ MODEL_FOR_MASKED_LM_MAPPING = OrderedDict(
         (MPNetConfig, MPNetForMaskedLM),
         (TapasConfig, TapasForMaskedLM),
         (DebertaConfig, DebertaForMaskedLM),
+        (DebertaV2Config, DebertaV2ForMaskedLM),
+        (IBertConfig, IBertForMaskedLM),
     ]
 )
 
@@ -510,6 +546,7 @@ MODEL_FOR_SEQUENCE_CLASSIFICATION_MAPPING = OrderedDict(
         (ElectraConfig, ElectraForSequenceClassification),
         (FunnelConfig, FunnelForSequenceClassification),
         (DebertaConfig, DebertaForSequenceClassification),
+        (DebertaV2Config, DebertaV2ForSequenceClassification),
         (GPT2Config, GPT2ForSequenceClassification),
         (OpenAIGPTConfig, OpenAIGPTForSequenceClassification),
         (ReformerConfig, ReformerForSequenceClassification),
@@ -517,6 +554,7 @@ MODEL_FOR_SEQUENCE_CLASSIFICATION_MAPPING = OrderedDict(
         (TransfoXLConfig, TransfoXLForSequenceClassification),
         (MPNetConfig, MPNetForSequenceClassification),
         (TapasConfig, TapasForSequenceClassification),
+        (IBertConfig, IBertForSequenceClassification),
     ]
 )
 
@@ -545,6 +583,8 @@ MODEL_FOR_QUESTION_ANSWERING_MAPPING = OrderedDict(
         (LxmertConfig, LxmertForQuestionAnswering),
         (MPNetConfig, MPNetForQuestionAnswering),
         (DebertaConfig, DebertaForQuestionAnswering),
+        (DebertaV2Config, DebertaV2ForQuestionAnswering),
+        (IBertConfig, IBertForQuestionAnswering),
     ]
 )
 
@@ -577,6 +617,8 @@ MODEL_FOR_TOKEN_CLASSIFICATION_MAPPING = OrderedDict(
         (FunnelConfig, FunnelForTokenClassification),
         (MPNetConfig, MPNetForTokenClassification),
         (DebertaConfig, DebertaForTokenClassification),
+        (DebertaV2Config, DebertaV2ForTokenClassification),
+        (IBertConfig, IBertForTokenClassification),
     ]
 )
 
@@ -599,6 +641,7 @@ MODEL_FOR_MULTIPLE_CHOICE_MAPPING = OrderedDict(
         (FlaubertConfig, FlaubertForMultipleChoice),
         (FunnelConfig, FunnelForMultipleChoice),
         (MPNetConfig, MPNetForMultipleChoice),
+        (IBertConfig, IBertForMultipleChoice),
     ]
 )
 
