@@ -19,11 +19,8 @@ from typing import TYPE_CHECKING
 from ...file_utils import _BaseLazyModule, is_torch_available, is_tokenizers_available
 _import_structure = {
     "configuration_vit": ["VIT_PRETRAINED_CONFIG_ARCHIVE_MAP", "ViTConfig"],
-    "tokenization_vit": ["ViTTokenizer"],
+    "image_processor_vit": ["ViTImageProcessor"],
 }
-
-if is_tokenizers_available():
-    _import_structure["tokenization_vit_fast"] = ["ViTTokenizerFast"]
 
 if is_torch_available():
     _import_structure["modeling_vit"] = [
@@ -38,10 +35,7 @@ if is_torch_available():
 
 if TYPE_CHECKING:
     from .configuration_vit import VIT_PRETRAINED_CONFIG_ARCHIVE_MAP, ViTConfig
-    from .tokenization_vit import ViTTokenizer
-
-    if is_tokenizers_available():
-        from .tokenization_vit_fast import ViTTokenizerFast
+    from .image_processor_vit import ViTImageProcessor
 
     if is_torch_available():
         from .modeling_vit import (
