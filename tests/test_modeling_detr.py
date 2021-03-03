@@ -19,6 +19,9 @@ import copy
 import tempfile
 import unittest
 
+from PIL import Image
+
+import requests
 from transformers import is_torch_available
 from transformers.file_utils import cached_property
 from transformers.testing_utils import require_sentencepiece, require_tokenizers, require_torch, slow, torch_device
@@ -27,24 +30,13 @@ from .test_configuration_common import ConfigTester
 from .test_generation_utils import GenerationTesterMixin
 from .test_modeling_common import ModelTesterMixin, ids_tensor
 
-from PIL import Image
-import requests
-
 
 if is_torch_available():
     import torch
     import torchvision.transforms as T
 
-    from transformers import (
-        DetrConfig,
-        DetrModel,
-        DetrTokenizer,
-        DetrForObjectDetection,
-    )
-    from transformers.models.detr.modeling_detr import (
-        DetrDecoder,
-        DetrEncoder,
-    )
+    from transformers import DetrConfig, DetrForObjectDetection, DetrModel, DetrTokenizer
+    from transformers.models.detr.modeling_detr import DetrDecoder, DetrEncoder
 
 
 def prepare_detr_inputs_dict(
@@ -299,15 +291,11 @@ TOLERANCE = 1e-4
 
 # We will verify our outputs against the original implementation on an image of cute cats
 def prepare_img():
-    url = 'http://images.cocodataset.org/val2017/000000039769.jpg'
+    url = "http://images.cocodataset.org/val2017/000000039769.jpg"
     im = Image.open(requests.get(url, stream=True).raw)
 
     # standard PyTorch mean-std input image normalization
-    transform = T.Compose([
-        T.Resize(800),
-        T.ToTensor(),
-        T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-    ])
+    transform = T.Compose([T.Resize(800), T.ToTensor(), T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
 
     # mean-std normalize the input image (batch-size: 1)
     img = transform(im).unsqueeze(0)
@@ -316,7 +304,7 @@ def prepare_img():
 
 
 def prepare_detr_inputs():
-    url = 'http://images.cocodataset.org/val2017/000000039769.jpg'
+    url = "http://images.cocodataset.org/val2017/000000039769.jpg"
     im = Image.open(requests.get(url, stream=True).raw)
 
     tokenizer = DetrTokenizer()
@@ -334,45 +322,44 @@ class DetrModelIntegrationTests(unittest.TestCase):
     #     return DetrTokenizer.from_pretrained('facebook/detr-resnet-50')
 
     def test_inference_no_head(self):
-        model = DetrModel.from_pretrained('nielsr/detr-resnet-50-new').to(torch_device)
+        model = DetrModel.from_pretrained("nielsr/detr-resnet-50-new").to(torch_device)
         model.eval()
 
         encoding = prepare_detr_inputs()
-        pixel_values = encoding['pixel_values'].to(torch_device)
-        pixel_mask = encoding['pixel_mask'].to(torch_device)
-        
+        pixel_values = encoding["pixel_values"].to(torch_device)
+        pixel_mask = encoding["pixel_mask"].to(torch_device)
+
         with torch.no_grad():
             outputs = model(pixel_values, pixel_mask)
-        
+
         expected_shape = torch.Size((1, 100, 256))
         assert outputs.last_hidden_state.shape == expected_shape
-        expected_slice = torch.tensor([[0.0616, -0.5146, -0.4032],
-        [-0.7629, -0.4934, -1.7153],
-        [-0.4768, -0.6403, -0.7826]]).to(torch_device)
-        self.assertTrue(torch.allclose(outputs.last_hidden_state[0,:3,:3], expected_slice, atol=1e-4))    
+        expected_slice = torch.tensor(
+            [[0.0616, -0.5146, -0.4032], [-0.7629, -0.4934, -1.7153], [-0.4768, -0.6403, -0.7826]]
+        ).to(torch_device)
+        self.assertTrue(torch.allclose(outputs.last_hidden_state[0, :3, :3], expected_slice, atol=1e-4))
 
-
-    def test_inference_object_detection_head(self):    
-        model = DetrForObjectDetection.from_pretrained('nielsr/detr-resnet-50-new').to(torch_device)
+    def test_inference_object_detection_head(self):
+        model = DetrForObjectDetection.from_pretrained("nielsr/detr-resnet-50-new").to(torch_device)
         model.eval()
-        
+
         encoding = prepare_detr_inputs()
-        pixel_values = encoding['pixel_values'].to(torch_device)
-        pixel_mask = encoding['pixel_mask'].to(torch_device)
+        pixel_values = encoding["pixel_values"].to(torch_device)
+        pixel_mask = encoding["pixel_mask"].to(torch_device)
 
         with torch.no_grad():
             outputs = model(pixel_values, pixel_mask)
-        
+
         expected_shape_logits = torch.Size((1, model.config.num_queries, model.config.num_labels + 1))
         self.assertEqual(outputs.pred_logits.shape, expected_shape_logits)
-        expected_slice_logits = torch.tensor([[-19.1194,  -0.0893, -11.0154],
-        [-17.3640,  -1.8035, -14.0219],
-        [-20.0461,  -0.5837, -11.1060]]).to(torch_device)
-        self.assertTrue(torch.allclose(outputs.pred_logits[0,:3,:3], expected_slice_logits, atol=1e-4))  
+        expected_slice_logits = torch.tensor(
+            [[-19.1194, -0.0893, -11.0154], [-17.3640, -1.8035, -14.0219], [-20.0461, -0.5837, -11.1060]]
+        ).to(torch_device)
+        self.assertTrue(torch.allclose(outputs.pred_logits[0, :3, :3], expected_slice_logits, atol=1e-4))
 
         expected_shape_boxes = torch.Size((1, model.config.num_queries, 4))
         self.assertEqual(outputs.pred_boxes.shape, expected_shape_boxes)
-        expected_slice_boxes = torch.tensor([[0.4433, 0.5302, 0.8853],
-        [0.5494, 0.2517, 0.0529],
-        [0.4998, 0.5360, 0.9956]]).to(torch_device)
-        self.assertTrue(torch.allclose(outputs.pred_boxes[0,:3,:3], expected_slice_boxes, atol=1e-4)) 
+        expected_slice_boxes = torch.tensor(
+            [[0.4433, 0.5302, 0.8853], [0.5494, 0.2517, 0.0529], [0.4998, 0.5360, 0.9956]]
+        ).to(torch_device)
+        self.assertTrue(torch.allclose(outputs.pred_boxes[0, :3, :3], expected_slice_boxes, atol=1e-4))

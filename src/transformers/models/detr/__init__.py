@@ -16,10 +16,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from typing import TYPE_CHECKING
-from ...file_utils import _BaseLazyModule, is_torch_available, is_tokenizers_available
+
+from ...file_utils import _BaseLazyModule, is_tokenizers_available, is_torch_available
+
+
 _import_structure = {
     "configuration_detr": ["DETR_PRETRAINED_CONFIG_ARCHIVE_MAP", "DetrConfig"],
     "tokenization_detr": ["DetrTokenizer"],
+    "image_processor_detr": ["DetrImageProcessor"],
 }
 
 if is_tokenizers_available():
@@ -34,10 +38,9 @@ if is_torch_available():
     ]
 
 
-
-
 if TYPE_CHECKING:
     from .configuration_detr import DETR_PRETRAINED_CONFIG_ARCHIVE_MAP, DetrConfig
+    from .image_processor_detr import DetrImageProcessor
     from .tokenization_detr import DetrTokenizer
 
     if is_tokenizers_available():

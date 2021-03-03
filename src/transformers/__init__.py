@@ -134,7 +134,7 @@ _import_structure = {
         "Wav2Vec2FeatureExtractor",
         "Wav2Vec2Processor",
     ],
-    "models.detr": ["DETR_PRETRAINED_CONFIG_ARCHIVE_MAP", "DetrConfig", "DetrTokenizer"],
+    "models.detr": ["DETR_PRETRAINED_CONFIG_ARCHIVE_MAP", "DetrConfig", "DetrTokenizer", "DetrImageProcessor"],
     "models.convbert": ["CONVBERT_PRETRAINED_CONFIG_ARCHIVE_MAP", "ConvBertConfig", "ConvBertTokenizer"],
     "models.albert": ["ALBERT_PRETRAINED_CONFIG_ARCHIVE_MAP", "AlbertConfig"],
     "models.auto": [
@@ -1307,7 +1307,6 @@ if TYPE_CHECKING:
         load_tf2_weights_in_pytorch_model,
     )
     from .models.albert import ALBERT_PRETRAINED_CONFIG_ARCHIVE_MAP, AlbertConfig
-    from .models.detr import DETR_PRETRAINED_CONFIG_ARCHIVE_MAP, DetrConfig, DetrTokenizer
     from .models.auto import (
         ALL_PRETRAINED_CONFIG_ARCHIVE_MAP,
         CONFIG_MAPPING,
@@ -1338,6 +1337,7 @@ if TYPE_CHECKING:
     from .models.ctrl import CTRL_PRETRAINED_CONFIG_ARCHIVE_MAP, CTRLConfig, CTRLTokenizer
     from .models.deberta import DEBERTA_PRETRAINED_CONFIG_ARCHIVE_MAP, DebertaConfig, DebertaTokenizer
     from .models.deberta_v2 import DEBERTA_V2_PRETRAINED_CONFIG_ARCHIVE_MAP, DebertaV2Config, DebertaV2Tokenizer
+    from .models.detr import DETR_PRETRAINED_CONFIG_ARCHIVE_MAP, DetrConfig, DetrImageProcessor, DetrTokenizer
     from .models.distilbert import DISTILBERT_PRETRAINED_CONFIG_ARCHIVE_MAP, DistilBertConfig, DistilBertTokenizer
     from .models.dpr import (
         DPR_PRETRAINED_CONFIG_ARCHIVE_MAP,
@@ -1463,13 +1463,13 @@ if TYPE_CHECKING:
         from .utils.dummy_sentencepiece_objects import *
 
     if is_tokenizers_available():
-        from .models.detr import DetrTokenizerFast
         from .models.albert import AlbertTokenizerFast
         from .models.bart import BartTokenizerFast
         from .models.barthez import BarthezTokenizerFast
         from .models.bert import BertTokenizerFast
         from .models.camembert import CamembertTokenizerFast
         from .models.convbert import ConvBertTokenizerFast
+        from .models.detr import DetrTokenizerFast
         from .models.distilbert import DistilBertTokenizerFast
         from .models.dpr import DPRContextEncoderTokenizerFast, DPRQuestionEncoderTokenizerFast, DPRReaderTokenizerFast
         from .models.electra import ElectraTokenizerFast
@@ -1502,12 +1502,6 @@ if TYPE_CHECKING:
 
     # Modeling
     if is_torch_available():
-
-        from .models.detr import (
-            DETR_PRETRAINED_MODEL_ARCHIVE_LIST,
-            DetrForObjectDetection,
-            DetrModel,
-        )
 
         # Benchmarks
         from .benchmark.benchmark import PyTorchBenchmark
@@ -1678,6 +1672,7 @@ if TYPE_CHECKING:
             DebertaV2Model,
             DebertaV2PreTrainedModel,
         )
+        from .models.detr import DETR_PRETRAINED_MODEL_ARCHIVE_LIST, DetrForObjectDetection, DetrModel
         from .models.distilbert import (
             DISTILBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
             DistilBertForMaskedLM,

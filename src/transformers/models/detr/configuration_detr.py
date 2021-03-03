@@ -28,14 +28,13 @@ DETR_PRETRAINED_CONFIG_ARCHIVE_MAP = {
 
 class DetrConfig(PretrainedConfig):
     r"""
-    This is the configuration class to store the configuration of a :class:`~transformers.DetrModel`.
-    It is used to instantiate a DETR model according to the specified arguments, defining the model
-    architecture. Instantiating a configuration with the defaults will yield a similar configuration to that of
-    the DETR `facebook/detr-resnet-50 <https://huggingface.co/facebook/detr-resnet-50>`__ architecture.
+    This is the configuration class to store the configuration of a :class:`~transformers.DetrModel`. It is used to
+    instantiate a DETR model according to the specified arguments, defining the model architecture. Instantiating a
+    configuration with the defaults will yield a similar configuration to that of the DETR `facebook/detr-resnet-50
+    <https://huggingface.co/facebook/detr-resnet-50>`__ architecture.
 
-    Configuration objects inherit from  :class:`~transformers.PretrainedConfig` and can be used
-    to control the model outputs. Read the documentation from  :class:`~transformers.PretrainedConfig`
-    for more information.
+    Configuration objects inherit from :class:`~transformers.PretrainedConfig` and can be used to control the model
+    outputs. Read the documentation from :class:`~transformers.PretrainedConfig` for more information.
 
 
     Args:
@@ -84,13 +83,13 @@ class DetrConfig(PretrainedConfig):
             Whether auxiliary decoding losses (loss at each decoder layer) are to be used.
         position_embedding_type (:obj:`str`, `optional`, defaults to :obj:`sine`):
             Type of position embeddings to be used on top of the image features. One of 'sine' or 'learned'.
-        backbone (:obj:`bool`, `optional`, defaults to :obj:`resnet50`): 
-            Name of convolutional backbone to use. Currently only resnet of the Torchvision package is supported. 
-        train_backbone (:obj:`bool`, `optional`, defaults to :obj:`True`): 
-            Whether to train (fine-tune) the backbone. 
-        dilation (:obj:`bool`, `optional`, defaults to :obj:`False`): 
+        backbone (:obj:`bool`, `optional`, defaults to :obj:`resnet50`):
+            Name of convolutional backbone to use. Currently only resnet of the Torchvision package is supported.
+        train_backbone (:obj:`bool`, `optional`, defaults to :obj:`True`):
+            Whether to train (fine-tune) the backbone.
+        dilation (:obj:`bool`, `optional`, defaults to :obj:`False`):
             Whether to replace stride with dilation in the last convolutional block (DC5).
-        masks (:obj:`bool`, `optional`, defaults to :obj:`False`): 
+        masks (:obj:`bool`, `optional`, defaults to :obj:`False`):
             Whether to train the segmentation head.
         class_cost (:obj:`float`, `optional`, defaults to 1):
             Relative weight of the classification error in the Hungarian matching cost.
@@ -124,6 +123,7 @@ class DetrConfig(PretrainedConfig):
     """
     model_type = "detr"
     keys_to_ignore_at_inference = ["past_key_values"]
+
     def __init__(
         self,
         num_queries=100,
@@ -152,8 +152,8 @@ class DetrConfig(PretrainedConfig):
         bos_token_id=0,
         eos_token_id=2,
         auxiliary_loss=False,
-        position_embedding_type='sine',
-        backbone='resnet50',
+        position_embedding_type="sine",
+        backbone="resnet50",
         train_backbone=True,
         dilation=False,
         masks=False,
@@ -173,7 +173,7 @@ class DetrConfig(PretrainedConfig):
             eos_token_id=eos_token_id,
             is_encoder_decoder=is_encoder_decoder,
             decoder_start_token_id=decoder_start_token_id,
-            **kwargs
+            **kwargs,
         )
 
         self.num_queries = num_queries
@@ -214,8 +214,6 @@ class DetrConfig(PretrainedConfig):
         self.giou_loss_coefficient = giou_loss_coefficient
         self.eos_coefficient = eos_coefficient
 
-
-        
     @property
     def num_attention_heads(self) -> int:
         return self.encoder_attention_heads
