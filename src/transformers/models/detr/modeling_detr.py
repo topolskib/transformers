@@ -505,7 +505,7 @@ def build_position_encoding(config):
 # class DetrLearnedPositionalEmbedding(nn.Embedding):
 #     """
 # This module learns positional embeddings up to a fixed maximum size. #
-"""
+# """
 
 #     def __init__(self, num_embeddings: int, embedding_dim: int, padding_idx: int):
 #         assert padding_idx is not None, "`padding_idx` should not be None, but of type int"
