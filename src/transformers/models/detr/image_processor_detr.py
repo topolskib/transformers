@@ -141,15 +141,17 @@ class ConvertCocoPolysToMask(object):
     def __call__(self, image, target):
         w, h = image.size
 
-        # image_id = target["image_id"]
-        # image_id = torch.tensor([image_id])
-
-        # anno = target["annotations"]
-
-        # anno = [obj for obj in anno if 'iscrowd' not in obj or obj['iscrowd'] == 0]
-
-        # boxes = [obj["bbox"] for obj in anno]
         if target is not None:
+            
+            # image_id = target["image_id"]
+            # image_id = torch.tensor([image_id])
+
+            # anno = target["annotations"]
+
+            # anno = [obj for obj in anno if 'iscrowd' not in obj or obj['iscrowd'] == 0]
+
+            # boxes = [obj["bbox"] for obj in anno]
+            
             boxes = target["boxes"]
             # guard against no boxes via resizing
             boxes = torch.as_tensor(boxes, dtype=torch.float32).reshape(-1, 4)
