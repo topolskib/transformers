@@ -75,8 +75,8 @@ class BatchImages(UserDict):
 
     def __getitem__(self, item: str) -> Union[Any]:
         """
-        If the key is a string, returns the value of the dict associated to :obj:`key` ('input_values',
-        'attention_mask', etc.).
+        If the key is a string, returns the value of the dict associated to :obj:`key` ('pixel_values',
+        'pixel_mask', etc.).
         """
         if isinstance(item, str):
             return self.data[item]
@@ -215,7 +215,7 @@ class PreTrainedImageProcessor:
         self.image_std = image_std
         self.padding_value = padding_value
 
-        self.return_attention_mask = kwargs.pop("return_attention_mask", True)
+        self.return_pixel_mask = kwargs.pop("return_pixel_mask", True)
 
         # Additional attributes without default values
         for key, value in kwargs.items():
@@ -296,11 +296,11 @@ class PreTrainedImageProcessor:
             image_processor = DetrImageProcessor.from_pretrained('facebook/detr-resnet-50')    # Download image_processor_config from huggingface.co and cache.
             image_processor = DetrImageProcessor.from_pretrained('./test/saved_model/')  # E.g. image_processor (or model) was saved using `save_pretrained('./test/saved_model/')`
             image_processor = DetrImageProcessor.from_pretrained('./test/saved_model/image_processor_config.json')
-            image_processor = DetrImageProcessor.from_pretrained('facebook/detr-resnet-50', return_attention_mask=False, foo=False)
-            assert image_processor.return_attention_mask is False
-            image_processor, unused_kwargs = DetrImageProcessor.from_pretrained('facebook/detr-resnet-50', return_attention_mask=False,
+            image_processor = DetrImageProcessor.from_pretrained('facebook/detr-resnet-50', return_pixel_mask=False, foo=False)
+            assert image_processor.return_pixel_mask is False
+            image_processor, unused_kwargs = DetrImageProcessor.from_pretrained('facebook/detr-resnet-50', return_pixel_mask=False,
                                                                foo=False, return_unused_kwargs=True)
-            assert image_processor.return_attention_mask is False
+            assert image_processor.return_pixel_mask is False
             assert unused_kwargs == {'foo': False}
 
         """
@@ -512,7 +512,7 @@ class PreTrainedImageProcessor:
         padding: Union[bool, str, PaddingStrategy] = True,
         max_resolution: Optional[int] = None,
         pad_to_multiple_of: Optional[int] = None,
-        return_attention_mask: Optional[bool] = None,
+        return_pixel_mask: Optional[bool] = None,
         return_tensors: Optional[Union[str, TensorType]] = None,
     ) -> BatchImages:
         """
@@ -555,11 +555,11 @@ class PreTrainedImageProcessor:
 
                 This is especially useful to enable the use of Tensor Cores on NVIDIA hardware with compute capability
                 >= 7.5 (Volta), or on TPUs which benefit from having sequence lengths be a multiple of 128.
-            return_attention_mask (:obj:`bool`, `optional`):
-                Whether to return the attention mask. If left to the default, will return the attention mask according
+            return_pixel_mask (:obj:`bool`, `optional`):
+                Whether to return the pixel mask. If left to the default, will return the pixel mask according
                 to the specific image_processor's default.
 
-                `What are attention masks? <../glossary.html#attention-mask>`__
+                `What are pixel masks? <../glossary.html#attention-mask>`__
             return_tensors (:obj:`str` or :class:`~transformers.file_utils.TensorType`, `optional`):
                 If set, will return tensors instead of list of python integers. Acceptable values are:
 
@@ -575,7 +575,7 @@ class PreTrainedImageProcessor:
                 key: [example[key] for example in processed_images] for key in processed_images[0].keys()
             }
 
-        # The model's main input name, usually `input_values`, has be passed for padding
+        # The model's main input name, usually `pixel_values`, has be passed for padding
         if self.model_input_names[0] not in processed_images:
             raise ValueError(
                 "You should supply an instance of :class:`~transformers.BatchImages` or list of :class:`~transformers.BatchImages` to this method"
@@ -583,13 +583,13 @@ class PreTrainedImageProcessor:
             )
 
         required_input = processed_images[self.model_input_names[0]]
-        return_attention_mask = (
-            return_attention_mask if return_attention_mask is not None else self.return_attention_mask
+        return_pixel_mask = (
+            return_pixel_mask if return_pixel_mask is not None else self.return_pixel_mask
         )
 
         if not required_input:
-            if return_attention_mask:
-                processed_images["attention_mask"] = []
+            if return_pixel_mask:
+                processed_images["pixel_mask"] = []
             return processed_images
 
         # If we have PyTorch/TF/NumPy tensors/arrays as inputs, we cast them as python objects
@@ -633,7 +633,7 @@ class PreTrainedImageProcessor:
                 max_resolution=max_resolution,
                 padding_strategy=padding_strategy,
                 pad_to_multiple_of=pad_to_multiple_of,
-                return_attention_mask=return_attention_mask,
+                return_pixel_mask=return_pixel_mask,
             )
             return BatchImages(processed_images, tensor_type=return_tensors)
 
@@ -654,7 +654,7 @@ class PreTrainedImageProcessor:
                 max_resolution=max_resolution,
                 padding_strategy=padding_strategy,
                 pad_to_multiple_of=pad_to_multiple_of,
-                return_attention_mask=return_attention_mask,
+                return_pixel_mask=return_pixel_mask,
             )
 
             for key, value in outputs.items():
@@ -670,7 +670,7 @@ class PreTrainedImageProcessor:
         max_resolution: Optional[int] = None,
         padding_strategy: PaddingStrategy = PaddingStrategy.DO_NOT_PAD,
         pad_to_multiple_of: Optional[int] = None,
-        return_attention_mask: Optional[bool] = None,
+        return_pixel_mask: Optional[bool] = None,
     ) -> dict:
         """
         Pad inputs (up to predefined resolution or max resolution in the batch)
@@ -689,7 +689,7 @@ class PreTrainedImageProcessor:
             pad_to_multiple_of: (optional) Integer if set will pad the sequence to a multiple of the provided value.
                 This is especially useful to enable the use of Tensor Core on NVIDIA hardware with compute capability
                 >= 7.5 (Volta), or on TPUs which benefit from having sequence lengths be a multiple of 128.
-            return_attention_mask: (optional) Set to False to avoid returning attention mask (default: set to model specifics)
+            return_pixel_mask: (optional) Set to False to avoid returning pixel mask (default: set to model specifics)
         """
         required_input = processed_images[self.model_input_names[0]]
 
@@ -709,21 +709,21 @@ class PreTrainedImageProcessor:
             difference = max_resolution - len(required_input)
             padding_vector = self.feature_size * [self.padding_value] if self.feature_size > 1 else self.padding_value
             # if self.padding_side == "right":
-            #     if return_attention_mask:
-            #         processed_images["attention_mask"] = [1] * len(required_input) + [0] * difference
+            #     if return_pixel_mask:
+            #         processed_images["pixel_mask"] = [1] * len(required_input) + [0] * difference
             #     processed_images[self.model_input_names[0]] = required_input + [
             #         padding_vector for _ in range(difference)
             #     ]
             # elif self.padding_side == "left":
-            #     if return_attention_mask:
-            #         processed_images["attention_mask"] = [0] * difference + [1] * len(required_input)
+            #     if return_pixel_mask:
+            #         processed_images["pixel_mask"] = [0] * difference + [1] * len(required_input)
             #     processed_images[self.model_input_names[0]] = [
             #         padding_vector for _ in range(difference)
             #     ] + required_input
             # else:
             #     raise ValueError("Invalid padding strategy:" + str(self.padding_side))
-        elif return_attention_mask and "attention_mask" not in processed_images:
-            processed_images["attention_mask"] = [1] * len(required_input)
+        elif return_pixel_mask and "pixel_mask" not in processed_images:
+            processed_images["pixel_mask"] = [1] * len(required_input)
 
         return processed_images
 
