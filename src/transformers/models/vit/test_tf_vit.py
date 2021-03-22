@@ -13,3 +13,6 @@ outputs = model(input_ids=None, pixel_values=pixel_values)
 
 print("Shape of last hidden states:")
 print(outputs.last_hidden_state.shape)
+
+for param in model.trainable_weights:
+    print(param.name, param.shape)

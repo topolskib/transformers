@@ -353,12 +353,16 @@ class TFViTOutput(tf.keras.layers.Layer):
 
 
 class TFViTLayer(tf.keras.layers.Layer):
+    """This corresponds to the Block class in the timm implementation."""
+
     def __init__(self, config: ViTConfig, **kwargs):
         super().__init__(**kwargs)
 
         self.attention = TFViTAttention(config, name="attention")
         self.intermediate = TFViTIntermediate(config, name="intermediate")
         self.bert_output = TFViTOutput(config, name="output")
+        self.layernorm_before  = tf.keras.layers.LayerNormalization(epsilon=config.layer_norm_eps, name="layernorm_before")
+        self.layernorm_after = tf.keras.layers.LayerNormalization(epsilon=config.layer_norm_eps, name="layernorm_after")
 
     def call(
         self,
@@ -369,13 +373,20 @@ class TFViTLayer(tf.keras.layers.Layer):
         training: bool = False,
     ) -> Tuple[tf.Tensor]:
         attention_outputs = self.attention(
-            input_tensor=hidden_states,
+            input_tensor=self.layernorm_before(hidden_states),  # in ViT, layernorm is applied before self-attention
             attention_mask=attention_mask,
             head_mask=head_mask,
             output_attentions=output_attentions,
             training=training,
         )
         attention_output = attention_outputs[0]
+
+        # first residual connection
+        hidden_states = attention_output + hidden_states
+
+        # in ViT, layernorm is also applied after self-attention
+        layer_output = self.layernorm_after(hidden_states)
+
         intermediate_output = self.intermediate(hidden_states=attention_output)
         layer_output = self.bert_output(hidden_states=intermediate_output, input_tensor=attention_output, training=training)
         outputs = (layer_output,) + attention_outputs[1:]  # add attentions if we output them
@@ -739,6 +750,7 @@ class TFViTModel(TFViTPreTrainedModel):
         self,
         input_ids: Optional[TFModelInputType] = None,
         attention_mask: Optional[Union[np.ndarray, tf.Tensor]] = None,
+        position_ids: Optional[Union[np.ndarray, tf.Tensor]] = None,
         head_mask: Optional[Union[np.ndarray, tf.Tensor]] = None,
         inputs_embeds: Optional[Union[np.ndarray, tf.Tensor]] = None,
         output_attentions: Optional[bool] = None,
