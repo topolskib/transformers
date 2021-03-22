@@ -94,14 +94,13 @@ class TFViTEmbeddings(tf.keras.layers.Layer):
         self.dropout = tf.keras.layers.Dropout(rate=config.hidden_dropout_prob)
 
     def build(self, input_shape: tf.TensorShape):
-        with tf.name_scope("cls_token"):
-            self.cls_token = self.add_weight(
-                name="cls_token",
-                shape=[1, 1, self.hidden_size], 
-                initializer=get_initializer(self.initializer_range),
-            )
+        self.cls_token = self.add_weight(
+            name="cls_token",
+            shape=[1, 1, self.hidden_size], 
+            initializer=get_initializer(self.initializer_range),
+        )
         with tf.name_scope("patch_embeddings"):
-            self.patch_embeddings = TFPatchEmbeddings(image_size=self.image_size,
+            self.patch_embeddings = PatchEmbeddings(image_size=self.image_size,
                                                     patch_size=self.patch_size,
                                                     num_channels=self.num_channels,
                                                     embed_dim=self.hidden_size,
@@ -109,7 +108,7 @@ class TFViTEmbeddings(tf.keras.layers.Layer):
         with tf.name_scope("position_embeddings"):
             num_patches = self.patch_embeddings.num_patches
             self.position_embeddings = self.add_weight(
-                name="embeddings",
+                name="weight",
                 shape=[1, num_patches + 1, self.hidden_size],
                 initializer=get_initializer(self.initializer_range),
             )
@@ -142,7 +141,7 @@ class TFViTEmbeddings(tf.keras.layers.Layer):
         return final_embeddings
 
 
-class TFPatchEmbeddings(tf.keras.layers.Layer):
+class PatchEmbeddings(tf.keras.layers.Layer):
     """
     Image to Patch Embedding.
     
@@ -162,9 +161,8 @@ class TFPatchEmbeddings(tf.keras.layers.Layer):
         self.embed_dim = embed_dim
 
     def build(self, input_shape: tf.TensorShape):
-        with tf.name_scope("projection"):
-            self.projection = tf.keras.layers.Conv2D(filters=self.embed_dim, kernel_size=self.patch_size, strides=self.patch_size,
-                                                     input_shape=input_shape)
+        self.projection = tf.keras.layers.Conv2D(filters=self.embed_dim, kernel_size=self.patch_size, strides=self.patch_size,
+                                                     input_shape=input_shape, name="projection")
 
         super().build(input_shape)
     
@@ -264,19 +262,22 @@ class TFViTSelfAttention(tf.keras.layers.Layer):
 
 
 class TFViTSelfOutput(tf.keras.layers.Layer):
+    """
+    The residual connection is defined in TFVitLayer instead of here (as is the case with other models), due to the
+    layernorm applied before each block.
+    """
+    
     def __init__(self, config: ViTConfig, **kwargs):
         super().__init__(**kwargs)
 
         self.dense = tf.keras.layers.Dense(
             units=config.hidden_size, kernel_initializer=get_initializer(config.initializer_range), name="dense"
         )
-        self.LayerNorm = tf.keras.layers.LayerNormalization(epsilon=config.layer_norm_eps, name="LayerNorm")
         self.dropout = tf.keras.layers.Dropout(rate=config.hidden_dropout_prob)
 
     def call(self, hidden_states: tf.Tensor, input_tensor: tf.Tensor, training: bool = False) -> tf.Tensor:
         hidden_states = self.dense(inputs=hidden_states)
         hidden_states = self.dropout(inputs=hidden_states, training=training)
-        hidden_states = self.LayerNorm(inputs=hidden_states + input_tensor)
 
         return hidden_states
 
