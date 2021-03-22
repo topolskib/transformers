@@ -126,6 +126,7 @@ _import_structure = {
         "load_tf2_weights_in_pytorch_model",
     ],
     # Models
+    "models.vit": ["VIT_PRETRAINED_CONFIG_ARCHIVE_MAP", "ViTConfig", "ViTTokenizer"],
     "models": [],
     "models.albert": ["ALBERT_PRETRAINED_CONFIG_ARCHIVE_MAP", "AlbertConfig"],
     "models.auto": [
@@ -298,6 +299,7 @@ else:
 # tokenziers-backed objects
 if is_tokenizers_available():
     # Fast tokenizers
+    _import_structure["models.vit"].append("ViTTokenizerFast")
     _import_structure["models.convbert"].append("ConvBertTokenizerFast")
     _import_structure["models.albert"].append("AlbertTokenizerFast")
     _import_structure["models.bart"].append("BartTokenizerFast")
@@ -913,6 +915,21 @@ if is_tf_available():
         "shape_list",
     ]
     # TensorFlow models structure
+
+    _import_structure["models.vit"].extend(
+        [
+            "TF_VIT_PRETRAINED_MODEL_ARCHIVE_LIST",
+            "TFViTForMaskedLM",
+            "TFViTForCausalLM",
+            "TFViTForMultipleChoice",
+            "TFViTForQuestionAnswering",
+            "TFViTForSequenceClassification",
+            "TFViTForTokenClassification",
+            "TFViTLayer",
+            "TFViTModel",
+            "TFViTPreTrainedModel",
+        ]
+    )
     _import_structure["models.albert"].extend(
         [
             "TF_ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST",
@@ -1330,6 +1347,7 @@ if TYPE_CHECKING:
         load_tf2_weights_in_pytorch_model,
     )
     from .models.albert import ALBERT_PRETRAINED_CONFIG_ARCHIVE_MAP, AlbertConfig
+    from .models.vit import VIT_PRETRAINED_CONFIG_ARCHIVE_MAP, ViTConfig, ViTTokenizer
     from .models.auto import (
         ALL_PRETRAINED_CONFIG_ARCHIVE_MAP,
         CONFIG_MAPPING,
@@ -1494,6 +1512,7 @@ if TYPE_CHECKING:
         from .utils.dummy_sentencepiece_objects import *
 
     if is_tokenizers_available():
+        from .models.vit import ViTTokenizerFast
         from .models.albert import AlbertTokenizerFast
         from .models.bart import BartTokenizerFast
         from .models.barthez import BarthezTokenizerFast
@@ -1998,6 +2017,19 @@ if TYPE_CHECKING:
 
     # TensorFlow
     if is_tf_available():
+
+        from .models.vit import (
+            TF_VIT_PRETRAINED_MODEL_ARCHIVE_LIST,
+            TFViTForMaskedLM,
+            TFViTForCausalLM,
+            TFViTForMultipleChoice,
+            TFViTForQuestionAnswering,
+            TFViTForSequenceClassification,
+            TFViTForTokenClassification,
+            TFViTLayer,
+            TFViTModel,
+            TFViTPreTrainedModel,
+        )
 
         from .benchmark.benchmark_args_tf import TensorFlowBenchmarkArguments
 
