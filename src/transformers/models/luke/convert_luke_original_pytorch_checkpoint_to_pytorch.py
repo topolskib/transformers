@@ -21,6 +21,7 @@ import os
 import torch
 
 from transformers import LukeConfig, LukeEntityAwareAttentionModel, LukeTokenizer, RobertaTokenizer
+from transformers.tokenization_utils_base import AddedToken
 
 
 def prepare_luke_batch_inputs(tokenizer):
@@ -29,7 +30,7 @@ def prepare_luke_batch_inputs(tokenizer):
     text = "Top seed Ana Ivanovic said on Thursday she could hardly believe her luck as a fortuitous netcord helped the new world number one avoid a humiliating second- round exit at Wimbledon ."
     span = (39, 42)
 
-    ENTITY_TOKEN = "[ENT]"
+    ENTITY_TOKEN = "<ent>"
     max_mention_length = 30
 
     def preprocess_and_tokenize(text, start, end=None):
@@ -78,10 +79,13 @@ def convert_luke_checkpoint(checkpoint_path, metadata_path, entity_vocab_path, p
     # Load the entity vocab file
     entity_vocab = load_entity_vocab(entity_vocab_path)
 
-    # Add special tokens to the token vocabulary for downstream tasks
-    config.vocab_size += 2
     tokenizer = RobertaTokenizer.from_pretrained(metadata["model_config"]["bert_model_name"])
-    tokenizer.add_special_tokens(dict(additional_special_tokens=["[ENT]", "[ENT2]"]))
+
+    # Add special tokens to the token vocabulary for downstream tasks
+    entity_token_1 = AddedToken("<ent>", lstrip=False, rstrip=False)
+    entity_token_2 = AddedToken("<ent2>", lstrip=False, rstrip=False)
+    tokenizer.add_special_tokens(dict(additional_special_tokens=[entity_token_1, entity_token_2]))
+    config.vocab_size += 2
 
     print("Saving tokenizer to {}".format(pytorch_dump_folder_path))
     tokenizer.save_pretrained(pytorch_dump_folder_path)
