@@ -919,13 +919,7 @@ if is_tf_available():
     _import_structure["models.vit"].extend(
         [
             "TF_VIT_PRETRAINED_MODEL_ARCHIVE_LIST",
-            "TFViTForMaskedLM",
-            "TFViTForCausalLM",
-            "TFViTForMultipleChoice",
-            "TFViTForQuestionAnswering",
-            "TFViTForSequenceClassification",
-            "TFViTForTokenClassification",
-            "TFViTLayer",
+            "TFViTForImageClassification",
             "TFViTModel",
             "TFViTPreTrainedModel",
         ]
@@ -2020,13 +2014,7 @@ if TYPE_CHECKING:
 
         from .models.vit import (
             TF_VIT_PRETRAINED_MODEL_ARCHIVE_LIST,
-            TFViTForMaskedLM,
-            TFViTForCausalLM,
-            TFViTForMultipleChoice,
-            TFViTForQuestionAnswering,
-            TFViTForSequenceClassification,
-            TFViTForTokenClassification,
-            TFViTLayer,
+            TFViTForImageClassification,
             TFViTModel,
             TFViTPreTrainedModel,
         )

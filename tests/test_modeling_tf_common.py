@@ -1230,6 +1230,22 @@ def ids_tensor(shape, vocab_size, rng=None, name=None, dtype=None):
     return output
 
 
+def floats_tensor(shape, scale=1.0, rng=None, name=None, dtype=None):
+    """Creates a random float32 tensor"""
+    if rng is None:
+        rng = random.Random()
+
+    total_dims = 1
+    for dim in shape:
+        total_dims *= dim
+
+    values = []
+    for _ in range(total_dims):
+        values.append(rng.random() * scale)
+
+    return tf.constant(values, shape=shape, dtype=dtype if dtype is not None else tf.float32)
+
+
 @require_tf
 class UtilsFunctionsTest(unittest.TestCase):
 
