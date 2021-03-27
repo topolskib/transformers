@@ -16,7 +16,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from typing import TYPE_CHECKING
-from ...file_utils import _BaseLazyModule, is_tf_available, is_tokenizers_available
+from ...file_utils import _BaseLazyModule, is_tf_available
 
 _import_structure = {
     "configuration_vit": ["VIT_PRETRAINED_CONFIG_ARCHIVE_MAP", "ViTConfig"],
@@ -29,18 +29,10 @@ if is_tokenizers_available():
 if is_tf_available():
     _import_structure["modeling_tf_vit"] = [
         "TF_VIT_PRETRAINED_MODEL_ARCHIVE_LIST",
-        "TFViTForMaskedLM",
-        "TFViTForCausalLM",
-        "TFViTForMultipleChoice",
-        "TFViTForQuestionAnswering",
-        "TFViTForSequenceClassification",
-        "TFViTForTokenClassification",
-        "TFViTLayer",
+        "TFViTForImageClassification",
         "TFViTModel",
         "TFViTPreTrainedModel",
     ]
-
-
 
 
 if TYPE_CHECKING:
@@ -53,13 +45,7 @@ if TYPE_CHECKING:
     if is_tf_available():
         from .modeling_tf_vit import (
             TF_VIT_PRETRAINED_MODEL_ARCHIVE_LIST,
-            TFViTForMaskedLM,
-            TFViTForCausalLM,
-            TFViTForMultipleChoice,
-            TFViTForQuestionAnswering,
-            TFViTForSequenceClassification,
-            TFViTForTokenClassification,
-            TFViTLayer,
+            TFViTForImageClassification,
             TFViTModel,
             TFViTPreTrainedModel,
         )
