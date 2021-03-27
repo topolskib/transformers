@@ -46,7 +46,7 @@ class TFViTModelTester:
     def __init__(
         self,
         parent,
-        batch_size=13,
+        batch_size=2,
         image_size=224, # we set to same size as dummy_inputs of model
         patch_size=2,
         num_channels=3,
