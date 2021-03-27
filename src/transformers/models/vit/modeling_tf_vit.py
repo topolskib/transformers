@@ -441,86 +441,6 @@ class TFViTEncoder(tf.keras.layers.Layer):
         )
 
 
-class TFViTPredictionHeadTransform(tf.keras.layers.Layer):
-    def __init__(self, config: ViTConfig, **kwargs):
-        super().__init__(**kwargs)
-
-        self.dense = tf.keras.layers.Dense(
-            units=config.hidden_size,
-            kernel_initializer=get_initializer(config.initializer_range),
-            name="dense",
-        )
-
-        if isinstance(config.hidden_act, str):
-            self.transform_act_fn = get_tf_activation(config.hidden_act)
-        else:
-            self.transform_act_fn = config.hidden_act
-
-        self.LayerNorm = tf.keras.layers.LayerNormalization(epsilon=config.layer_norm_eps, name="LayerNorm")
-
-    def call(self, hidden_states: tf.Tensor) -> tf.Tensor:
-        hidden_states = self.dense(inputs=hidden_states)
-        hidden_states = self.transform_act_fn(hidden_states)
-        hidden_states = self.LayerNorm(inputs=hidden_states)
-
-        return hidden_states
-
-
-class TFViTLMPredictionHead(tf.keras.layers.Layer):
-    def __init__(self, config: ViTConfig, input_embeddings: tf.keras.layers.Layer, **kwargs):
-        super().__init__(**kwargs)
-
-        self.vocab_size = config.vocab_size
-        self.hidden_size = config.hidden_size
-
-        self.transform = TFViTPredictionHeadTransform(config, name="transform")
-
-        # The output weights are the same as the input embeddings, but there is
-        # an output-only bias for each token.
-        self.input_embeddings = input_embeddings
-
-    def build(self, input_shape: tf.TensorShape):
-        self.bias = self.add_weight(shape=(self.vocab_size,), initializer="zeros", trainable=True, name="bias")
-
-        super().build(input_shape)
-
-    def get_output_embeddings(self) -> tf.keras.layers.Layer:
-        return self.input_embeddings
-
-    def set_output_embeddings(self, value: tf.Variable):
-        self.input_embeddings.weight = value
-        self.input_embeddings.vocab_size = shape_list(value)[0]
-
-    def get_bias(self) -> Dict[str, tf.Variable]:
-        return {"bias": self.bias}
-
-    def set_bias(self, value: tf.Variable):
-        self.bias = value["bias"]
-        self.vocab_size = shape_list(value["bias"])[0]
-
-    def call(self, hidden_states: tf.Tensor) -> tf.Tensor:
-        hidden_states = self.transform(hidden_states=hidden_states)
-        seq_length = shape_list(hidden_states)[1]
-        hidden_states = tf.reshape(tensor=hidden_states, shape=[-1, self.hidden_size])
-        hidden_states = tf.matmul(a=hidden_states, b=self.input_embeddings.weight, transpose_b=True)
-        hidden_states = tf.reshape(tensor=hidden_states, shape=[-1, seq_length, self.vocab_size])
-        hidden_states = tf.nn.bias_add(value=hidden_states, bias=self.bias)
-
-        return hidden_states
-
-
-class TFViTMLMHead(tf.keras.layers.Layer):
-    def __init__(self, config: ViTConfig, input_embeddings: tf.keras.layers.Layer, **kwargs):
-        super().__init__(**kwargs)
-
-        self.predictions = TFViTLMPredictionHead(config, input_embeddings, name="predictions")
-
-    def call(self, sequence_output: tf.Tensor) -> tf.Tensor:
-        prediction_scores = self.predictions(hidden_states=sequence_output)
-
-        return prediction_scores
-
-
 @keras_serializable
 class TFViTMainLayer(tf.keras.layers.Layer):
     config_class = ViTConfig
@@ -766,8 +686,8 @@ class TFViTModel(TFViTPreTrainedModel):
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
-        training: Optional[bool] = False,
         pixel_values: Optional[Union[np.ndarray, tf.Tensor]] = None,
+        training: Optional[bool] = False,
         **kwargs,
     ) -> Union[TFBaseModelOutputWithPooling, Tuple[tf.Tensor]]:
         
@@ -871,6 +791,7 @@ class TFViTForImageClassification(TFViTPreTrainedModel, TFSequenceClassification
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         labels: Optional[Union[np.ndarray, tf.Tensor]] = None,
+        pixel_values: Optional[Union[np.ndarray, tf.Tensor]] = None,
         training: Optional[bool] = False,
         **kwargs,
     ) -> Union[TFSequenceClassifierOutput, Tuple[tf.Tensor]]:
@@ -891,6 +812,7 @@ class TFViTForImageClassification(TFViTPreTrainedModel, TFSequenceClassification
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
+            pixel_values=pixel_values,
             labels=labels,
             training=training,
             kwargs_call=kwargs,
@@ -903,6 +825,7 @@ class TFViTForImageClassification(TFViTPreTrainedModel, TFSequenceClassification
             inputs_embeds=inputs["inputs_embeds"],
             output_attentions=inputs["output_attentions"],
             output_hidden_states=inputs["output_hidden_states"],
+            pixel_values=inputs["pixel_values"],
             return_dict=inputs["return_dict"],
             training=inputs["training"],
         )
