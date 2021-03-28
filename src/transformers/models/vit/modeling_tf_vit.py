@@ -563,7 +563,7 @@ class TFViTPreTrainedModel(TFPreTrainedModel):
 
     @property
     def dummy_inputs(self):
-        pixel_values = tf.random.normal((1,224,224,3))
+        pixel_values = tf.random.normal((1,30,30,3))
         dummy_inputs = {
             "input_ids": None,
             "pixel_values": pixel_values,

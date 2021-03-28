@@ -16,6 +16,7 @@
 
 
 import unittest
+import tempfile
 
 from transformers import is_tf_available, ViTConfig
 from transformers.file_utils import cached_property, is_torch_available
@@ -40,6 +41,8 @@ if is_tf_available():
 from PIL import Image
 
 #from transformers import ViTFeatureExtractor
+
+# TODO: remove any "input_ids" from this file
 
 
 class TFViTModelTester:
@@ -274,6 +277,38 @@ class TFViTModelTest(TFModelTesterMixin, unittest.TestCase):
             del inputs_dict["output_hidden_states"]
             config.output_hidden_states = True
             check_hidden_states_output(config, inputs_dict, model_class)
+    
+    def test_compile_tf_model(self):
+        config, inputs_dict = self.model_tester.prepare_config_and_inputs_for_common()
+        optimizer = tf.keras.optimizers.Adam(learning_rate=3e-5, epsilon=1e-08, clipnorm=1.0)
+        loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+        metric = tf.keras.metrics.SparseCategoricalAccuracy("accuracy")
+
+        for model_class in self.all_model_classes:
+            # ViT uses pixel_values instead of input_ids
+            input_ids = tf.keras.Input(batch_shape=(self.model_tester.batch_size, 512), name="input_ids", dtype="int32")
+            pixel_values = tf.keras.Input(batch_shape=(self.model_tester.batch_size, self.model_tester.image_size, 
+                                                         self.model_tester.image_size, self.model_tester.num_channels), 
+                                         name="pixel_values", 
+                                         dtype="float32")
+
+            # Prepare our model
+            model = model_class(config)
+            model(self._prepare_for_class(inputs_dict, model_class))  # Model must be called before saving.
+            # Let's load it from the disk to be sure we can use pretrained weights
+            with tempfile.TemporaryDirectory() as tmpdirname:
+                model.save_pretrained(tmpdirname, saved_model=False)
+                model = model_class.from_pretrained(tmpdirname)
+
+            outputs_dict = model([input_ids, pixel_values])
+            hidden_states = outputs_dict[0]
+
+            # Add a dense layer on top to test integration with other keras modules
+            outputs = tf.keras.layers.Dense(2, activation="softmax", name="outputs")(hidden_states)
+
+            # Compile extended model
+            extended_model = tf.keras.Model(inputs=[input_ids, pixel_values], outputs=[outputs])
+            extended_model.compile(optimizer=optimizer, loss=loss, metrics=[metric])
     
     @slow
     def test_model_from_pretrained(self):
