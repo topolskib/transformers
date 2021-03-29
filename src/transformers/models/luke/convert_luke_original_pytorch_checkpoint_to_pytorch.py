@@ -24,50 +24,8 @@ from transformers import LukeConfig, LukeEntityAwareAttentionModel, LukeTokenize
 from transformers.tokenization_utils_base import AddedToken
 
 
-def prepare_luke_batch_inputs(tokenizer):
-    # Taken from Open Entity dev set
-    # Very important to put on one line!
-    text = "Top seed Ana Ivanovic said on Thursday she could hardly believe her luck as a fortuitous netcord helped the new world number one avoid a humiliating second- round exit at Wimbledon ."
-    span = (39, 42)
-
-    ENTITY_TOKEN = "<ent>"
-    max_mention_length = 30
-
-    def preprocess_and_tokenize(text, start, end=None):
-        target_text = text[start:end]
-
-        # for some reason, I had to add .strip() here (otherwise there's an additional token with id 1437 added)
-        return tokenizer.tokenize(target_text.strip(), add_prefix_space=True)
-
-    tokens = [tokenizer.cls_token]
-    tokens += preprocess_and_tokenize(text, 0, span[0])
-    mention_start = len(tokens)
-    tokens.append(ENTITY_TOKEN)
-    tokens += preprocess_and_tokenize(text, span[0], span[1])
-    tokens.append(ENTITY_TOKEN)
-    mention_end = len(tokens)
-
-    tokens += preprocess_and_tokenize(text, span[1])
-    tokens.append(tokenizer.sep_token)
-
-    encoding = {}
-    encoding["input_ids"] = tokenizer.convert_tokens_to_ids(tokens)
-    encoding["attention_mask"] = [1] * len(tokens)
-    encoding["token_type_ids"] = [0] * len(tokens)
-
-    encoding["entity_ids"] = [1]
-    encoding["entity_attention_mask"] = [1]
-    encoding["entity_token_type_ids"] = [0]
-    entity_position_ids = list(range(mention_start, mention_end))[:max_mention_length]
-    entity_position_ids += [-1] * (max_mention_length - mention_end + mention_start)
-    encoding["entity_position_ids"] = [entity_position_ids]
-
-    return encoding
-
-
 @torch.no_grad()
 def convert_luke_checkpoint(checkpoint_path, metadata_path, entity_vocab_path, pytorch_dump_folder_path, model_size):
-
     # Load configuration defined in the metadata file
     with open(metadata_path) as metadata_file:
         metadata = json.load(metadata_file)
@@ -119,8 +77,11 @@ def convert_luke_checkpoint(checkpoint_path, metadata_path, entity_vocab_path, p
     assert all(key.startswith("entity_predictions") or key.startswith("lm_head") for key in unexpected_keys)
 
     # Check outputs
-    encoding = prepare_luke_batch_inputs(tokenizer)
-    # convert all values to PyTorch tensors
+    tokenizer = LukeTokenizer.from_pretrained(pytorch_dump_folder_path, task="entity_classification")
+
+    text = "Top seed Ana Ivanovic said on Thursday she could hardly believe her luck as a fortuitous netcord helped the new world number one avoid a humiliating second- round exit at Wimbledon ."
+    span = (39, 42)
+    encoding = tokenizer(text, entity_spans=[span], add_prefix_space=True)
     for key, value in encoding.items():
         encoding[key] = torch.as_tensor(encoding[key]).unsqueeze(0)
 
@@ -130,11 +91,11 @@ def convert_luke_checkpoint(checkpoint_path, metadata_path, entity_vocab_path, p
     if model_size == "large":
         expected_shape = torch.Size((1, 42, 1024))
         expected_slice = torch.tensor(
-            [[0.0301, 0.0980, 0.0092], [0.2718, -0.2413, -0.9446], [-0.1382, -0.2608, -0.3927]]
+            [[0.0133, 0.0865, 0.0095], [0.3093, -0.2576, -0.7418], [-0.1720, -0.2117, -0.2869]]
         )
     else:  # base
         expected_shape = torch.Size((1, 42, 768))
-        expected_slice = torch.tensor([[0.0024, 0.1318, -0.0156], [0.1413, 0.3313, -0.1206], [0.1098, 0.5391, 0.1195]])
+        expected_slice = torch.tensor([[0.0037, 0.1368, -0.0091], [0.1099, 0.3329, -0.1095], [0.0765, 0.5335, 0.1179]])
 
     assert outputs.last_hidden_state.shape == expected_shape
     assert torch.allclose(outputs.last_hidden_state[0, :3, :3], expected_slice, atol=1e-4)
@@ -142,10 +103,10 @@ def convert_luke_checkpoint(checkpoint_path, metadata_path, entity_vocab_path, p
     # Verify entity hidden states
     if model_size == "large":
         expected_shape = torch.Size((1, 1, 1024))
-        expected_slice = torch.tensor([[0.3251, 0.3981, -0.0689]])
+        expected_slice = torch.tensor([[0.0466, -0.0106, -0.0179]])
     else:  # base
         expected_shape = torch.Size((1, 1, 768))
-        expected_slice = torch.tensor([[0.2170, 0.1851, -0.0291]])
+        expected_slice = torch.tensor([[0.1457, 0.1044, 0.0174]])
 
     assert outputs.entity_last_hidden_state.shape == expected_shape
     assert torch.allclose(outputs.entity_last_hidden_state[0, :3, :3], expected_slice, atol=1e-4)
