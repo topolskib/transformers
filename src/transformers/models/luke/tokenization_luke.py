@@ -13,12 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Tokenization classes for LUKE."""
+import itertools
 import json
 from typing import Dict, List, Optional, Tuple, Union
 
-from transformers import RobertaTokenizer
+import numpy as np
 
-from ...file_utils import add_end_docstrings
+from ... import RobertaTokenizer
+from ...file_utils import add_end_docstrings, is_tf_available, is_torch_available
 from ...tokenization_utils_base import (
     ENCODE_KWARGS_DOCSTRING,
     ENCODE_PLUS_ADDITIONAL_KWARGS_DOCSTRING,
@@ -26,15 +28,14 @@ from ...tokenization_utils_base import (
     AddedToken,
     BatchEncoding,
     EncodedInput,
-    EncodedInputPair,
     PaddingStrategy,
-    PreTokenizedInput,
-    PreTokenizedInputPair,
-    PreTrainedTokenizerBase,
     TensorType,
     TextInput,
     TextInputPair,
     TruncationStrategy,
+    to_py_obj,
+    _is_tensorflow,
+    _is_torch,
 )
 from ...utils import logging
 
@@ -64,7 +65,7 @@ PRETRAINED_VOCAB_FILES_MAP = {
 
 PRETRAINED_POSITIONAL_EMBEDDINGS_SIZES = {
     "studio-ousia/luke-base": 512,
-    "studio-ouisa/luke-large": 512,
+    "studio-ousia/luke-large": 512,
 }
 
 
@@ -88,15 +89,14 @@ class LukeTokenizer(RobertaTokenizer):
         vocab_file,
         merges_file,
         entity_vocab_file,
+        task=None,
         model_max_length=512,
         max_entity_length=32,
         max_mention_length=30,
         entity_token_1="<ent>",
         entity_token_2="<ent2>",
-        additional_special_tokens: Optional[List[str]] = None,
         **kwargs
     ):
-
         # we add 2 special tokens for downstream tasks
         # for more information about lstrip and rstrip, see https://github.com/huggingface/transformers/pull/2778
         entity_token_1 = (
@@ -122,28 +122,37 @@ class LukeTokenizer(RobertaTokenizer):
         with open(entity_vocab_file, encoding="utf-8") as entity_vocab_handle:
             self.entity_vocab = json.load(entity_vocab_handle)
 
-        self.max_entity_length = max_entity_length
+        self.task = task
+        if task is None:
+            self.max_entity_length = max_entity_length
+        elif task == "entity_classification":
+            self.max_entity_length = 1
+        elif task == "entity_pair_classification":
+            self.max_entity_length = 2
+        else:
+            raise ValueError(f"Task {task} not supported")
+
         self.max_mention_length = max_mention_length
 
     @add_end_docstrings(ENCODE_KWARGS_DOCSTRING, ENCODE_PLUS_ADDITIONAL_KWARGS_DOCSTRING)
     def __call__(
         self,
-        text: Union[TextInput, PreTokenizedInput, List[TextInput], List[PreTokenizedInput]],
-        text_pair: Optional[Union[TextInput, PreTokenizedInput, List[TextInput], List[PreTokenizedInput]]] = None,
-        task: Optional[str] = None,
-        additional_info: Optional[Union[Tuple, List[Tuple], List[List[Tuple]]]] = None,
+        text: Union[TextInput, List[TextInput]],
+        text_pair: Optional[Union[TextInput, List[TextInput]]] = None,
+        entities: Optional[Union[List[str], List[List[str]]]] = None,
+        entities_pair: Optional[Union[List[str], List[List[str]]]] = None,
+        entity_spans: Optional[Union[List[Tuple[int, int]], List[List[Tuple[int, int]]]]] = None,
+        entity_spans_pair: Optional[Union[List[Tuple[int, int]], List[List[Tuple[int, int]]]]] = None,
         add_special_tokens: bool = True,
         padding: Union[bool, str, PaddingStrategy] = False,
         truncation: Union[bool, str, TruncationStrategy] = False,
         max_length: Optional[int] = None,
         max_entity_length: Optional[int] = None,
         stride: int = 0,
-        is_split_into_words: bool = False,
         pad_to_multiple_of: Optional[int] = None,
         return_tensors: Optional[Union[str, TensorType]] = None,
         return_token_type_ids: Optional[bool] = True,
         return_attention_mask: Optional[bool] = True,
-        return_entity_position_ids: Optional[bool] = True,
         return_overflowing_tokens: bool = False,
         return_special_tokens_mask: bool = False,
         return_offsets_mapping: bool = False,
@@ -164,74 +173,56 @@ class LukeTokenizer(RobertaTokenizer):
                 The sequence or batch of sequences to be encoded. Each sequence can be a string or a list of strings
                 (pretokenized string). If the sequences are provided as list of strings (pretokenized), you must set
                 :obj:`is_split_into_words=True` (to lift the ambiguity with a batch of sequences).
-            task (:obj:`str`, `optional`):
-                Task for which you want to prepare sequences for. One of 'entity typing' or 'relation classification'.
-                If no task is provided, then no :obj:`entity_ids`, :obj:`entity_attention_mask`,
-                :obj:`entity_token_type_ids` and :obj:`entity_position_ids` will be created.
-            additional_info (:obj:`Tuple`, :obj:`List[Tuple]`, :obj:`List[List[Tuple]]`, `optional`):
-                Additional information regarding entities to provide to prepare sequences.
+            entities (:obj:`List[str]`, obj:`List[List[str]]`, `optional`)::
+                The sequence or batch of sequences of entities to be encoded. Each sequence consists of strings
+                representing entities, i.e., special entities (e.g., [MASK]) or entity titles of Wikipedia (e.g., New
+                York). This argument is ignored if you specify the `task` argument.
+            entity_spans (:obj:`List[Tuple]`, obj:`List[List[Tuple]]`, `optional`)::
+                The sequence or batch of sequences of entity spans to be encoded. Each sequence consists of tuples with
+                two integers denoting start and end positions of entities.
+                If you specify `entity` or `entity_pair` as the `task` argument, the length of `entity_spans` must be 1
+                or 2, respectively. If you specify `entities`, the length of spans must be equal to that of entities.
         """
         # Input type checking for clearer error
         assert isinstance(text, str) or (
-            isinstance(text, (list, tuple))
-            and (
-                len(text) == 0
-                or (
-                    isinstance(text[0], str)
-                    or (isinstance(text[0], (list, tuple)) and (len(text[0]) == 0 or isinstance(text[0][0], str)))
-                )
-            )
-        ), (
-            "text input must of type `str` (single example), `List[str]` (batch or single pretokenized example) "
-            "or `List[List[str]]` (batch of pretokenized examples)."
-        )
+            isinstance(text, (list, tuple)) and (len(text) == 0 or (isinstance(text[0], str)))
+        ), "text input must be of type `str` (single example) or `List[str]` (batch)."
 
         assert (
             text_pair is None
             or isinstance(text_pair, str)
-            or (
-                isinstance(text_pair, (list, tuple))
-                and (
-                    len(text_pair) == 0
-                    or (
-                        isinstance(text_pair[0], str)
-                        or (
-                            isinstance(text_pair[0], (list, tuple))
-                            and (len(text_pair[0]) == 0 or isinstance(text_pair[0][0], str))
-                        )
-                    )
-                )
-            )
-        ), (
-            "text_pair input must of type `str` (single example), `List[str]` (batch or single pretokenized example) "
-            "or `List[List[str]]` (batch of pretokenized examples)."
-        )
+            or (isinstance(text_pair, (list, tuple)) and (len(text_pair) == 0 or isinstance(text_pair[0], str)))
+        ), "text_pair input must be of type `str` (single example) or `List[str]` (batch)."
 
-        is_batched = bool(
-            (not is_split_into_words and isinstance(text, (list, tuple)))
-            or (
-                is_split_into_words and isinstance(text, (list, tuple)) and text and isinstance(text[0], (list, tuple))
-            )
-        )
+        is_batched = bool(isinstance(text, (list, tuple)))
 
         if is_batched:
             batch_text_or_text_pairs = list(zip(text, text_pair)) if text_pair is not None else text
+            if entities is None:
+                batch_entities_or_entities_pairs = None
+                batch_entity_spans_or_entity_spans_pairs = None
+            else:
+                batch_entities_or_entities_pairs = (
+                    list(zip(entities, entities_pair)) if entities_pair is not None else entities
+                )
+                batch_entity_spans_or_entity_spans_pairs = (
+                    list(zip(entity_spans, entity_spans_pair)) if entity_spans_pair is not None else entity_spans
+                )
+
             return self.batch_encode_plus(
                 batch_text_or_text_pairs=batch_text_or_text_pairs,
-                task=task,
-                additional_info=additional_info,
+                batch_entities_or_entities_pairs=batch_entities_or_entities_pairs,
+                batch_entity_spans_or_entity_spans_pairs=batch_entity_spans_or_entity_spans_pairs,
                 add_special_tokens=add_special_tokens,
                 padding=padding,
                 truncation=truncation,
                 max_length=max_length,
                 max_entity_length=max_entity_length,
                 stride=stride,
-                is_split_into_words=is_split_into_words,
                 pad_to_multiple_of=pad_to_multiple_of,
                 return_tensors=return_tensors,
                 return_token_type_ids=return_token_type_ids,
                 return_attention_mask=return_attention_mask,
-                return_entity_position_ids=return_entity_position_ids,
                 return_overflowing_tokens=return_overflowing_tokens,
                 return_special_tokens_mask=return_special_tokens_mask,
                 return_offsets_mapping=return_offsets_mapping,
@@ -243,20 +234,20 @@ class LukeTokenizer(RobertaTokenizer):
             return self.encode_plus(
                 text=text,
                 text_pair=text_pair,
-                task=task,
-                additional_info=additional_info,
+                entities=entities,
+                entities_pair=entities_pair,
+                entity_spans=entity_spans,
+                entity_spans_pair=entity_spans_pair,
                 add_special_tokens=add_special_tokens,
                 padding=padding,
                 truncation=truncation,
                 max_length=max_length,
                 max_entity_length=max_entity_length,
                 stride=stride,
-                is_split_into_words=is_split_into_words,
                 pad_to_multiple_of=pad_to_multiple_of,
                 return_tensors=return_tensors,
                 return_token_type_ids=return_token_type_ids,
                 return_attention_mask=return_attention_mask,
-                return_entity_position_ids=return_entity_position_ids,
                 return_overflowing_tokens=return_overflowing_tokens,
                 return_special_tokens_mask=return_special_tokens_mask,
                 return_offsets_mapping=return_offsets_mapping,
@@ -268,22 +259,22 @@ class LukeTokenizer(RobertaTokenizer):
     @add_end_docstrings(ENCODE_KWARGS_DOCSTRING, ENCODE_PLUS_ADDITIONAL_KWARGS_DOCSTRING)
     def encode_plus(
         self,
-        text: Union[TextInput, PreTokenizedInput, EncodedInput],
-        text_pair: Optional[Union[TextInput, PreTokenizedInput, EncodedInput]] = None,
-        task: Optional[str] = None,
-        additional_info: Optional[Union[Tuple, List[Tuple], List[List[Tuple]]]] = None,
+        text: Union[TextInput],
+        text_pair: Optional[Union[TextInput]] = None,
+        entities: Optional[List[str]] = None,
+        entities_pair: Optional[List[str]] = None,
+        entity_spans: Optional[List[Tuple[int, int]]] = None,
+        entity_spans_pair: Optional[List[Tuple[int, int]]] = None,
         add_special_tokens: bool = True,
         padding: Union[bool, str, PaddingStrategy] = False,
         truncation: Union[bool, str, TruncationStrategy] = False,
         max_length: Optional[int] = None,
         max_entity_length: Optional[int] = None,
         stride: int = 0,
-        is_split_into_words: bool = False,
         pad_to_multiple_of: Optional[int] = None,
         return_tensors: Optional[Union[str, TensorType]] = None,
         return_token_type_ids: Optional[bool] = None,
         return_attention_mask: Optional[bool] = None,
-        return_entity_position_ids: Optional[bool] = None,
         return_overflowing_tokens: bool = False,
         return_special_tokens_mask: bool = False,
         return_offsets_mapping: bool = False,
@@ -319,20 +310,20 @@ class LukeTokenizer(RobertaTokenizer):
         return self._encode_plus(
             text=text,
             text_pair=text_pair,
-            task=task,
-            additional_info=additional_info,
+            entities=entities,
+            entities_pair=entities_pair,
+            entity_spans=entity_spans,
+            entity_spans_pair=entity_spans_pair,
             add_special_tokens=add_special_tokens,
             padding_strategy=padding_strategy,
             truncation_strategy=truncation_strategy,
             max_length=max_length,
             max_entity_length=max_entity_length,
             stride=stride,
-            is_split_into_words=is_split_into_words,
             pad_to_multiple_of=pad_to_multiple_of,
             return_tensors=return_tensors,
             return_token_type_ids=return_token_type_ids,
             return_attention_mask=return_attention_mask,
-            return_entity_position_ids=return_entity_position_ids,
             return_overflowing_tokens=return_overflowing_tokens,
             return_special_tokens_mask=return_special_tokens_mask,
             return_offsets_mapping=return_offsets_mapping,
@@ -343,22 +334,22 @@ class LukeTokenizer(RobertaTokenizer):
 
     def _encode_plus(
         self,
-        text: Union[TextInput, PreTokenizedInput, EncodedInput],
-        text_pair: Optional[Union[TextInput, PreTokenizedInput, EncodedInput]] = None,
-        task: Optional[str] = None,
-        additional_info: Optional[Tuple] = None,
+        text: Union[TextInput],
+        text_pair: Optional[Union[TextInput]] = None,
+        entities: Optional[List[str]] = None,
+        entities_pair: Optional[List[str]] = None,
+        entity_spans: Optional[List[Tuple[int, int]]] = None,
+        entity_spans_pair: Optional[List[Tuple[int, int]]] = None,
         add_special_tokens: bool = True,
         padding_strategy: PaddingStrategy = PaddingStrategy.DO_NOT_PAD,
         truncation_strategy: TruncationStrategy = TruncationStrategy.DO_NOT_TRUNCATE,
         max_length: Optional[int] = None,
         max_entity_length: Optional[int] = None,
         stride: int = 0,
-        is_split_into_words: bool = False,
         pad_to_multiple_of: Optional[int] = None,
         return_tensors: Optional[Union[str, TensorType]] = None,
         return_token_type_ids: Optional[bool] = None,
         return_attention_mask: Optional[bool] = None,
-        return_entity_position_ids: Optional[bool] = None,
         return_overflowing_tokens: bool = False,
         return_special_tokens_mask: bool = False,
         return_offsets_mapping: bool = False,
@@ -366,29 +357,6 @@ class LukeTokenizer(RobertaTokenizer):
         verbose: bool = True,
         **kwargs
     ) -> BatchEncoding:
-        def get_input_ids(text):
-            if isinstance(text, str):
-                tokens = self.tokenize(text, **kwargs)
-                return self.convert_tokens_to_ids(tokens)
-            elif isinstance(text, (list, tuple)) and len(text) > 0 and isinstance(text[0], str):
-                if is_split_into_words:
-                    tokens = list(
-                        itertools.chain(*(self.tokenize(t, is_split_into_words=True, **kwargs) for t in text))
-                    )
-                    return self.convert_tokens_to_ids(tokens)
-                else:
-                    return self.convert_tokens_to_ids(text)
-            elif isinstance(text, (list, tuple)) and len(text) > 0 and isinstance(text[0], int):
-                return text
-            else:
-                if is_split_into_words:
-                    raise ValueError(
-                        f"Input {text} is not valid. Should be a string or a list/tuple of strings when `is_split_into_words=True`."
-                    )
-                else:
-                    raise ValueError(
-                        f"Input {text} is not valid. Should be a string, a list/tuple of strings or a list/tuple of integers."
-                    )
 
         if return_offsets_mapping:
             raise NotImplementedError(
@@ -399,109 +367,30 @@ class LukeTokenizer(RobertaTokenizer):
                 "https://github.com/huggingface/transformers/pull/2674"
             )
 
-        first_ids, second_ids, entity_ids, entity_position_ids = None, None, None, None
-        if task is None:
-            first_ids = get_input_ids(text)
-            second_ids = get_input_ids(text_pair) if text_pair is not None else None
-
-        elif task == "entity_typing":
-            self.max_entity_length = 1
-            # additional information: span, which is a tuple (begin, end)
-            assert isinstance(
-                additional_info, tuple
-            ), "Additional info should be provided as a tuple containing the start and end character indices of an entity"
-            span = additional_info
-
-            ENTITY_TOKEN = self.additional_special_tokens[0]
-
-            conv_tables = (
-                ("-LRB-", "("),
-                ("-LCB-", "("),
-                ("-LSB-", "("),
-                ("-RRB-", ")"),
-                ("-RCB-", ")"),
-                ("-RSB-", ")"),
-            )
-
-            def preprocess_and_tokenize(text, start, end=None):
-                target_text = text[start:end]
-                for a, b in conv_tables:
-                    target_text = target_text.replace(a, b)
-
-                return self.tokenize(target_text.strip(), add_prefix_space=True)
-
-            tokens = []
-            tokens += preprocess_and_tokenize(text, 0, span[0])
-            mention_start = len(tokens) + 1 # we add 1 here because in the original implementation, the special <s> token was already added
-            tokens.append(ENTITY_TOKEN)
-            tokens += preprocess_and_tokenize(text, span[0], span[1])
-            tokens.append(ENTITY_TOKEN)
-            mention_end = len(tokens) + 1 # we add 1 here for the same reason
-
-            tokens += preprocess_and_tokenize(text, span[1])
-
-            first_ids, second_ids = self.convert_tokens_to_ids(tokens), None
-
-            entity_ids = [1]
-            entity_position_ids = list(range(mention_start, mention_end))[: self.max_mention_length]
-            entity_position_ids += [-1] * (self.max_mention_length - mention_end + mention_start)
-            entity_position_ids = [entity_position_ids]
-            # entity_position_ids = [entity_position_ids, [-1] * self.max_mention_length]
-
-        elif task == "relation_classification":
-            self.max_entity_length = 2
-            # additional information: span_a and span_b (both should be tuples of begin and end)
-            assert (
-                isinstance(additional_info, list)
-                and isinstance(additional_info[0], tuple)
-                and isinstance(additional_info[1], tuple)
-            ), "Additional info should be provided as a list of tuples, each tuple containing the start and end character indices of an entity"
-            span_a = additional_info[0]
-            span_b = additional_info[1]
-
-            HEAD_TOKEN = self.additional_special_tokens[0]
-            TAIL_TOKEN = self.additional_special_tokens[1]
-
-            if span_a[1] < span_b[1]:
-                span_order = [("span_a", span_a), ("span_b", span_b)]
-            else:
-                span_order = [("span_b", span_b), ("span_a", span_a)]
-
-            tokens = []
-            cur = 0
-            token_spans = {}
-            for span_tuple in span_order:
-                span_name = span_tuple[0]
-                span = span_tuple[1]
-                tokens += self.tokenize(text[cur : span[0]])
-                start = len(tokens)
-                tokens.append(HEAD_TOKEN if span_name == "span_a" else TAIL_TOKEN)
-                tokens += self.tokenize(text[span[0] : span[1]])
-                tokens.append(HEAD_TOKEN if span_name == "span_a" else TAIL_TOKEN)
-                token_spans[span_name] = (start, len(tokens))
-                cur = span[1]
-
-            tokens += self.tokenize(text[cur:])
-
-            first_ids, second_ids = self.convert_tokens_to_ids(tokens), None
-
-            entity_ids = [1, 2]
-            entity_position_ids = []
-            for span_name in ("span_a", "span_b"):
-                span = token_spans[span_name]
-                position_ids = list(range(span[0], span[1]))[: self.max_mention_length]
-                position_ids += [-1] * (self.max_mention_length - span[1] + span[0])
-                entity_position_ids.append(position_ids)
-
-        else:
-            raise ValueError(f"Task {task} not supported")
+        (
+            first_ids,
+            second_ids,
+            first_entity_ids,
+            second_entity_ids,
+            first_entity_token_spans,
+            second_entity_token_spans,
+        ) = self._create_input_sequence(
+            text=text,
+            text_pair=text_pair,
+            entities=entities,
+            entities_pair=entities_pair,
+            entity_spans=entity_spans,
+            entity_spans_pair=entity_spans_pair,
+        )
 
         # prepare_for_model will create the attention_mask and token_type_ids
         return self.prepare_for_model(
             first_ids,
             pair_ids=second_ids,
-            entity_ids=entity_ids,
-            entity_position_ids=entity_position_ids,
+            entity_ids=first_entity_ids,
+            pair_entity_ids=second_entity_ids,
+            entity_token_spans=first_entity_token_spans,
+            pair_entity_token_spans=second_entity_token_spans,
             add_special_tokens=add_special_tokens,
             padding=padding_strategy.value,
             truncation=truncation_strategy.value,
@@ -513,37 +402,29 @@ class LukeTokenizer(RobertaTokenizer):
             prepend_batch_axis=True,
             return_attention_mask=return_attention_mask,
             return_token_type_ids=return_token_type_ids,
-            return_entity_position_ids=return_entity_position_ids,
             return_overflowing_tokens=return_overflowing_tokens,
             return_special_tokens_mask=return_special_tokens_mask,
             return_length=return_length,
             verbose=verbose,
         )
 
-    def _batch_encode_plus(
+    @add_end_docstrings(ENCODE_KWARGS_DOCSTRING, ENCODE_PLUS_ADDITIONAL_KWARGS_DOCSTRING)
+    def batch_encode_plus(
         self,
-        batch_text_or_text_pairs: Union[
-            List[TextInput],
-            List[TextInputPair],
-            List[PreTokenizedInput],
-            List[PreTokenizedInputPair],
-            List[EncodedInput],
-            List[EncodedInputPair],
-        ],
-        task: str = None,
-        additional_info: Optional[Tuple] = None,
+        batch_text_or_text_pairs: Union[List[TextInput], List[TextInputPair]],
+        batch_entities_or_entities_pairs: Optional[Union[List[List[str]], List[Tuple[List[str], List[str]]]]] = None,
+        batch_entity_spans_or_entity_spans_pairs: Optional[
+            Union[List[List[Tuple[int, int]]], List[Tuple[List[Tuple[int, int]], List[Tuple[int, int]]]]]
+        ] = None,
         add_special_tokens: bool = True,
-        padding_strategy: PaddingStrategy = PaddingStrategy.DO_NOT_PAD,
-        truncation_strategy: TruncationStrategy = TruncationStrategy.DO_NOT_TRUNCATE,
+        padding: Union[bool, str, PaddingStrategy] = False,
+        truncation: Union[bool, str, TruncationStrategy] = False,
         max_length: Optional[int] = None,
-        max_entity_length: Optional[int] = None,
         stride: int = 0,
-        is_split_into_words: bool = False,
         pad_to_multiple_of: Optional[int] = None,
         return_tensors: Optional[Union[str, TensorType]] = None,
         return_token_type_ids: Optional[bool] = None,
         return_attention_mask: Optional[bool] = None,
-        return_entity_position_ids: Optional[bool] = None,
         return_overflowing_tokens: bool = False,
         return_special_tokens_mask: bool = False,
         return_offsets_mapping: bool = False,
@@ -551,25 +432,74 @@ class LukeTokenizer(RobertaTokenizer):
         verbose: bool = True,
         **kwargs
     ) -> BatchEncoding:
-        def get_input_ids(text):
-            if isinstance(text, str):
-                tokens = self.tokenize(text, **kwargs)
-                return self.convert_tokens_to_ids(tokens)
-            elif isinstance(text, (list, tuple)) and len(text) > 0 and isinstance(text[0], str):
-                if is_split_into_words:
-                    tokens = list(
-                        itertools.chain(*(self.tokenize(t, is_split_into_words=True, **kwargs) for t in text))
-                    )
-                    return self.convert_tokens_to_ids(tokens)
-                else:
-                    return self.convert_tokens_to_ids(text)
-            elif isinstance(text, (list, tuple)) and len(text) > 0 and isinstance(text[0], int):
-                return text
-            else:
-                raise ValueError(
-                    "Input is not valid. Should be a string, a list/tuple of strings or a list/tuple of integers."
-                )
+        """
+        Tokenize and prepare for the model a list of sequences or a list of pairs of sequences.
 
+        .. warning::
+            This method is deprecated, ``__call__`` should be used instead.
+
+        Args:
+            batch_text_or_text_pairs (:obj:`List[str]`, :obj:`List[Tuple[str, str]]`, :obj:`List[List[str]]`, :obj:`List[Tuple[List[str], List[str]]]`, and for not-fast tokenizers, also :obj:`List[List[int]]`, :obj:`List[Tuple[List[int], List[int]]]`):
+                Batch of sequences or pair of sequences to be encoded. This can be a list of
+                string/string-sequences/int-sequences or a list of pair of string/string-sequences/int-sequence (see
+                details in ``encode_plus``).
+        """
+
+        # Backward compatibility for 'truncation_strategy', 'pad_to_max_length'
+        padding_strategy, truncation_strategy, max_length, kwargs = self._get_padding_truncation_strategies(
+            padding=padding,
+            truncation=truncation,
+            max_length=max_length,
+            pad_to_multiple_of=pad_to_multiple_of,
+            verbose=verbose,
+            **kwargs,
+        )
+
+        return self._batch_encode_plus(
+            batch_text_or_text_pairs=batch_text_or_text_pairs,
+            batch_entities_or_entitiies_pairs=batch_entities_or_entities_pairs,
+            batch_entity_spans_or_entity_spans_pairs=batch_entity_spans_or_entity_spans_pairs,
+            add_special_tokens=add_special_tokens,
+            padding_strategy=padding_strategy,
+            truncation_strategy=truncation_strategy,
+            max_length=max_length,
+            stride=stride,
+            pad_to_multiple_of=pad_to_multiple_of,
+            return_tensors=return_tensors,
+            return_token_type_ids=return_token_type_ids,
+            return_attention_mask=return_attention_mask,
+            return_overflowing_tokens=return_overflowing_tokens,
+            return_special_tokens_mask=return_special_tokens_mask,
+            return_offsets_mapping=return_offsets_mapping,
+            return_length=return_length,
+            verbose=verbose,
+            **kwargs,
+        )
+
+    def _batch_encode_plus(
+        self,
+        batch_text_or_text_pairs: Union[List[TextInput], List[TextInputPair]],
+        batch_entities_or_entities_pairs: Optional[Union[List[List[str]], List[Tuple[List[str], List[str]]]]] = None,
+        batch_entity_spans_or_entity_spans_pairs: Optional[
+            Union[List[List[Tuple[int, int]]], List[Tuple[List[Tuple[int, int]], List[Tuple[int, int]]]]]
+        ] = None,
+        add_special_tokens: bool = True,
+        padding_strategy: PaddingStrategy = PaddingStrategy.DO_NOT_PAD,
+        truncation_strategy: TruncationStrategy = TruncationStrategy.DO_NOT_TRUNCATE,
+        max_length: Optional[int] = None,
+        max_entity_length: Optional[int] = None,
+        stride: int = 0,
+        pad_to_multiple_of: Optional[int] = None,
+        return_tensors: Optional[Union[str, TensorType]] = None,
+        return_token_type_ids: Optional[bool] = None,
+        return_attention_mask: Optional[bool] = None,
+        return_overflowing_tokens: bool = False,
+        return_special_tokens_mask: bool = False,
+        return_offsets_mapping: bool = False,
+        return_length: bool = False,
+        verbose: bool = True,
+        **kwargs
+    ) -> BatchEncoding:
         if return_offsets_mapping:
             raise NotImplementedError(
                 "return_offset_mapping is not available when using Python tokenizers."
@@ -579,24 +509,50 @@ class LukeTokenizer(RobertaTokenizer):
 
         # input_ids is a list of tuples (one for each example in the batch)
         input_ids = []
-        for ids_or_pair_ids in batch_text_or_text_pairs:
-            if not isinstance(ids_or_pair_ids, (list, tuple)):
-                ids, pair_ids = ids_or_pair_ids, None
-            elif is_split_into_words and not isinstance(ids_or_pair_ids[0], (list, tuple)):
-                ids, pair_ids = ids_or_pair_ids, None
-            else:
-                ids, pair_ids = ids_or_pair_ids
-
-            first_ids = get_input_ids(ids)
-            second_ids = get_input_ids(pair_ids) if pair_ids is not None else None
-            input_ids.append((first_ids, second_ids))
-
-        # entity_ids should become a list of lists
         entity_ids = []
+        entity_token_spans = []
+        for index, text_or_text_pair in enumerate(batch_text_or_text_pairs):
+            if not isinstance(text_or_text_pair, (list, tuple)):
+                text, text_pair = text_or_text_pair, None
+            else:
+                text, text_pair = text_or_text_pair
+
+            entities, entities_pair = None, None
+            entity_spans, entity_spans_pair = None, None
+            if batch_entities_or_entities_pairs is not None:
+                entities_or_entities_pairs = batch_entities_or_entities_pairs[index]
+                entity_spans_or_entity_spans_pairs = batch_entity_spans_or_entity_spans_pairs[index]
+                if entities_or_entities_pairs:
+                    if isinstance(entities_or_entities_pairs[0], (list, tuple)):
+                        entities, entities_pair = entities_or_entities_pairs
+                        entity_spans, entity_spans_pair = entity_spans_or_entity_spans_pairs
+                    else:
+                        entities, entities_pair = entities_or_entities_pairs, None
+                        entity_spans, entity_spans_pair = entity_spans_or_entity_spans_pairs, None
+
+            (
+                first_ids,
+                second_ids,
+                first_entity_ids,
+                second_entity_ids,
+                first_entity_token_spans,
+                second_entity_token_spans,
+            ) = self._create_input_sequence(
+                text=text,
+                text_pair=text_pair,
+                entities=entities,
+                entities_pair=entities_pair,
+                entity_spans=entity_spans,
+                entity_spans_pair=entity_spans_pair,
+            )
+            input_ids.append((first_ids, second_ids))
+            entity_ids.append((first_entity_ids, second_entity_ids))
+            entity_token_spans.append((first_entity_token_spans, second_entity_token_spans))
 
         batch_outputs = self._batch_prepare_for_model(
             input_ids,
-            entity_ids,
+            batch_entity_id_pairs=entity_ids,
+            batch_entity_token_span_pairs=entity_token_spans,
             add_special_tokens=add_special_tokens,
             padding_strategy=padding_strategy,
             truncation_strategy=truncation_strategy,
@@ -606,7 +562,6 @@ class LukeTokenizer(RobertaTokenizer):
             pad_to_multiple_of=pad_to_multiple_of,
             return_attention_mask=return_attention_mask,
             return_token_type_ids=return_token_type_ids,
-            return_entity_position_ids=return_entity_position_ids,
             return_overflowing_tokens=return_overflowing_tokens,
             return_special_tokens_mask=return_special_tokens_mask,
             return_length=return_length,
@@ -616,11 +571,142 @@ class LukeTokenizer(RobertaTokenizer):
 
         return BatchEncoding(batch_outputs)
 
+    def _create_input_sequence(
+        self,
+        text: Union[TextInput],
+        text_pair: Optional[Union[TextInput]] = None,
+        entities: Optional[List[str]] = None,
+        entities_pair: Optional[List[str]] = None,
+        entity_spans: Optional[List[Tuple[int, int]]] = None,
+        entity_spans_pair: Optional[List[Tuple[int, int]]] = None,
+        **kwargs
+    ) -> Tuple[list, list, list, list, list, list]:
+        def get_input_ids(text):
+            tokens = self.tokenize(text, **kwargs)
+            return self.convert_tokens_to_ids(tokens)
+
+        def get_input_ids_and_entity_token_spans(text, entity_spans):
+            if entity_spans is None:
+                return get_input_ids(text), None
+
+            cur = 0
+            input_ids = []
+            entity_token_spans = [None] * len(entity_spans)
+
+            split_char_positions = sorted(frozenset(itertools.chain(*entity_spans)))
+            char_pos2token_pos = {}
+
+            for split_char_position in split_char_positions:
+                orig_split_char_position = split_char_position
+                if (
+                    split_char_position > 0 and text[split_char_position - 1] == " "
+                ):  # whitespace should be prepended to the following token
+                    split_char_position -= 1
+                if cur != split_char_position:
+                    input_ids += get_input_ids(text[cur:split_char_position])
+                    cur = split_char_position
+                char_pos2token_pos[orig_split_char_position] = len(input_ids)
+
+            input_ids += get_input_ids(text[cur:])
+
+            entity_token_spans = [
+                (char_pos2token_pos[char_start], char_pos2token_pos[char_end]) for char_start, char_end in entity_spans
+            ]
+
+            return input_ids, entity_token_spans
+
+        first_ids, second_ids = None, None
+        first_entity_ids, second_entity_ids = None, None
+        first_entity_token_spans, second_entity_token_spans = None, None
+
+        if self.task is None:
+            unk_entity_id = self.entity_vocab["[UNK]"]
+            if entities is None:
+                first_ids = get_input_ids(text)
+                second_ids = get_input_ids(text_pair) if text_pair is not None else None
+            else:
+                assert isinstance(entities, list) and (
+                    len(entities) == 0 or isinstance(entities[0], str)
+                ), "Entities should be given as a list of entity names"
+                assert isinstance(entity_spans, list) and (
+                    len(entity_spans) == 0 or isinstance(entity_spans[0], tuple)
+                ), "Entity spans should be given as a list of tuples containing the start and end character indices"
+                assert len(entities) == len(entity_spans), "entities and entity_spans must be the same length"
+
+                first_entity_ids = [self.entity_vocab.get(entity, unk_entity_id) for entity in entities]
+                first_ids, first_entity_token_spans = get_input_ids_and_entity_token_spans(text, entity_spans)
+                if text_pair:
+                    second_entity_ids = (
+                        [self.entity_vocab.get(entity, unk_entity_id) for entity in entities_pair]
+                        if entities_pair is not None
+                        else None
+                    )
+                    second_ids, second_entity_token_spans = get_input_ids_and_entity_token_spans(
+                        text_pair, entity_spans_pair
+                    )
+
+        elif self.task == "entity_classification":
+            assert (
+                isinstance(entity_spans, list) and len(entity_spans) == 1 and isinstance(entity_spans[0], tuple)
+            ), "Entity spans should be a list containing a single tuple containing the start and end character indices of an entity"
+
+            first_entity_ids = [self.entity_vocab["[MASK]"]]
+            first_ids, first_entity_token_spans = get_input_ids_and_entity_token_spans(text, entity_spans)
+
+            # add special tokens to input ids
+            entity_token_start, entity_token_end = first_entity_token_spans[0]
+            first_ids = (
+                first_ids[:entity_token_end] + [self.additional_special_tokens_ids[0]] + first_ids[entity_token_end:]
+            )
+            first_ids = (
+                first_ids[:entity_token_start]
+                + [self.additional_special_tokens_ids[0]]
+                + first_ids[entity_token_start:]
+            )
+
+        elif self.task == "entity_pair_classification":
+            assert (
+                isinstance(entity_spans, list)
+                and len(entity_spans) == 2
+                and isinstance(entity_spans[0], tuple)
+                and isinstance(entity_spans[1], tuple)
+            ), "Entity spans should be provided as a list of tuples, each tuple containing the start and end character indices of an entity"
+
+            head_span, tail_span = entity_spans
+            first_entity_ids = [self.entity_vocab["[MASK]", self.entity_vocab["[MASK2]"]]]
+            first_ids, first_entity_token_spans = get_input_ids_and_entity_token_spans(text, entity_spans)
+
+            head_token_span, tail_token_span = first_entity_token_spans
+            token_span_with_special_token_ids = [
+                (head_token_span, self.additional_special_tokens_ids[0]),
+                (tail_token_span, self.additional_special_tokens_ids[1]),
+            ]
+            token_span_with_special_token_ids = sorted(
+                token_span_with_special_token_ids, key=lambda span, _: span[0], reverse=True
+            )
+
+            for (entity_token_start, entity_token_end), special_token_id in token_span_with_special_token_ids:
+                first_ids = first_ids[:entity_token_end] + [special_token_id] + first_ids[entity_token_end:]
+                first_ids = first_ids[:entity_token_start] + [special_token_id] + first_ids[entity_token_start:]
+
+        else:
+            raise ValueError(f"Task {self.task} not supported")
+
+        return (
+            first_ids,
+            second_ids,
+            first_entity_ids,
+            second_entity_ids,
+            first_entity_token_spans,
+            second_entity_token_spans,
+        )
+
     @add_end_docstrings(ENCODE_KWARGS_DOCSTRING, ENCODE_PLUS_ADDITIONAL_KWARGS_DOCSTRING)
     def _batch_prepare_for_model(
         self,
-        batch_ids_pairs: List[Union[PreTokenizedInputPair, Tuple[List[int], None]]],
-        batch_entity_ids: List[List[int]],
+        batch_ids_pairs: List[Tuple[List[int], None]],
+        batch_entity_ids_pairs: List[Tuple[Optional[List[int]], Optional[List[int]]]],
+        batch_entity_token_span_pairs: List[Tuple[Optional[List[Tuple[int, int]]], Optional[List[Tuple[int, int]]]]],
         add_special_tokens: bool = True,
         padding_strategy: PaddingStrategy = PaddingStrategy.DO_NOT_PAD,
         truncation_strategy: TruncationStrategy = TruncationStrategy.DO_NOT_TRUNCATE,
@@ -631,7 +717,6 @@ class LukeTokenizer(RobertaTokenizer):
         return_tensors: Optional[str] = None,
         return_token_type_ids: Optional[bool] = None,
         return_attention_mask: Optional[bool] = None,
-        return_entity_position_ids: Optional[bool] = None,
         return_overflowing_tokens: bool = False,
         return_special_tokens_mask: bool = False,
         return_length: bool = False,
@@ -647,12 +732,19 @@ class LukeTokenizer(RobertaTokenizer):
         """
 
         batch_outputs = {}
-        for input_ids, entity_ids in zip(batch_ids_pairs, batch_entity_ids):
+        for input_ids, entity_ids, entity_token_span_pairs in zip(
+            batch_ids_pairs, batch_entity_ids_pairs, batch_entity_token_span_pairs
+        ):
             first_ids, second_ids = input_ids
+            first_entity_ids, second_entity_ids = entity_ids
+            first_entity_token_spans, second_entity_token_spans = batch_entity_token_span_pairs
             outputs = self.prepare_for_model(
                 first_ids,
                 second_ids,
-                entity_ids,
+                entity_ids=first_entity_ids,
+                pair_entity_ids=second_entity_ids,
+                entity_token_spans=first_entity_token_spans,
+                pair_entity_token_spans=second_entity_token_spans,
                 add_special_tokens=add_special_tokens,
                 padding=PaddingStrategy.DO_NOT_PAD.value,  # we pad in batch afterward
                 truncation=truncation_strategy.value,
@@ -662,7 +754,6 @@ class LukeTokenizer(RobertaTokenizer):
                 pad_to_multiple_of=None,  # we pad in batch afterward
                 return_attention_mask=False,  # we pad in batch afterward
                 return_token_type_ids=return_token_type_ids,
-                return_entity_position_ids=return_entity_position_ids,
                 return_overflowing_tokens=return_overflowing_tokens,
                 return_special_tokens_mask=return_special_tokens_mask,
                 return_length=return_length,
@@ -694,7 +785,9 @@ class LukeTokenizer(RobertaTokenizer):
         ids: List[int],
         pair_ids: Optional[List[int]] = None,
         entity_ids: Optional[List[int]] = None,
-        entity_position_ids: Optional[List[int]] = None,
+        pair_entity_ids: Optional[List[int]] = None,
+        entity_token_spans: Optional[List[Tuple[int, int]]] = None,
+        pair_entity_token_spans: Optional[List[Tuple[int, int]]] = None,
         add_special_tokens: bool = True,
         padding: Union[bool, str, PaddingStrategy] = False,
         truncation: Union[bool, str, TruncationStrategy] = False,
@@ -705,7 +798,6 @@ class LukeTokenizer(RobertaTokenizer):
         return_tensors: Optional[Union[str, TensorType]] = None,
         return_token_type_ids: Optional[bool] = None,
         return_attention_mask: Optional[bool] = None,
-        return_entity_position_ids: Optional[bool] = None,
         return_overflowing_tokens: bool = False,
         return_special_tokens_mask: bool = False,
         return_offsets_mapping: bool = False,
@@ -742,10 +834,8 @@ class LukeTokenizer(RobertaTokenizer):
 
         # Compute lengths
         pair = bool(pair_ids is not None)
-        entities_provided = bool(entity_ids is not None)
         len_ids = len(ids)
         len_pair_ids = len(pair_ids) if pair else 0
-        len_entity_ids = len(entity_ids) if entities_provided else 0
 
         if return_token_type_ids and not add_special_tokens:
             raise ValueError(
@@ -765,10 +855,6 @@ class LukeTokenizer(RobertaTokenizer):
         # Compute the total size of the returned word encodings
         total_len = len_ids + len_pair_ids + (self.num_special_tokens_to_add(pair=pair) if add_special_tokens else 0)
 
-        # Set max entity length
-        if not max_entity_length:
-            max_entity_length = self.max_entity_length
-
         # Truncation: Handle max sequence length and max_entity_length
         overflowing_tokens = []
         if truncation_strategy != TruncationStrategy.DO_NOT_TRUNCATE and max_length and total_len > max_length:
@@ -781,50 +867,100 @@ class LukeTokenizer(RobertaTokenizer):
                 stride=stride,
             )
 
-            # truncate entities up to max_entity_length
-            if entities_provided:
-                entity_ids, overflowing_entity_tokens = self.truncate_sequences(
-                    entity_ids,
-                    pair_ids=None,
-                    num_tokens_to_remove=len_entity_ids - max_entity_length,
-                    truncation_strategy=truncation_strategy,
-                    stride=stride,
-                )
-
         if return_overflowing_tokens:
             encoded_inputs["overflowing_tokens"] = overflowing_tokens
             encoded_inputs["num_truncated_tokens"] = total_len - max_length
-            if entities_provided:
-                encoded_inputs["overflowing_entity_tokens"] = overflowing_entity_tokens
-                encoded_inputs["num_truncated_tokens"] = len_entity_ids - max_entity_length
 
         # Add special tokens
         if add_special_tokens:
             sequence = self.build_inputs_with_special_tokens(ids, pair_ids)
             token_type_ids = self.create_token_type_ids_from_sequences(ids, pair_ids)
-            if entities_provided:
-                entity_token_type_ids = [0] * len(entity_ids)
+            entity_token_offset = 1  # 1 * <s> token
+            pair_entity_token_offset = len(ids) + 3  # 1 * <s> token & 2 * <sep> tokens
         else:
             sequence = ids + pair_ids if pair else ids
             token_type_ids = [0] * len(ids) + ([0] * len(pair_ids) if pair else [])
-            if entities_provided:
-                entity_token_type_ids = [0] * len(entity_ids)
+            entity_token_offset = 0
+            pair_entity_token_offset = len(ids)
 
         # Build output dictionary
         encoded_inputs["input_ids"] = sequence
-        if entities_provided:
-            encoded_inputs["entity_ids"] = entity_ids
         if return_token_type_ids:
             encoded_inputs["token_type_ids"] = token_type_ids
-            if entities_provided:
-                encoded_inputs["entity_token_type_ids"] = entity_token_type_ids
-        if return_entity_position_ids and entities_provided:
-            encoded_inputs["entity_position_ids"] = entity_position_ids
         if return_special_tokens_mask:
             if add_special_tokens:
                 encoded_inputs["special_tokens_mask"] = self.get_special_tokens_mask(ids, pair_ids)
             else:
                 encoded_inputs["special_tokens_mask"] = [0] * len(sequence)
+
+        if entity_ids is None:
+            encoded_inputs["entity_ids"] = []
+            encoded_inputs["entity_position_ids"] = []
+
+        else:
+            # Set max entity length
+            if not max_entity_length:
+                max_entity_length = self.max_entity_length
+
+            total_entity_len = 0
+            num_invalid_entities = 0
+            valid_entity_ids, valid_entity_token_spans = zip(
+                *[(ent_id, span) for ent_id, span in zip(entity_ids, entity_token_spans) if span[1] <= len(ids)]
+            )
+            total_entity_len += len(valid_entity_ids)
+            num_invalid_entities += len(entity_ids) - len(valid_entity_ids)
+
+            valid_pair_entity_ids, valid_pair_entity_token_spans = None, None
+            if pair_entity_ids is not None:
+                valid_pair_entity_ids, valid_pair_entity_token_spans = zip(
+                    *[
+                        (ent_id, span)
+                        for ent_id, span in zip(pair_entity_ids, pair_entity_token_spans)
+                        if span[1] <= len(pair_ids)
+                    ]
+                )
+                total_entity_len += len(valid_pair_entity_ids)
+                num_invalid_entities += len(pair_entity_ids) - len(valid_pair_entity_ids)
+
+            if num_invalid_entities != 0:
+                logger.warning('%d entities are ignored because their entity spans are invalid due to the truncation of input tokens', num_invalid_entities)
+
+            if truncation_strategy != TruncationStrategy.DO_NOT_TRUNCATE and total_entity_len > max_entity_length:
+                # truncate entities up to max_entity_length
+                valid_entity_ids, valid_pair_entity_ids, overflowing_entities = self.truncate_sequences(
+                    valid_entity_ids,
+                    pair_ids=valid_pair_entity_ids,
+                    num_tokens_to_remove=total_entity_len - max_entity_length,
+                    truncation_strategy=truncation_strategy,
+                    stride=stride,
+                )
+                valid_entity_token_spans = valid_entity_token_spans[: len(valid_entity_ids)]
+                if valid_pair_entity_token_spans is not None:
+                    valid_pair_entity_token_spans = valid_pair_entity_token_spans[: len(valid_pair_entity_ids)]
+
+            if return_overflowing_tokens:
+                encoded_inputs["overflowing_entities"] = overflowing_entities
+                encoded_inputs["num_truncated_entities"] = total_entity_len - max_entity_length
+
+            final_entity_ids = valid_entity_ids + valid_pair_entity_ids if valid_pair_entity_ids else valid_entity_ids
+            encoded_inputs["entity_ids"] = list(final_entity_ids)
+            entity_position_ids = []
+            for (token_spans, offset) in (
+                (valid_entity_token_spans, entity_token_offset),
+                (valid_pair_entity_token_spans, pair_entity_token_offset),
+            ):
+                if token_spans is not None:
+                    for start, end in token_spans:
+                        start += offset
+                        end += offset
+                        position_ids = list(range(start, end))[: self.max_mention_length]
+                        position_ids += [-1] * (self.max_mention_length - end + start)
+                        entity_position_ids.append(position_ids)
+
+            encoded_inputs["entity_position_ids"] = entity_position_ids
+
+        if return_token_type_ids:
+            encoded_inputs["entity_token_type_ids"] = [0] * len(encoded_inputs["entity_ids"])
 
         # Check lengths
         self._eventual_warn_about_too_long_sequence(encoded_inputs["input_ids"], max_length, verbose)
@@ -848,6 +984,164 @@ class LukeTokenizer(RobertaTokenizer):
         )
 
         return batch_outputs
+
+    def pad(
+        self,
+        encoded_inputs: Union[
+            BatchEncoding,
+            List[BatchEncoding],
+            Dict[str, EncodedInput],
+            Dict[str, List[EncodedInput]],
+            List[Dict[str, EncodedInput]],
+        ],
+        padding: Union[bool, str, PaddingStrategy] = True,
+        max_length: Optional[int] = None,
+        max_entity_length: Optional[int] = None,
+        pad_to_multiple_of: Optional[int] = None,
+        return_attention_mask: Optional[bool] = None,
+        return_tensors: Optional[Union[str, TensorType]] = None,
+        verbose: bool = True,
+    ) -> BatchEncoding:
+        """
+        Pad a single encoded input or a batch of encoded inputs up to predefined length or to the max sequence length
+        in the batch.
+        Padding side (left/right) padding token ids are defined at the tokenizer level (with ``self.padding_side``,
+        ``self.pad_token_id`` and ``self.pad_token_type_id``)
+        .. note::
+            If the ``encoded_inputs`` passed are dictionary of numpy arrays, PyTorch tensors or TensorFlow tensors, the
+            result will use the same type unless you provide a different tensor type with ``return_tensors``. In the
+            case of PyTorch tensors, you will lose the specific device of your tensors however.
+        Args:
+            encoded_inputs (:class:`~transformers.BatchEncoding`, list of :class:`~transformers.BatchEncoding`, :obj:`Dict[str, List[int]]`, :obj:`Dict[str, List[List[int]]` or :obj:`List[Dict[str, List[int]]]`):
+                Tokenized inputs. Can represent one input (:class:`~transformers.BatchEncoding` or :obj:`Dict[str,
+                List[int]]`) or a batch of tokenized inputs (list of :class:`~transformers.BatchEncoding`, `Dict[str,
+                List[List[int]]]` or `List[Dict[str, List[int]]]`) so you can use this method during preprocessing as
+                well as in a PyTorch Dataloader collate function.
+                Instead of :obj:`List[int]` you can have tensors (numpy arrays, PyTorch tensors or TensorFlow tensors),
+                see the note above for the return type.
+            padding (:obj:`bool`, :obj:`str` or :class:`~transformers.file_utils.PaddingStrategy`, `optional`, defaults to :obj:`True`):
+                 Select a strategy to pad the returned sequences (according to the model's padding side and padding
+                 index) among:
+                * :obj:`True` or :obj:`'longest'`: Pad to the longest sequence in the batch (or no padding if only a
+                  single sequence if provided).
+                * :obj:`'max_length'`: Pad to a maximum length specified with the argument :obj:`max_length` or to the
+                  maximum acceptable input length for the model if that argument is not provided.
+                * :obj:`False` or :obj:`'do_not_pad'` (default): No padding (i.e., can output a batch with sequences of
+                  different lengths).
+            max_length (:obj:`int`, `optional`):
+                Maximum length of the returned list and optionally padding length (see above).
+            pad_to_multiple_of (:obj:`int`, `optional`):
+                If set will pad the sequence to a multiple of the provided value.
+                This is especially useful to enable the use of Tensor Cores on NVIDIA hardware with compute capability
+                >= 7.5 (Volta).
+            return_attention_mask (:obj:`bool`, `optional`):
+                Whether to return the attention mask. If left to the default, will return the attention mask according
+                to the specific tokenizer's default, defined by the :obj:`return_outputs` attribute.
+                `What are attention masks? <../glossary.html#attention-mask>`__
+            return_tensors (:obj:`str` or :class:`~transformers.file_utils.TensorType`, `optional`):
+                If set, will return tensors instead of list of python integers. Acceptable values are:
+                * :obj:`'tf'`: Return TensorFlow :obj:`tf.constant` objects.
+                * :obj:`'pt'`: Return PyTorch :obj:`torch.Tensor` objects.
+                * :obj:`'np'`: Return Numpy :obj:`np.ndarray` objects.
+            verbose (:obj:`bool`, `optional`, defaults to :obj:`True`):
+                Whether or not to print more information and warnings.
+        """
+        # If we have a list of dicts, let's convert it in a dict of lists
+        # We do this to allow using this method as a collate_fn function in PyTorch Dataloader
+        if isinstance(encoded_inputs, (list, tuple)) and isinstance(encoded_inputs[0], (dict, BatchEncoding)):
+            encoded_inputs = {key: [example[key] for example in encoded_inputs] for key in encoded_inputs[0].keys()}
+
+        # The model's main input name, usually `input_ids`, has be passed for padding
+        if self.model_input_names[0] not in encoded_inputs:
+            raise ValueError(
+                "You should supply an encoding or a list of encodings to this method"
+                f"that includes {self.model_input_names[0]}, but you provided {list(encoded_inputs.keys())}"
+            )
+
+        required_input = encoded_inputs[self.model_input_names[0]]
+
+        if not required_input:
+            if return_attention_mask:
+                encoded_inputs["attention_mask"] = []
+            return encoded_inputs
+
+        # If we have PyTorch/TF/NumPy tensors/arrays as inputs, we cast them as python objects
+        # and rebuild them afterwards if no return_tensors is specified
+        # Note that we lose the specific device the tensor may be on for PyTorch
+
+        first_element = required_input[0]
+        if isinstance(first_element, (list, tuple)):
+            # first_element might be an empty list/tuple in some edge cases so we grab the first non empty element.
+            index = 0
+            while len(required_input[index]) == 0:
+                index += 1
+            if index < len(required_input):
+                first_element = required_input[index][0]
+        # At this state, if `first_element` is still a list/tuple, it's an empty one so there is nothing to do.
+        if not isinstance(first_element, (int, list, tuple)):
+            if is_tf_available() and _is_tensorflow(first_element):
+                return_tensors = "tf" if return_tensors is None else return_tensors
+            elif is_torch_available() and _is_torch(first_element):
+                return_tensors = "pt" if return_tensors is None else return_tensors
+            elif isinstance(first_element, np.ndarray):
+                return_tensors = "np" if return_tensors is None else return_tensors
+            else:
+                raise ValueError(
+                    f"type of {first_element} unknown: {type(first_element)}. "
+                    f"Should be one of a python, numpy, pytorch or tensorflow object."
+                )
+
+            for key, value in encoded_inputs.items():
+                encoded_inputs[key] = to_py_obj(value)
+
+        # Convert padding_strategy in PaddingStrategy
+        padding_strategy, _, max_length, _ = self._get_padding_truncation_strategies(
+            padding=padding, max_length=max_length, verbose=verbose
+        )
+
+        if max_entity_length is None:
+            max_entity_length = self.max_entity_length
+
+        required_input = encoded_inputs[self.model_input_names[0]]
+        if required_input and not isinstance(required_input[0], (list, tuple)):
+            encoded_inputs = self._pad(
+                encoded_inputs,
+                max_length=max_length,
+                max_entity_length=max_entity_length,
+                padding_strategy=padding_strategy,
+                pad_to_multiple_of=pad_to_multiple_of,
+                return_attention_mask=return_attention_mask,
+            )
+            return BatchEncoding(encoded_inputs, tensor_type=return_tensors)
+
+        batch_size = len(required_input)
+        assert all(
+            len(v) == batch_size for v in encoded_inputs.values()
+        ), "Some items in the output dictionary have a different batch size than others."
+
+        if padding_strategy == PaddingStrategy.LONGEST:
+            max_length = max(len(inputs) for inputs in required_input)
+            max_entity_length = max(len(inputs) for inputs in encoded_inputs["entity_ids"])
+            padding_strategy = PaddingStrategy.MAX_LENGTH
+
+        batch_outputs = {}
+        for i in range(batch_size):
+            inputs = dict((k, v[i]) for k, v in encoded_inputs.items())
+            outputs = self._pad(
+                inputs,
+                max_length=max_length,
+                max_entity_length=max_entity_length,
+                padding_strategy=padding_strategy,
+                pad_to_multiple_of=pad_to_multiple_of,
+                return_attention_mask=return_attention_mask,
+            )
+
+            for key, value in outputs.items():
+                if key not in batch_outputs:
+                    batch_outputs[key] = []
+                batch_outputs[key].append(value)
+
+        return BatchEncoding(batch_outputs, tensor_type=return_tensors)
 
     def _pad(
         self,
@@ -890,49 +1184,62 @@ class LukeTokenizer(RobertaTokenizer):
         if max_length is not None and pad_to_multiple_of is not None and (max_length % pad_to_multiple_of != 0):
             max_length = ((max_length // pad_to_multiple_of) + 1) * pad_to_multiple_of
 
-        # Set max entity length
-        if not max_entity_length:
-            max_entity_length = self.max_entity_length
+        if (
+            max_entity_length is not None
+            and pad_to_multiple_of is not None
+            and (max_entity_length % pad_to_multiple_of != 0)
+        ):
+            max_entity_length = ((max_entity_length // pad_to_multiple_of) + 1) * pad_to_multiple_of
 
         needs_to_be_padded = padding_strategy != PaddingStrategy.DO_NOT_PAD and (
             len(encoded_inputs["input_ids"]) != max_length or len(encoded_inputs["entity_ids"]) != max_entity_length
         )
 
-        entities_provided = bool("entity_ids" in encoded_inputs)
         if needs_to_be_padded:
             difference = max_length - len(encoded_inputs["input_ids"])
-            if entities_provided:
-                entity_difference = max_entity_length - len(encoded_inputs["entity_ids"])
+            entity_difference = max_entity_length - len(encoded_inputs["entity_ids"])
             if self.padding_side == "right":
                 if return_attention_mask:
                     encoded_inputs["attention_mask"] = [1] * len(encoded_inputs["input_ids"]) + [0] * difference
-                    if entities_provided:
-                        encoded_inputs["entity_attention_mask"] = [1] * len(encoded_inputs["entity_ids"]) + [
-                            0
-                        ] * entity_difference
+                    encoded_inputs["entity_attention_mask"] = [1] * len(encoded_inputs["entity_ids"]) + [
+                        0
+                    ] * entity_difference
                 if "token_type_ids" in encoded_inputs:
                     encoded_inputs["token_type_ids"] = encoded_inputs["token_type_ids"] + [0] * difference
-                    if entities_provided:
-                        encoded_inputs["entity_token_type_ids"] = (
-                            encoded_inputs["entity_token_type_ids"] + [0] * entity_difference
-                        )
+                    encoded_inputs["entity_token_type_ids"] = (
+                        encoded_inputs["entity_token_type_ids"] + [0] * entity_difference
+                    )
                 if "special_tokens_mask" in encoded_inputs:
                     encoded_inputs["special_tokens_mask"] = encoded_inputs["special_tokens_mask"] + [1] * difference
                 encoded_inputs["input_ids"] = encoded_inputs["input_ids"] + [self.pad_token_id] * difference
+                encoded_inputs["entity_ids"] = encoded_inputs["entity_ids"] + [0] * entity_difference
+                encoded_inputs["entity_position_ids"] = (
+                    encoded_inputs["entity_position_ids"] + [[-1] * self.max_mention_length] * entity_difference
+                )
+
             elif self.padding_side == "left":
                 if return_attention_mask:
                     encoded_inputs["attention_mask"] = [0] * difference + [1] * len(encoded_inputs["input_ids"])
+                    encoded_inputs["entity_attention_mask"] = [0] * entity_difference + [1] * len(
+                        encoded_inputs["entity_ids"]
+                    )
                 if "token_type_ids" in encoded_inputs:
                     encoded_inputs["token_type_ids"] = [0] * difference + encoded_inputs["token_type_ids"]
+                    encoded_inputs["entity_token_type_ids"] = [0] * entity_difference + encoded_inputs[
+                        "entity_token_type_ids"
+                    ]
                 if "special_tokens_mask" in encoded_inputs:
                     encoded_inputs["special_tokens_mask"] = [1] * difference + encoded_inputs["special_tokens_mask"]
                 encoded_inputs["input_ids"] = [self.pad_token_id] * difference + encoded_inputs["input_ids"]
+                encoded_inputs["entity_ids"] = [0] * entity_difference + encoded_inputs["entity_ids"]
+                encoded_inputs["entity_position_ids"] = [
+                    [-1] * self.max_mention_length
+                ] * entity_difference + encoded_inputs["entity_position_ids"]
             else:
                 raise ValueError("Invalid padding strategy:" + str(self.padding_side))
         else:
             if return_attention_mask:
                 encoded_inputs["attention_mask"] = [1] * len(encoded_inputs["input_ids"])
-                if entities_provided:
-                    encoded_inputs["entity_attention_mask"] = [1] * len(encoded_inputs["entity_ids"])
+                encoded_inputs["entity_attention_mask"] = [1] * len(encoded_inputs["entity_ids"])
 
         return encoded_inputs
