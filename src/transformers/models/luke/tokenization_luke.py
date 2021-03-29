@@ -381,6 +381,7 @@ class LukeTokenizer(RobertaTokenizer):
             entities_pair=entities_pair,
             entity_spans=entity_spans,
             entity_spans_pair=entity_spans_pair,
+            **kwargs
         )
 
         # prepare_for_model will create the attention_mask and token_type_ids
@@ -544,6 +545,7 @@ class LukeTokenizer(RobertaTokenizer):
                 entities_pair=entities_pair,
                 entity_spans=entity_spans,
                 entity_spans_pair=entity_spans_pair,
+                **kwargs
             )
             input_ids.append((first_ids, second_ids))
             entity_ids.append((first_entity_ids, second_entity_ids))
@@ -663,6 +665,7 @@ class LukeTokenizer(RobertaTokenizer):
                 + [self.additional_special_tokens_ids[0]]
                 + first_ids[entity_token_start:]
             )
+            first_entity_token_spans = [(entity_token_start, entity_token_end + 2)]
 
         elif self.task == "entity_pair_classification":
             assert (
@@ -673,7 +676,7 @@ class LukeTokenizer(RobertaTokenizer):
             ), "Entity spans should be provided as a list of tuples, each tuple containing the start and end character indices of an entity"
 
             head_span, tail_span = entity_spans
-            first_entity_ids = [self.entity_vocab["[MASK]", self.entity_vocab["[MASK2]"]]]
+            first_entity_ids = [self.entity_vocab["[MASK]"], self.entity_vocab["[MASK2]"]]
             first_ids, first_entity_token_spans = get_input_ids_and_entity_token_spans(text, entity_spans)
 
             head_token_span, tail_token_span = first_entity_token_spans
@@ -681,9 +684,13 @@ class LukeTokenizer(RobertaTokenizer):
                 (head_token_span, self.additional_special_tokens_ids[0]),
                 (tail_token_span, self.additional_special_tokens_ids[1]),
             ]
-            token_span_with_special_token_ids = sorted(
-                token_span_with_special_token_ids, key=lambda span, _: span[0], reverse=True
-            )
+            if head_token_span[0] < tail_token_span[0]:
+                first_entity_token_spans[0] = (head_token_span[0], head_token_span[1] + 2)
+                first_entity_token_spans[1] = (tail_token_span[0] + 2, tail_token_span[1] + 4)
+                token_span_with_special_token_ids = reversed(token_span_with_special_token_ids)
+            else:
+                first_entity_token_spans[0] = (head_token_span[0] + 2, head_token_span[1] + 4)
+                first_entity_token_spans[1] = (tail_token_span[0], tail_token_span[1] + 2)
 
             for (entity_token_start, entity_token_end), special_token_id in token_span_with_special_token_ids:
                 first_ids = first_ids[:entity_token_end] + [special_token_id] + first_ids[entity_token_end:]
