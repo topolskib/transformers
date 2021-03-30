@@ -110,7 +110,6 @@ class LukeTokenizer(RobertaTokenizer):
         merges_file,
         entity_vocab_file,
         task=None,
-        model_max_length=512,
         max_entity_length=32,
         max_mention_length=30,
         entity_token_1="<ent>",
@@ -134,7 +133,6 @@ class LukeTokenizer(RobertaTokenizer):
         super().__init__(
             vocab_file=vocab_file,
             merges_file=merges_file,
-            model_max_length=model_max_length,
             additional_special_tokens=additional_special_tokens,
             **kwargs,
         )
@@ -169,6 +167,7 @@ class LukeTokenizer(RobertaTokenizer):
         max_length: Optional[int] = None,
         max_entity_length: Optional[int] = None,
         stride: int = 0,
+        is_split_into_words: Optional[bool] = False,
         pad_to_multiple_of: Optional[int] = None,
         return_tensors: Optional[Union[str, TensorType]] = None,
         return_token_type_ids: Optional[bool] = True,
@@ -222,11 +221,14 @@ class LukeTokenizer(RobertaTokenizer):
             batch_text_or_text_pairs = list(zip(text, text_pair)) if text_pair is not None else text
             if entities is None:
                 batch_entities_or_entities_pairs = None
-                batch_entity_spans_or_entity_spans_pairs = None
             else:
                 batch_entities_or_entities_pairs = (
                     list(zip(entities, entities_pair)) if entities_pair is not None else entities
                 )
+
+            if entity_spans is None:
+                batch_entity_spans_or_entity_spans_pairs = None
+            else:
                 batch_entity_spans_or_entity_spans_pairs = (
                     list(zip(entity_spans, entity_spans_pair)) if entity_spans_pair is not None else entity_spans
                 )
@@ -241,6 +243,7 @@ class LukeTokenizer(RobertaTokenizer):
                 max_length=max_length,
                 max_entity_length=max_entity_length,
                 stride=stride,
+                is_split_into_words=is_split_into_words,
                 pad_to_multiple_of=pad_to_multiple_of,
                 return_tensors=return_tensors,
                 return_token_type_ids=return_token_type_ids,
@@ -266,6 +269,7 @@ class LukeTokenizer(RobertaTokenizer):
                 max_length=max_length,
                 max_entity_length=max_entity_length,
                 stride=stride,
+                is_split_into_words=is_split_into_words,
                 pad_to_multiple_of=pad_to_multiple_of,
                 return_tensors=return_tensors,
                 return_token_type_ids=return_token_type_ids,
@@ -293,6 +297,7 @@ class LukeTokenizer(RobertaTokenizer):
         max_length: Optional[int] = None,
         max_entity_length: Optional[int] = None,
         stride: int = 0,
+        is_split_into_words: Optional[bool] = False,
         pad_to_multiple_of: Optional[int] = None,
         return_tensors: Optional[Union[str, TensorType]] = None,
         return_token_type_ids: Optional[bool] = None,
@@ -342,6 +347,7 @@ class LukeTokenizer(RobertaTokenizer):
             max_length=max_length,
             max_entity_length=max_entity_length,
             stride=stride,
+            is_split_into_words=is_split_into_words,
             pad_to_multiple_of=pad_to_multiple_of,
             return_tensors=return_tensors,
             return_token_type_ids=return_token_type_ids,
@@ -368,6 +374,7 @@ class LukeTokenizer(RobertaTokenizer):
         max_length: Optional[int] = None,
         max_entity_length: Optional[int] = None,
         stride: int = 0,
+        is_split_into_words: Optional[bool] = False,
         pad_to_multiple_of: Optional[int] = None,
         return_tensors: Optional[Union[str, TensorType]] = None,
         return_token_type_ids: Optional[bool] = None,
@@ -388,6 +395,9 @@ class LukeTokenizer(RobertaTokenizer):
                 "More information on available tokenizers at "
                 "https://github.com/huggingface/transformers/pull/2674"
             )
+
+        if is_split_into_words:
+            raise NotImplementedError("is_split_into_words is not supported in this tokenizer.")
 
         (
             first_ids,
@@ -444,6 +454,7 @@ class LukeTokenizer(RobertaTokenizer):
         truncation: Union[bool, str, TruncationStrategy] = False,
         max_length: Optional[int] = None,
         stride: int = 0,
+        is_split_into_words: Optional[bool] = False,
         pad_to_multiple_of: Optional[int] = None,
         return_tensors: Optional[Union[str, TensorType]] = None,
         return_token_type_ids: Optional[bool] = None,
@@ -487,6 +498,7 @@ class LukeTokenizer(RobertaTokenizer):
             truncation_strategy=truncation_strategy,
             max_length=max_length,
             stride=stride,
+            is_split_into_words=is_split_into_words,
             pad_to_multiple_of=pad_to_multiple_of,
             return_tensors=return_tensors,
             return_token_type_ids=return_token_type_ids,
@@ -512,6 +524,7 @@ class LukeTokenizer(RobertaTokenizer):
         max_length: Optional[int] = None,
         max_entity_length: Optional[int] = None,
         stride: int = 0,
+        is_split_into_words: Optional[bool] = False,
         pad_to_multiple_of: Optional[int] = None,
         return_tensors: Optional[Union[str, TensorType]] = None,
         return_token_type_ids: Optional[bool] = None,
@@ -530,6 +543,9 @@ class LukeTokenizer(RobertaTokenizer):
                 "transformers.PreTrainedTokenizerFast."
             )
 
+        if is_split_into_words:
+            raise NotImplementedError("is_split_into_words is not supported in this tokenizer.")
+
         # input_ids is a list of tuples (one for each example in the batch)
         input_ids = []
         entity_ids = []
@@ -541,17 +557,22 @@ class LukeTokenizer(RobertaTokenizer):
                 text, text_pair = text_or_text_pair
 
             entities, entities_pair = None, None
-            entity_spans, entity_spans_pair = None, None
             if batch_entities_or_entities_pairs is not None:
                 entities_or_entities_pairs = batch_entities_or_entities_pairs[index]
-                entity_spans_or_entity_spans_pairs = batch_entity_spans_or_entity_spans_pairs[index]
                 if entities_or_entities_pairs:
-                    if isinstance(entities_or_entities_pairs[0], (list, tuple)):
-                        entities, entities_pair = entities_or_entities_pairs
-                        entity_spans, entity_spans_pair = entity_spans_or_entity_spans_pairs
-                    else:
+                    if isinstance(entities_or_entities_pairs[0], str):
                         entities, entities_pair = entities_or_entities_pairs, None
+                    else:
+                        entities, entities_pair = entities_or_entities_pairs
+
+            entity_spans, entity_spans_pair = None, None
+            if batch_entity_spans_or_entity_spans_pairs is not None:
+                entity_spans_or_entity_spans_pairs = batch_entity_spans_or_entity_spans_pairs[index]
+                if entity_spans_or_entity_spans_pairs:
+                    if isinstance(entity_spans_or_entity_spans_pairs[0][0], int):
                         entity_spans, entity_spans_pair = entity_spans_or_entity_spans_pairs, None
+                    else:
+                        entity_spans, entity_spans_pair = entity_spans_or_entity_spans_pairs
 
             (
                 first_ids,
@@ -605,6 +626,7 @@ class LukeTokenizer(RobertaTokenizer):
         entity_spans_pair: Optional[List[Tuple[int, int]]] = None,
         **kwargs
     ) -> Tuple[list, list, list, list, list, list]:
+
         def get_input_ids(text):
             tokens = self.tokenize(text, **kwargs)
             return self.convert_tokens_to_ids(tokens)
