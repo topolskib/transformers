@@ -292,6 +292,7 @@ class TFFlaubertModelTest(TFModelTesterMixin, unittest.TestCase):
         (TFFlaubertWithLMHeadModel,) if is_tf_available() else ()
     )  # TODO (PVP): Check other models whether language generation is also applicable
     test_head_masking = False
+    test_onnx = False
 
     def setUp(self):
         self.model_tester = TFFlaubertModelTester(self)
@@ -329,14 +330,6 @@ class TFFlaubertModelTest(TFModelTesterMixin, unittest.TestCase):
         for model_name in TF_FLAUBERT_PRETRAINED_MODEL_ARCHIVE_LIST[:1]:
             model = TFFlaubertModel.from_pretrained(model_name)
             self.assertIsNotNone(model)
-
-    def test_saved_model_with_hidden_states_output(self):
-        # Should be uncommented during patrick TF refactor
-        pass
-
-    def test_saved_model_with_attentions_output(self):
-        # Should be uncommented during patrick TF refactor
-        pass
 
 
 @require_tf

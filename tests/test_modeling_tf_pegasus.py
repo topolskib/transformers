@@ -177,7 +177,7 @@ class TFPegasusModelTest(TFModelTesterMixin, unittest.TestCase):
     all_generative_model_classes = (TFPegasusForConditionalGeneration,) if is_tf_available() else ()
     is_encoder_decoder = True
     test_pruning = False
-    test_head_masking = True
+    test_onnx = False
 
     def setUp(self):
         self.model_tester = TFPegasusModelTester(self)
@@ -356,9 +356,7 @@ class TFPegasusIntegrationTests(unittest.TestCase):
         assert self.expected_text == generated_words
 
     def translate_src_text(self, **tokenizer_kwargs):
-        model_inputs = self.tokenizer.prepare_seq2seq_batch(
-            src_texts=self.src_text, **tokenizer_kwargs, return_tensors="tf"
-        )
+        model_inputs = self.tokenizer(self.src_text, **tokenizer_kwargs, return_tensors="tf")
         generated_ids = self.model.generate(
             model_inputs.input_ids,
             attention_mask=model_inputs.attention_mask,
