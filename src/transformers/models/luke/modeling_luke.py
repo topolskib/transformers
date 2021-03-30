@@ -975,7 +975,7 @@ class LukeEntityAwareAttentionModel(LukeModel):
         if not return_dict:
             return (word_hidden_states, entity_hidden_states)
 
-        return BaseLukeEntityAwareAttentionModelOutputWithPoolingAndCrossAttentions(
+        return BaseLukeEntityAwareAttentionModelOutputWithPooling(
             last_hidden_state=word_hidden_states,
             entity_last_hidden_state=entity_hidden_states,
         )

@@ -342,11 +342,11 @@ class LukeModelTest(ModelTesterMixin, unittest.TestCase):
 @require_torch
 class LukeModelIntegrationTests(unittest.TestCase): 
     @slow
-    def test_inference_no_head(self):
+    def test_inference_entity_classification(self):
         model = LukeEntityAwareAttentionModel.from_pretrained("studio-ousia/luke-base").eval()
         model.to(torch_device)
 
-        tokenizer = LukeTokenizer.from_pretrained("studio-ousia/luke-base")
+        tokenizer = LukeTokenizer.from_pretrained("studio-ousia/luke-base", task="entity_classification")
         text = "Top seed Ana Ivanovic said on Thursday she could hardly believe her luck as a fortuitous netcord helped the new world number one avoid a humiliating second- round exit at Wimbledon ."
         span = (39, 42)
         encoding = tokenizer(text, entity_spans=[span], add_prefix_space=True, return_tensors="pt")
