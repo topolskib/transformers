@@ -81,9 +81,7 @@ def convert_luke_checkpoint(checkpoint_path, metadata_path, entity_vocab_path, p
 
     text = "Top seed Ana Ivanovic said on Thursday she could hardly believe her luck as a fortuitous netcord helped the new world number one avoid a humiliating second- round exit at Wimbledon ."
     span = (39, 42)
-    encoding = tokenizer(text, entity_spans=[span], add_prefix_space=True)
-    for key, value in encoding.items():
-        encoding[key] = torch.as_tensor(encoding[key]).unsqueeze(0)
+    encoding = tokenizer(text, entity_spans=[span], add_prefix_space=True, return_tensors="pt")
 
     outputs = model(**encoding)
 
