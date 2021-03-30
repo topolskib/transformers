@@ -53,7 +53,8 @@ _CONFIG_FOR_DOC = "LukeConfig"
 _TOKENIZER_FOR_DOC = "LukeTokenizer"
 
 LUKE_PRETRAINED_MODEL_ARCHIVE_LIST = [
-    "luke-large",
+    "studio-ousia/luke-base",
+    "studio-ousia/luke-large",
     # See all LUKE models at https://huggingface.co/models?filter=luke
 ]
 
