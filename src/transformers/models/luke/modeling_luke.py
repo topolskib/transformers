@@ -53,7 +53,8 @@ _CONFIG_FOR_DOC = "LukeConfig"
 _TOKENIZER_FOR_DOC = "LukeTokenizer"
 
 LUKE_PRETRAINED_MODEL_ARCHIVE_LIST = [
-    "luke-large",
+    "studio-ousia/luke-base",
+    "studio-ousia/luke-large",
     # See all LUKE models at https://huggingface.co/models?filter=luke
 ]
 
@@ -1356,8 +1357,12 @@ class LukeForEntityPairClassification(nn.Module):
         return_dict=None,
     ):
         r"""
-        labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size,)`, `optional`):
-            Labels for computing the classification loss. Indices should be in :obj:`[0, ..., config.num_labels - 1]`.
+        labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size,)` or :obj:`(batch_size, num_labels), `optional`):
+            Labels for computing the classification loss. If the shape is :obj:`(batch_size,)`, the cross entropy
+            loss is used for the single-label classification. In this case, labels should contain the indices that
+            should be in :obj:`[0, ..., config.num_labels - 1]`. If the shape is :obj:`(batch_size, num_labels)`, the
+            binary cross entropy loss is used for the multi-label classification. In this case, labels should only
+            contain ``[0, 1]``, where 0 and 1 indicate false and true, respectively.
         """
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
@@ -1378,7 +1383,10 @@ class LukeForEntityPairClassification(nn.Module):
         logits = self.classifier(feature_vector)
 
         if labels is not None:
-            loss = F.cross_entropy(logits, labels)
+            if labels.ndim == 1:
+                loss = F.cross_entropy(logits, labels)
+            else:
+                loss = F.binary_cross_entropy_with_logits(logits.view(-1), labels.view(-1).type_as(logits))
 
         if not return_dict:
             output = (logits,) + outputs[2:]
@@ -1429,8 +1437,14 @@ class LukeForEntitySpanClassification(nn.Module):
         r"""
         entity_start_positions: The start positions of entities in the word token sequence.
         entity_end_positions: The end positions of entities in the word token sequence.
-        labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size,)`, `optional`):
-            Labels for computing the classification loss. Indices should be in :obj:`[0, ..., config.num_labels - 1]`.
+        labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size, max_entity_length)` or
+            :obj:`(batch_size, max_entity_length, num_labels), `optional`):
+            Labels for computing the classification loss. If the shape is :obj:`(batch_size, max_entity_length)`, the
+            cross entropy loss is used for the single-label classification. In this case, labels should contain the
+            indices that should be in :obj:`[0, ..., config.num_labels - 1]`. If the shape is
+            :obj:`(batch_size, max_entity_length, num_labels)`, the binary cross entropy loss is used for the
+            multi-label classification. In this case, labels should only contain ``[0, 1]``, where 0 and 1 indicate
+            false and true, respectively.
         """
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
@@ -1456,7 +1470,10 @@ class LukeForEntitySpanClassification(nn.Module):
         logits = self.classifier(feature_vector)
 
         if labels is not None:
-            loss = F.cross_entropy(logits, labels)
+            if labels.ndim == 1:
+                loss = F.cross_entropy(logits, labels)
+            else:
+                loss = F.binary_cross_entropy_with_logits(logits.view(-1), labels.view(-1).type_as(logits))
 
         if not return_dict:
             output = (logits,) + outputs[2:]
