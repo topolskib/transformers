@@ -32,15 +32,11 @@ class Luke(TokenizerTesterMixin, unittest.TestCase):
     def setUp(self):
         super().setUp()
 
-        # commented out since files are on the hub
-        # self.vocab_file = os.path.join(r"C:\Users\niels.rogge\Documents\LUKE\tokenizer_files\vocab.json")
-        # self.merges_file = os.path.join(r"C:\Users\niels.rogge\Documents\LUKE\tokenizer_files\merges.txt")
-
         self.special_tokens_map = {"entity_token_1": "<ent>", "entity_token_2": "<ent2>"}
 
     def get_tokenizer(self, **kwargs):
         kwargs.update(self.special_tokens_map)
-        return self.tokenizer_class.from_pretrained("nielsr/luke-large", **kwargs)
+        return self.tokenizer_class.from_pretrained("studio-ousia/luke-large", **kwargs)
 
     def get_input_output_texts(self, tokenizer):
         input_text = "lower newer"
@@ -48,7 +44,7 @@ class Luke(TokenizerTesterMixin, unittest.TestCase):
         return input_text, output_text
 
     def test_full_tokenizer(self):
-        tokenizer = self.tokenizer_class.from_pretrained("nielsr/luke-large")
+        tokenizer = self.tokenizer_class.from_pretrained("studio-ousia/luke-large")
         text = "lower newer"
         bpe_tokens = ["l", "o", "w", "er", "\u0120", "n", "e", "w", "er"]
         tokens = tokenizer.tokenize(text)  # , add_prefix_space=True)
@@ -69,7 +65,7 @@ class Luke(TokenizerTesterMixin, unittest.TestCase):
 
     @slow
     def test_sequence_builders(self):
-        tokenizer = self.tokenizer_class.from_pretrained("nielsr/luke-large")
+        tokenizer = self.tokenizer_class.from_pretrained("studio-ousia/luke-large")
 
         text = tokenizer.encode("sequence builders", add_special_tokens=False)
         text_2 = tokenizer.encode("multi-sequence build", add_special_tokens=False)
@@ -162,19 +158,12 @@ class LukeTokenizerIntegrationTests(unittest.TestCase):
     def setUp(self):
         super().setUp()
 
-        # commented out since files are on the hub
-        # self.vocab_file = os.path.join(r"C:\Users\niels.rogge\Documents\LUKE\tokenizer_files\vocab.json")
-        # self.merges_file = os.path.join(r"C:\Users\niels.rogge\Documents\LUKE\tokenizer_files\merges.txt")
-
-    def get_tokenizer(self):
-        return self.tokenizer_class.from_pretrained("nielsr/luke-large")
-
-    def test_entity_linking_no_padding_or_truncation(self):
-        tokenizer = self.get_tokenizer()
+    def test_entity_classification_no_padding_or_truncation(self):
+        tokenizer = LukeTokenizer.from_pretrained("studio-ousia/luke-base", task="entity_classification")
         sentence = "Top seed Ana Ivanovic said on Thursday she could hardly believe her luck as a fortuitous netcord helped the new world number one avoid a humiliating second- round exit at Wimbledon ."
         span = (39, 42)
 
-        encoding = tokenizer(sentence, task="entity_typing", additional_info=span)
+        encoding = tokenizer(sentence, additional_info=[span])
 
         # test words
         self.assertEqual(len(encoding["input_ids"]), 42)
@@ -227,15 +216,13 @@ class LukeTokenizerIntegrationTests(unittest.TestCase):
             ],
         )
 
-    def test_entity_linking_padding_pytorch_tensors(self):
-        tokenizer = self.get_tokenizer()
+    def test_entity_classification_padding_pytorch_tensors(self):
+        tokenizer = LukeTokenizer.from_pretrained("studio-ousia/luke-base", task="entity_classification")
         sentence = "Top seed Ana Ivanovic said on Thursday she could hardly believe her luck as a fortuitous netcord helped the new world number one avoid a humiliating second- round exit at Wimbledon ."
         # entity information
         span = (39, 42)
 
-        encoding = tokenizer(
-            sentence, task="entity_typing", additional_info=span, padding="max_length", return_tensors="pt"
-        )
+        encoding = tokenizer(sentence, entity_spans=[span], padding="max_length", return_tensors="pt")
 
         # test words
         self.assertEqual(encoding["input_ids"].shape, (1, 512))
@@ -246,17 +233,15 @@ class LukeTokenizerIntegrationTests(unittest.TestCase):
         self.assertEqual(encoding["entity_ids"].shape, (1, 1))
         self.assertEqual(encoding["entity_attention_mask"].shape, (1, 1))
         self.assertEqual(encoding["entity_token_type_ids"].shape, (1, 1))
-        self.assertEqual(
-            encoding["entity_position_ids"].shape, (1, tokenizer.max_entity_length, tokenizer.max_mention_length)
-        )
+        self.assertEqual(encoding["entity_position_ids"].shape, (1, tokenizer.max_entity_length, tokenizer.max_mention_length))
 
-    def test_relation_classification_no_padding_or_truncation(self):
-        tokenizer = self.get_tokenizer()
+    def test_entity_pair_classification_no_padding_or_truncation(self):
+        tokenizer = LukeTokenizer.from_pretrained("studio-ousia/luke-base", task="entity_pair_classification")
         sentence = "Top seed Ana Ivanovic said on Thursday she could hardly believe her luck."
         # head and tail information
         spans = [(9, 21), (39, 42)]
 
-        encoding = tokenizer(sentence, task="relation_classification", additional_info=spans)
+        encoding = tokenizer(sentence, entity_spans=spans)
 
         self.assertEqual(
             tokenizer.decode(encoding["input_ids"]),
@@ -335,20 +320,13 @@ class LukeTokenizerIntegrationTests(unittest.TestCase):
             ],
         )
 
-    def test_relation_classification_padding_pytorch_tensors(self):
-        tokenizer = self.get_tokenizer()
+    def test_entity_pair_classification_padding_pytorch_tensors(self):
+        tokenizer = LukeTokenizer.from_pretrained("studio-ousia/luke-base", task="entity_pair_classification")
         sentence = "Top seed Ana Ivanovic said on Thursday she could hardly believe her luck."
         # head and tail information
         spans = [(9, 21), (39, 42)]
 
-        encoding = tokenizer(
-            sentence,
-            task="relation_classification",
-            additional_info=spans,
-            padding="max_length",
-            max_length=30,
-            return_tensors="pt",
-        )
+        encoding = tokenizer(sentence, entity_spans=spans, padding="max_length", max_length=30, return_tensors="pt")
 
         # test words
         self.assertEqual(encoding["input_ids"].shape, (1, 30))
@@ -359,6 +337,4 @@ class LukeTokenizerIntegrationTests(unittest.TestCase):
         self.assertEqual(encoding["entity_ids"].shape, (1, 2))
         self.assertEqual(encoding["entity_attention_mask"].shape, (1, 2))
         self.assertEqual(encoding["entity_token_type_ids"].shape, (1, 2))
-        self.assertEqual(
-            encoding["entity_position_ids"].shape, (1, tokenizer.max_entity_length, tokenizer.max_mention_length)
-        )
+        self.assertEqual(encoding["entity_position_ids"].shape, (1, tokenizer.max_entity_length, tokenizer.max_mention_length))
