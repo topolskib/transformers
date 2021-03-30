@@ -75,9 +75,29 @@ class LukeTokenizer(RobertaTokenizer):
 
     This tokenizer inherits from :class:`~transformers.RobertaTokenizer` which contains most of the main methods. Users
     should refer to this superclass for more information regarding those methods. Compared to
-    :class:`~transformers.RobertaTokenizer`, :class:`~transformers.LukeTokenizer` also creates :obj:`entity_ids`,
-    :obj:`entity_attention_mask`, :obj:`entity_token_type_ids` and :obj:`entity_position_ids` to be used by the
-    entity-aware attention mechanism of LUKE.
+    :class:`~transformers.RobertaTokenizer`, :class:`~transformers.LukeTokenizer` also creates entity sequences, namely
+    :obj:`entity_ids`, :obj:`entity_attention_mask`, :obj:`entity_token_type_ids` and :obj:`entity_position_ids` to be
+    used by the LUKE model.
+
+        Args:
+        vocab_file (:obj:`str`):
+            Path to the vocabulary file.
+        merges_file (:obj:`str`):
+            Path to the merges file.
+        entity_vocab_file (:obj:`str`):
+            Path to the entity vocabulary file.
+        task (:obj:`str`, `optional`):
+            Task for which you want to prepare sequences. One of 'entity_classification' or
+            'entity_pair_classification'. If you specify this argument, the entity sequence is automatically created
+            based on the given entity spans.
+        max_entity_length (:obj:`int`, `optional`, defaults to 32):
+            The maximum length of :obj:`entity_ids`.
+        max_mention_length (:obj:`int`, `optional`, defaults to 30):
+            The maximum number of tokens inside an entity span.
+        entity_token_1 (:obj:`str`, `optional`, defaults to :obj:`<ent>`):
+            The special token representing an entity span. This token is only used when `task` is set to `entity_classification` or `entity_pair_classification`.
+        entity_token_2 (:obj:`str`, `optional`, defaults to :obj:`<ent2>`):
+            The special token representing an entity span. This token is only used when `task` is set to `entity_pair_classification`.
     """
 
     vocab_files_names = VOCAB_FILES_NAMES
@@ -182,6 +202,8 @@ class LukeTokenizer(RobertaTokenizer):
                 two integers denoting start and end positions of entities.
                 If you specify `entity` or `entity_pair` as the `task` argument, the length of `entity_spans` must be 1
                 or 2, respectively. If you specify `entities`, the length of spans must be equal to that of entities.
+            max_entity_length (:obj:`int`, `optional`):
+                The maximum length of :obj:`entity_ids`.
         """
         # Input type checking for clearer error
         assert isinstance(text, str) or (
