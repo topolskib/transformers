@@ -370,3 +370,13 @@ class LukeModelIntegrationTests(unittest.TestCase):
 
         expected_slice = torch.tensor([[0.1457, 0.1044, 0.0174]])
         self.assertTrue(torch.allclose(outputs.entity_last_hidden_state[0, :3, :3], expected_slice, atol=1e-4))
+
+    @slow
+    def test_inference_entity_pair_classification(self):
+        # TODO, similar to the test above
+        pass
+
+    @slow
+    def test_inference_entity_span_classification(self):
+        # TODO, similar to the test above
+        pass
