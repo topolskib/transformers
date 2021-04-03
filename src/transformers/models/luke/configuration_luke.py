@@ -46,9 +46,9 @@ class LukeConfig(RobertaConfig):
     """
     model_type = "luke"
 
-    def __init__(self, entity_vocab_size: int = 500000, entity_emb_size: int = 256, **kwargs):
+    def __init__(self, vocab_size: int = 50267, entity_vocab_size: int = 500000, entity_emb_size: int = 256, **kwargs):
         """Constructs LukeConfig."""
-        super(LukeConfig, self).__init__(**kwargs)
+        super(LukeConfig, self).__init__(vocab_size=vocab_size, **kwargs)
 
         self.entity_vocab_size = entity_vocab_size
         self.entity_emb_size = entity_emb_size
