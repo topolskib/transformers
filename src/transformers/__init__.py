@@ -373,7 +373,6 @@ if is_torch_available():
             "LUKE_PRETRAINED_MODEL_ARCHIVE_LIST",
             "LukeLayer",
             "LukeModel",
-            "LukeEntityAwareAttentionModel",
             "LukePreTrainedModel",
             "LukeForEntityClassification",
             "LukeForEntityPairClassification",
@@ -1734,7 +1733,6 @@ if TYPE_CHECKING:
         )
         from .models.luke import (
             LUKE_PRETRAINED_MODEL_ARCHIVE_LIST,
-            LukeEntityAwareAttentionModel,
             LukeForEntityTyping,
             LukeLayer,
             LukeModel,

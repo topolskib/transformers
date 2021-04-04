@@ -149,7 +149,7 @@ from ..longformer.modeling_longformer import (
 )
 
 # Add modeling imports here
-from ..luke.modeling_luke import LukeEntityAwareAttentionModel, LukeModel
+from ..luke.modeling_luke import LukeModel
 from ..lxmert.modeling_lxmert import LxmertForPreTraining, LxmertForQuestionAnswering, LxmertModel
 from ..marian.modeling_marian import MarianForCausalLM, MarianModel, MarianMTModel
 from ..mbart.modeling_mbart import (
