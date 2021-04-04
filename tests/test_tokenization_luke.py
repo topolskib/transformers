@@ -158,6 +158,343 @@ class LukeTokenizerIntegrationTests(unittest.TestCase):
     def setUp(self):
         super().setUp()
 
+    def test_single_text_no_padding_or_truncation(self):
+        tokenizer = LukeTokenizer.from_pretrained("studio-ousia/luke-base", return_token_type_ids=True)
+        sentence = "Top seed Ana Ivanovic said on Thursday she could hardly believe her luck."
+        entities = ["Ana Ivanovic", "Thursday", "Dummy Entity"]
+        spans = [(9, 21), (30, 38), (39, 42)]
+
+        encoding = tokenizer(sentence, entities=entities, entity_spans=spans, return_token_type_ids=True)
+
+        self.assertEqual(
+            tokenizer.decode(encoding["input_ids"], spaces_between_special_tokens=False),
+            "<s>Top seed Ana Ivanovic said on Thursday she could hardly believe her luck.</s>",
+        )
+        self.assertEqual(
+            tokenizer.decode(encoding["input_ids"][3:6], spaces_between_special_tokens=False), " Ana Ivanovic"
+        )
+        self.assertEqual(
+            tokenizer.decode(encoding["input_ids"][8:9], spaces_between_special_tokens=False), " Thursday"
+        )
+        self.assertEqual(tokenizer.decode(encoding["input_ids"][9:10], spaces_between_special_tokens=False), " she")
+
+        self.assertEqual(
+            encoding["entity_ids"],
+            [
+                tokenizer.entity_vocab["Ana Ivanovic"],
+                tokenizer.entity_vocab["Thursday"],
+                tokenizer.entity_vocab["[UNK]"],
+            ],
+        )
+        self.assertEqual(encoding["entity_attention_mask"], [1, 1, 1])
+        self.assertEqual(encoding["entity_token_type_ids"], [0, 0, 0])
+        self.assertEqual(
+            encoding["entity_position_ids"],
+            [
+                [
+                    3,
+                    4,
+                    5,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                ],
+                [
+                    8,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                ],
+                [
+                    9,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                ],
+            ],
+        )
+
+    def test_single_text_padding_pytorch_tensors(self):
+        tokenizer = LukeTokenizer.from_pretrained("studio-ousia/luke-base", return_token_type_ids=True)
+        sentence = "Top seed Ana Ivanovic said on Thursday she could hardly believe her luck."
+        entities = ["Ana Ivanovic", "Thursday", "Dummy Entity"]
+        spans = [(9, 21), (30, 38), (39, 42)]
+
+        encoding = tokenizer(
+            sentence,
+            entities=entities,
+            entity_spans=spans,
+            return_token_type_ids=True,
+            padding="max_length",
+            max_length=30,
+            max_entity_length=16,
+            return_tensors="pt",
+        )
+
+        # test words
+        self.assertEqual(encoding["input_ids"].shape, (1, 30))
+        self.assertEqual(encoding["attention_mask"].shape, (1, 30))
+        self.assertEqual(encoding["token_type_ids"].shape, (1, 30))
+
+        # test entities
+        self.assertEqual(encoding["entity_ids"].shape, (1, 16))
+        self.assertEqual(encoding["entity_attention_mask"].shape, (1, 16))
+        self.assertEqual(encoding["entity_token_type_ids"].shape, (1, 16))
+        self.assertEqual(encoding["entity_position_ids"].shape, (1, 16, tokenizer.max_mention_length))
+
+    def test_text_pair_no_padding_or_truncation(self):
+        tokenizer = LukeTokenizer.from_pretrained("studio-ousia/luke-base", return_token_type_ids=True)
+        sentence = "Top seed Ana Ivanovic said on Thursday"
+        sentence_pair = "She could hardly believe her luck."
+        entities = ["Ana Ivanovic", "Thursday"]
+        entities_pair = ["Dummy Entity"]
+        spans = [(9, 21), (30, 38)]
+        spans_pair = [(0, 3)]
+
+        encoding = tokenizer(
+            sentence,
+            sentence_pair,
+            entities=entities,
+            entities_pair=entities_pair,
+            entity_spans=spans,
+            entity_spans_pair=spans_pair,
+            return_token_type_ids=True,
+        )
+
+        self.assertEqual(
+            tokenizer.decode(encoding["input_ids"], spaces_between_special_tokens=False),
+            "<s>Top seed Ana Ivanovic said on Thursday</s></s>She could hardly believe her luck.</s>",
+        )
+        self.assertEqual(
+            tokenizer.decode(encoding["input_ids"][3:6], spaces_between_special_tokens=False), " Ana Ivanovic"
+        )
+        self.assertEqual(
+            tokenizer.decode(encoding["input_ids"][8:9], spaces_between_special_tokens=False), " Thursday"
+        )
+        self.assertEqual(tokenizer.decode(encoding["input_ids"][11:12], spaces_between_special_tokens=False), "She")
+
+        self.assertEqual(
+            encoding["entity_ids"],
+            [
+                tokenizer.entity_vocab["Ana Ivanovic"],
+                tokenizer.entity_vocab["Thursday"],
+                tokenizer.entity_vocab["[UNK]"],
+            ],
+        )
+        self.assertEqual(encoding["entity_attention_mask"], [1, 1, 1])
+        self.assertEqual(encoding["entity_token_type_ids"], [0, 0, 0])
+        self.assertEqual(
+            encoding["entity_position_ids"],
+            [
+                [
+                    3,
+                    4,
+                    5,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                ],
+                [
+                    8,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                ],
+                [
+                    11,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                    -1,
+                ],
+            ],
+        )
+
+    def test_text_pair_padding_pytorch_tensors(self):
+        tokenizer = LukeTokenizer.from_pretrained("studio-ousia/luke-base", return_token_type_ids=True)
+        sentence = "Top seed Ana Ivanovic said on Thursday"
+        sentence_pair = "She could hardly believe her luck."
+        entities = ["Ana Ivanovic", "Thursday"]
+        entities_pair = ["Dummy Entity"]
+        spans = [(9, 21), (30, 38)]
+        spans_pair = [(0, 3)]
+
+        encoding = tokenizer(
+            sentence,
+            sentence_pair,
+            entities=entities,
+            entities_pair=entities_pair,
+            entity_spans=spans,
+            entity_spans_pair=spans_pair,
+            return_token_type_ids=True,
+            padding="max_length",
+            max_length=30,
+            max_entity_length=16,
+            return_tensors="pt",
+        )
+
+        # test words
+        self.assertEqual(encoding["input_ids"].shape, (1, 30))
+        self.assertEqual(encoding["attention_mask"].shape, (1, 30))
+        self.assertEqual(encoding["token_type_ids"].shape, (1, 30))
+
+        # test entities
+        self.assertEqual(encoding["entity_ids"].shape, (1, 16))
+        self.assertEqual(encoding["entity_attention_mask"].shape, (1, 16))
+        self.assertEqual(encoding["entity_token_type_ids"].shape, (1, 16))
+        self.assertEqual(encoding["entity_position_ids"].shape, (1, 16, tokenizer.max_mention_length))
+
     def test_entity_classification_no_padding_or_truncation(self):
         tokenizer = LukeTokenizer.from_pretrained("studio-ousia/luke-base", task="entity_classification")
         sentence = "Top seed Ana Ivanovic said on Thursday she could hardly believe her luck as a fortuitous netcord helped the new world number one avoid a humiliating second- round exit at Wimbledon ."
@@ -174,8 +511,7 @@ class LukeTokenizerIntegrationTests(unittest.TestCase):
             "<s>Top seed Ana Ivanovic said on Thursday<ent> she<ent> could hardly believe her luck as a fortuitous netcord helped the new world number one avoid a humiliating second- round exit at Wimbledon.</s>",
         )
         self.assertEqual(
-            tokenizer.decode(encoding["input_ids"][9:12], spaces_between_special_tokens=False),
-            '<ent> she<ent>'
+            tokenizer.decode(encoding["input_ids"][9:12], spaces_between_special_tokens=False), "<ent> she<ent>"
         )
 
         # test entities
@@ -261,11 +597,10 @@ class LukeTokenizerIntegrationTests(unittest.TestCase):
         )
         self.assertEqual(
             tokenizer.decode(encoding["input_ids"][3:8], spaces_between_special_tokens=False),
-            '<ent> Ana Ivanovic<ent>'
+            "<ent> Ana Ivanovic<ent>",
         )
         self.assertEqual(
-            tokenizer.decode(encoding["input_ids"][11:14], spaces_between_special_tokens=False),
-            '<ent2> she<ent2>'
+            tokenizer.decode(encoding["input_ids"][11:14], spaces_between_special_tokens=False), "<ent2> she<ent2>"
         )
 
         self.assertEqual(encoding["entity_ids"], [2, 3])

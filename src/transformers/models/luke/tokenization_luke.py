@@ -1004,21 +1004,20 @@ class LukeTokenizer(RobertaTokenizer):
         if entity_ids is not None:
             total_entity_len = 0
             num_invalid_entities = 0
-            valid_entity_ids, valid_entity_token_spans = zip(
-                *[(ent_id, span) for ent_id, span in zip(entity_ids, entity_token_spans) if span[1] <= len(ids)]
-            )
+            valid_entity_ids = [ent_id for ent_id, span in zip(entity_ids, entity_token_spans) if span[1] <= len(ids)]
+            valid_entity_token_spans = [span for span in entity_token_spans if span[1] <= len(ids)]
+
             total_entity_len += len(valid_entity_ids)
             num_invalid_entities += len(entity_ids) - len(valid_entity_ids)
 
             valid_pair_entity_ids, valid_pair_entity_token_spans = None, None
             if pair_entity_ids is not None:
-                valid_pair_entity_ids, valid_pair_entity_token_spans = zip(
-                    *[
-                        (ent_id, span)
-                        for ent_id, span in zip(pair_entity_ids, pair_entity_token_spans)
-                        if span[1] <= len(pair_ids)
-                    ]
-                )
+                valid_pair_entity_ids = [
+                    ent_id
+                    for ent_id, span in zip(pair_entity_ids, pair_entity_token_spans)
+                    if span[1] <= len(pair_ids)
+                ]
+                valid_pair_entity_token_spans = [span for span in pair_entity_token_spans if span[1] <= len(pair_ids)]
                 total_entity_len += len(valid_pair_entity_ids)
                 num_invalid_entities += len(pair_entity_ids) - len(valid_pair_entity_ids)
 
