@@ -141,6 +141,7 @@ class EntityClassificationOutput(ModelOutput):
     loss: Optional[torch.FloatTensor] = None
     logits: torch.FloatTensor = None
     hidden_states: Optional[Tuple[torch.FloatTensor]] = None
+    word_hidden_states: Optional[Tuple[torch.FloatTensor]] = None
     entity_hidden_states: Optional[Tuple[torch.FloatTensor]] = None
     attentions: Optional[Tuple[torch.FloatTensor]] = None
 
@@ -172,6 +173,7 @@ class EntityPairClassificationOutput(ModelOutput):
     loss: Optional[torch.FloatTensor] = None
     logits: torch.FloatTensor = None
     hidden_states: Optional[Tuple[torch.FloatTensor]] = None
+    word_hidden_states: Optional[Tuple[torch.FloatTensor]] = None
     entity_hidden_states: Optional[Tuple[torch.FloatTensor]] = None
     attentions: Optional[Tuple[torch.FloatTensor]] = None
 
@@ -203,6 +205,7 @@ class EntitySpanClassificationOutput(ModelOutput):
     loss: Optional[torch.FloatTensor] = None
     logits: torch.FloatTensor = None
     hidden_states: Optional[Tuple[torch.FloatTensor]] = None
+    word_hidden_states: Optional[Tuple[torch.FloatTensor]] = None
     entity_hidden_states: Optional[Tuple[torch.FloatTensor]] = None
     attentions: Optional[Tuple[torch.FloatTensor]] = None
 
@@ -236,13 +239,16 @@ class LukeEmbeddings(nn.Module):
         )
 
     def forward(
-        self, input_ids=None, token_type_ids=None, position_ids=None, inputs_embeds=None,
+        self,
+        input_ids=None,
+        token_type_ids=None,
+        position_ids=None,
+        inputs_embeds=None,
     ):
         if position_ids is None:
             if input_ids is not None:
                 # Create the position ids from the input token ids. Any padded tokens remain padded.
-                position_ids = create_position_ids_from_input_ids(
-                    input_ids, self.padding_idx).to(input_ids.device)
+                position_ids = create_position_ids_from_input_ids(input_ids, self.padding_idx).to(input_ids.device)
             else:
                 position_ids = self.create_position_ids_from_inputs_embeds(inputs_embeds)
 
@@ -446,7 +452,14 @@ class LukeSelfAttention(nn.Module):
         else:
             output_entity_hidden_states = context_layer[:, word_size:, :]
 
-        outputs = (output_word_hidden_states, output_entity_hidden_states, attention_probs) if output_attentions else (output_word_hidden_states, output_entity_hidden_states,)
+        outputs = (
+            (output_word_hidden_states, output_entity_hidden_states, attention_probs)
+            if output_attentions
+            else (
+                output_word_hidden_states,
+                output_entity_hidden_states,
+            )
+        )
 
         return outputs
 
@@ -520,13 +533,15 @@ class LukeAttention(nn.Module):
 
         attention_output = self.output(concat_self_outputs, concat_hidden_states)
 
-        word_attention_output = attention_output[:, : word_size, :]
+        word_attention_output = attention_output[:, :word_size, :]
         if entity_hidden_states is None:
             entity_attention_output = None
         else:
             entity_attention_output = attention_output[:, word_size:, :]
 
-        outputs = (word_attention_output, entity_attention_output) + self_outputs[2:]  # add attentions if we output them
+        outputs = (word_attention_output, entity_attention_output) + self_outputs[
+            2:
+        ]  # add attentions if we output them
 
         return outputs
 
@@ -600,7 +615,7 @@ class LukeLayer(nn.Module):
         layer_output = apply_chunking_to_forward(
             self.feed_forward_chunk, self.chunk_size_feed_forward, self.seq_len_dim, concat_attention_output
         )
-        word_layer_output = layer_output[:, : word_size, :]
+        word_layer_output = layer_output[:, :word_size, :]
         if entity_hidden_states is None:
             entity_layer_output = None
         else:
@@ -1070,12 +1085,12 @@ class LukeForEntityClassification(nn.Module):
     def forward(
         self,
         input_ids,
-        attention_mask,
-        token_type_ids,
         entity_ids,
-        entity_attention_mask,
-        entity_token_type_ids,
         entity_position_ids,
+        attention_mask=None,
+        token_type_ids=None,
+        entity_attention_mask=None,
+        entity_token_type_ids=None,
         labels=None,
         return_dict=None,
     ):
@@ -1097,7 +1112,7 @@ class LukeForEntityClassification(nn.Module):
             entity_attention_mask=entity_attention_mask,
             entity_token_type_ids=entity_token_type_ids,
             entity_position_ids=entity_position_ids,
-            return_dict=return_dict,
+            return_dict=True,
         )
 
         feature_vector = outputs.entity_last_hidden_state[:, 0, :]
@@ -1111,15 +1126,22 @@ class LukeForEntityClassification(nn.Module):
                 loss = F.binary_cross_entropy_with_logits(logits.view(-1), labels.view(-1).type_as(logits))
 
         if not return_dict:
-            output = (logits,) + outputs[2:]
+            output = (
+                logits,
+                outputs.hidden_states,
+                outputs.word_hidden_states,
+                outputs.entity_hidden_states,
+                outputs.attentions,
+            )
             return ((loss,) + output) if loss is not None else output
 
         return EntityClassificationOutput(
             loss=loss,
             logits=logits,
-            hidden_states=None,  # currently not supported
-            entity_hidden_states=None,  # currently not supported
-            attentions=None,  # currently not supported
+            hidden_states=outputs.hidden_states,
+            word_hidden_states=outputs.word_hidden_states,
+            entity_hidden_states=outputs.entity_hidden_states,
+            attentions=outputs.attentions,
         )
 
 
@@ -1145,12 +1167,12 @@ class LukeForEntityPairClassification(nn.Module):
     def forward(
         self,
         input_ids,
-        attention_mask,
-        token_type_ids,
         entity_ids,
-        entity_attention_mask,
-        entity_token_type_ids,
         entity_position_ids,
+        attention_mask=None,
+        token_type_ids=None,
+        entity_attention_mask=None,
+        entity_token_type_ids=None,
         labels=None,
         return_dict=None,
     ):
@@ -1172,11 +1194,12 @@ class LukeForEntityPairClassification(nn.Module):
             entity_attention_mask=entity_attention_mask,
             entity_token_type_ids=entity_token_type_ids,
             entity_position_ids=entity_position_ids,
-            return_dict=return_dict,
+            return_dict=True,
         )
 
-        feature_vector = torch.cat([outputs.entity_last_hidden_state[:, 0, :],
-                                    outputs.entity_last_hidden_state[1][:, 1, :]], dim=1)
+        feature_vector = torch.cat(
+            [outputs.entity_last_hidden_state[:, 0, :], outputs.entity_last_hidden_state[1][:, 1, :]], dim=1
+        )
         feature_vector = self.dropout(feature_vector)
         logits = self.classifier(feature_vector)
 
@@ -1187,15 +1210,22 @@ class LukeForEntityPairClassification(nn.Module):
                 loss = F.binary_cross_entropy_with_logits(logits.view(-1), labels.view(-1).type_as(logits))
 
         if not return_dict:
-            output = (logits,) + outputs[2:]
+            output = (
+                logits,
+                outputs.hidden_states,
+                outputs.word_hidden_states,
+                outputs.entity_hidden_states,
+                outputs.attentions,
+            )
             return ((loss,) + output) if loss is not None else output
 
         return EntityPairClassificationOutput(
             loss=loss,
             logits=logits,
-            hidden_states=None,  # currently not supported
-            entity_hidden_states=None,  # currently not supported
-            attentions=None,  # currently not supported
+            hidden_states=outputs.hidden_states,
+            word_hidden_states=outputs.word_hidden_states,
+            entity_hidden_states=outputs.entity_hidden_states,
+            attentions=outputs.attentions,
         )
 
 
@@ -1221,14 +1251,14 @@ class LukeForEntitySpanClassification(nn.Module):
     def forward(
         self,
         input_ids,
-        attention_mask,
-        token_type_ids,
         entity_ids,
-        entity_attention_mask,
-        entity_token_type_ids,
         entity_position_ids,
         entity_start_positions,
         entity_end_positions,
+        attention_mask=None,
+        token_type_ids=None,
+        entity_attention_mask=None,
+        entity_token_type_ids=None,
         labels=None,
         return_dict=None,
     ):
@@ -1254,7 +1284,7 @@ class LukeForEntitySpanClassification(nn.Module):
             entity_attention_mask=entity_attention_mask,
             entity_token_type_ids=entity_token_type_ids,
             entity_position_ids=entity_position_ids,
-            return_dict=return_dict,
+            return_dict=True,
         )
         hidden_size = outputs.last_hidden_state.size(-1)
 
@@ -1274,13 +1304,20 @@ class LukeForEntitySpanClassification(nn.Module):
                 loss = F.binary_cross_entropy_with_logits(logits.view(-1), labels.view(-1).type_as(logits))
 
         if not return_dict:
-            output = (logits,) + outputs[2:]
+            output = (
+                logits,
+                outputs.hidden_states,
+                outputs.word_hidden_states,
+                outputs.entity_hidden_states,
+                outputs.attentions,
+            )
             return ((loss,) + output) if loss is not None else output
 
         return EntitySpanClassificationOutput(
             loss=loss,
             logits=logits,
-            hidden_states=None,  # currently not supported
-            entity_hidden_states=None,  # currently not supported
-            attentions=None,  # currently not supported
+            hidden_states=outputs.hidden_states,
+            word_hidden_states=outputs.word_hidden_states,
+            entity_hidden_states=outputs.entity_hidden_states,
+            attentions=outputs.attentions,
         )
