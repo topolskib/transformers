@@ -228,7 +228,6 @@ class LukeEmbeddings(nn.Module):
 
         # position_ids (1, len position emb) is contiguous in memory and exported when serialized
         self.register_buffer("position_ids", torch.arange(config.max_position_embeddings).expand((1, -1)))
-        self.position_embedding_type = getattr(config, "position_embedding_type", "absolute")
 
         # End copy
         self.padding_idx = config.pad_token_id
@@ -260,12 +259,11 @@ class LukeEmbeddings(nn.Module):
 
         if inputs_embeds is None:
             inputs_embeds = self.word_embeddings(input_ids)
+
+        position_embeddings = self.position_embeddings(position_ids)
         token_type_embeddings = self.token_type_embeddings(token_type_ids)
 
-        embeddings = inputs_embeds + token_type_embeddings
-        if self.position_embedding_type == "absolute":
-            position_embeddings = self.position_embeddings(position_ids)
-            embeddings += position_embeddings
+        embeddings = inputs_embeds + position_embeddings + token_type_embeddings
         embeddings = self.LayerNorm(embeddings)
         embeddings = self.dropout(embeddings)
         return embeddings
@@ -347,7 +345,7 @@ class LukeSelfAttention(nn.Module):
         self.key = nn.Linear(config.hidden_size, self.all_head_size)
         self.value = nn.Linear(config.hidden_size, self.all_head_size)
 
-        if config.use_entity_aware_attention:
+        if self.use_entity_aware_attention:
             self.w2e_query = nn.Linear(config.hidden_size, self.all_head_size)
             self.e2w_query = nn.Linear(config.hidden_size, self.all_head_size)
             self.e2e_query = nn.Linear(config.hidden_size, self.all_head_size)
@@ -430,14 +428,10 @@ class LukeSelfAttention(nn.Module):
         else:
             output_entity_hidden_states = context_layer[:, word_size:, :]
 
-        outputs = (
-            (output_word_hidden_states, output_entity_hidden_states, attention_probs)
-            if output_attentions
-            else (
-                output_word_hidden_states,
-                output_entity_hidden_states,
-            )
-        )
+        if output_attentions:
+            outputs = (output_word_hidden_states, output_entity_hidden_states, attention_probs)
+        else:
+            outputs = (output_word_hidden_states, output_entity_hidden_states)
 
         return outputs
 
@@ -466,7 +460,7 @@ class LukeAttention(nn.Module):
         self.pruned_heads = set()
 
     def prune_heads(self, heads):
-        raise NotImplementedError("LUKE does not support to prune attention heads")
+        raise NotImplementedError("LUKE does not support the pruning of attention heads")
 
     def forward(
         self,
@@ -658,8 +652,8 @@ class LukeEncoder(nn.Module):
             if entity_hidden_states is None:
                 hidden_states = word_hidden_states
             else:
-                hidden_states = torch.cat([word_hidden_states, entity_hidden_states], dim=1)
                 entity_hidden_states = layer_outputs[1]
+                hidden_states = torch.cat([word_hidden_states, entity_hidden_states], dim=1)
 
             if output_attentions:
                 all_self_attentions = all_self_attentions + (layer_outputs[2],)
@@ -863,7 +857,7 @@ class LukeModel(LukePreTrainedModel):
         self.entity_embeddings.entity_embeddings = value
 
     def _prune_heads(self, heads_to_prune):
-        raise NotImplementedError("LUKE does not support to prune attention heads")
+        raise NotImplementedError("LUKE does not support the pruning of attention heads")
 
     @add_start_docstrings_to_model_forward(LUKE_INPUTS_DOCSTRING.format("(batch_size, sequence_length)"))
     # @add_code_sample_docstrings(
@@ -985,7 +979,7 @@ class LukeModel(LukePreTrainedModel):
         )
 
     def _compute_extended_attention_mask(
-        self, word_attention_mask: torch.LongTensor, entity_attention_mask: torch.LongTensor
+        self, word_attention_mask: torch.LongTensor, entity_attention_mask: Optional[torch.LongTensor]
     ):
         attention_mask = word_attention_mask
         if entity_attention_mask is not None:
