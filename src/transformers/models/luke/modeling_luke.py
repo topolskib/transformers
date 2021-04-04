@@ -38,8 +38,6 @@ from ...modeling_outputs import (
 from ...modeling_utils import (
     PreTrainedModel,
     apply_chunking_to_forward,
-    find_pruneable_heads_and_indices,
-    prune_linear_layer,
 )
 from ...utils import logging
 from .configuration_luke import LukeConfig
@@ -355,10 +353,6 @@ class LukeSelfAttention(nn.Module):
             self.e2e_query = nn.Linear(config.hidden_size, self.all_head_size)
 
         self.dropout = nn.Dropout(config.attention_probs_dropout_prob)
-        # self.position_embedding_type = getattr(config, "position_embedding_type", "absolute")
-        # if self.position_embedding_type == "relative_key" or self.position_embedding_type == "relative_key_query":
-        #     self.max_position_embeddings = config.max_position_embeddings
-        #     self.distance_embedding = nn.Embedding(2 * config.max_position_embeddings - 1, self.attention_head_size)
 
     def transpose_for_scores(self, x):
         new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
@@ -407,22 +401,6 @@ class LukeSelfAttention(nn.Module):
         else:
             query_layer = self.transpose_for_scores(self.query(concat_hidden_states))
             attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
-
-        # if self.position_embedding_type == "relative_key" or self.position_embedding_type == "relative_key_query":
-        #     seq_length = hidden_states.size()[1]
-        #     position_ids_l = torch.arange(seq_length, dtype=torch.long, device=hidden_states.device).view(-1, 1)
-        #     position_ids_r = torch.arange(seq_length, dtype=torch.long, device=hidden_states.device).view(1, -1)
-        #     distance = position_ids_l - position_ids_r
-        #     positional_embedding = self.distance_embedding(distance + self.max_position_embeddings - 1)
-        #     positional_embedding = positional_embedding.to(dtype=query_layer.dtype)  # fp16 compatibility
-
-        #     if self.position_embedding_type == "relative_key":
-        #         relative_position_scores = torch.einsum("bhld,lrd->bhlr", query_layer, positional_embedding)
-        #         attention_scores = attention_scores + relative_position_scores
-        #     elif self.position_embedding_type == "relative_key_query":
-        #         relative_position_scores_query = torch.einsum("bhld,lrd->bhlr", query_layer, positional_embedding)
-        #         relative_position_scores_key = torch.einsum("bhrd,lrd->bhlr", key_layer, positional_embedding)
-        #         attention_scores = attention_scores + relative_position_scores_query + relative_position_scores_key
 
         attention_scores = attention_scores / math.sqrt(self.attention_head_size)
         if attention_mask is not None:
@@ -488,23 +466,7 @@ class LukeAttention(nn.Module):
         self.pruned_heads = set()
 
     def prune_heads(self, heads):
-        raise NotImplementedError()
-        # if len(heads) == 0:
-        #     return
-        # heads, index = find_pruneable_heads_and_indices(
-        #     heads, self.self.num_attention_heads, self.self.attention_head_size, self.pruned_heads
-        # )
-
-        # # Prune linear layers
-        # self.self.query = prune_linear_layer(self.self.query, index)
-        # self.self.key = prune_linear_layer(self.self.key, index)
-        # self.self.value = prune_linear_layer(self.self.value, index)
-        # self.output.dense = prune_linear_layer(self.output.dense, index, dim=1)
-
-        # # Update hyper params and store pruned heads
-        # self.self.num_attention_heads = self.self.num_attention_heads - len(heads)
-        # self.self.all_head_size = self.self.attention_head_size * self.self.num_attention_heads
-        # self.pruned_heads = self.pruned_heads.union(heads)
+        raise NotImplementedError("LUKE does not support to prune attention heads")
 
     def forward(
         self,
@@ -901,13 +863,7 @@ class LukeModel(LukePreTrainedModel):
         self.entity_embeddings.entity_embeddings = value
 
     def _prune_heads(self, heads_to_prune):
-        raise NotImplementedError()
-        # """
-        # Prunes heads of the model. heads_to_prune: dict of {layer_num: list of heads to prune in this layer} See base
-        # class PreTrainedModel
-        # """
-        # for layer, heads in heads_to_prune.items():
-        #     self.encoder.layer[layer].attention.prune_heads(heads)
+        raise NotImplementedError("LUKE does not support to prune attention heads")
 
     @add_start_docstrings_to_model_forward(LUKE_INPUTS_DOCSTRING.format("(batch_size, sequence_length)"))
     # @add_code_sample_docstrings(
