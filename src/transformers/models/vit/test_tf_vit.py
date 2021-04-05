@@ -1,15 +1,17 @@
-from transformers import ViTConfig, TFViTModel
 import tensorflow as tf
+
+from transformers import TFViTModel, ViTConfig
+
 
 config = ViTConfig()
 model = TFViTModel(config)
 
 # TF Conv2D op currently only supports the NHWC tensor format on CPU.
 # See https://github.com/onnx/onnx-tensorflow/issues/535
-# So we provide channels as last dimension, as we are testing this on CPU.  
-pixel_values = tf.random.normal((1,224,224,3))
+# So we provide channels as last dimension, as we are testing this on CPU.
+pixel_values = tf.random.normal((1, 224, 224, 3))
 
-# test with dictionary 
+# test with dictionary
 inputs = {"input_ids": None, "pixel_values": pixel_values}
 outputs = model(inputs)
 
@@ -18,7 +20,7 @@ print(outputs.last_hidden_state.shape)
 
 # test with dummy inputs
 # not working right now since dummy inputs are set to 30x30
-#outputs = model(model.dummy_inputs)
+# outputs = model(model.dummy_inputs)
 
 # test with symbolic inputs
 input_ids = tf.keras.Input(batch_shape=(2, 512), name="input_ids", dtype="int32")

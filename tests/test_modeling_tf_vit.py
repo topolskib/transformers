@@ -14,33 +14,29 @@
 # limitations under the License.
 
 
-
-import unittest
 import tempfile
+import unittest
 
-from transformers import is_tf_available, ViTConfig
-from transformers.file_utils import cached_property, is_torch_available
-# TODO uncomment once available
-#, is_vision_available
-from transformers.testing_utils import require_tf, slow, torch_device
-# require_vision, 
+from transformers import ViTConfig
+from transformers.file_utils import cached_property, is_tf_available, is_vision_available
+from transformers.testing_utils import require_tf, require_vision, slow
 
 from .test_configuration_common import ConfigTester
-from .test_modeling_tf_common import TFModelTesterMixin, ids_tensor, floats_tensor
+from .test_modeling_tf_common import TFModelTesterMixin, floats_tensor, ids_tensor
 
 
 if is_tf_available():
     import tensorflow as tf
 
-    from transformers import ViTConfig, TFViTForImageClassification, TFViTModel
-    from transformers.models.vit.modeling_tf_vit import to_2tuple
+    from transformers import TFViTForImageClassification, TFViTModel
+    from transformers.models.vit.modeling_tf_vit import TF_VIT_PRETRAINED_MODEL_ARCHIVE_LIST, to_2tuple
 
 
-# TODO: uncomment once available
-#if is_vision_available():
-from PIL import Image
+if is_vision_available():
+    from PIL import Image
 
-#from transformers import ViTFeatureExtractor
+    from transformers import ViTFeatureExtractor
+
 
 # TODO: remove any "input_ids" from this file
 
@@ -50,7 +46,7 @@ class TFViTModelTester:
         self,
         parent,
         batch_size=3,
-        image_size=30, 
+        image_size=30,
         patch_size=2,
         num_channels=3,
         is_training=True,
@@ -85,7 +81,6 @@ class TFViTModelTester:
         self.initializer_range = initializer_range
         self.scope = scope
 
-
     def prepare_config_and_inputs(self):
         # we provide channels as last dimension
         pixel_values = floats_tensor([self.batch_size, self.image_size, self.image_size, self.num_channels])
@@ -110,7 +105,6 @@ class TFViTModelTester:
         )
 
         return config, pixel_values, labels
-        
 
     def create_and_check_model(self, config, pixel_values, labels):
         model = TFViTModel(config=config)
@@ -126,9 +120,9 @@ class TFViTModelTester:
     def create_and_check_for_image_classification(self, config, pixel_values, labels):
         config.num_labels = self.type_sequence_label_size
         model = TFViTForImageClassification(config)
-        inputs = {"input_ids": None, "pixel_values": pixel_values, "labels": labels}  
+        inputs = {"input_ids": None, "pixel_values": pixel_values, "labels": labels}
         result = model(inputs)
-        
+
         self.parent.assertEqual(result.logits.shape, (self.batch_size, self.type_sequence_label_size))
 
     def prepare_config_and_inputs_for_common(self):
@@ -148,7 +142,6 @@ class TFViTModelTest(TFModelTesterMixin, unittest.TestCase):
     Here we also overwrite some of the tests of test_modeling_tf_common.py, as ViT does not use input_ids, inputs_embeds,
     attention_mask and seq_length.
     """
-
 
     all_model_classes = (
         (
@@ -181,7 +174,7 @@ class TFViTModelTest(TFModelTesterMixin, unittest.TestCase):
     def test_inputs_embeds(self):
         # ViT does not use inputs_embeds
         pass
-    
+
     def test_lm_head_model_random_no_beam_search_generate(self):
         # ViT does not have input_ids and is not a language model
         pass
@@ -193,7 +186,7 @@ class TFViTModelTest(TFModelTesterMixin, unittest.TestCase):
     def test_attention_outputs(self):
         config, inputs_dict = self.model_tester.prepare_config_and_inputs_for_common()
         config.return_dict = True
-        
+
         # in ViT, the seq_len equals the number of patches + 1 (we add 1 for the [CLS] token)
         image_size = to_2tuple(self.model_tester.image_size)
         patch_size = to_2tuple(self.model_tester.patch_size)
@@ -221,12 +214,6 @@ class TFViTModelTest(TFModelTesterMixin, unittest.TestCase):
             out_len = len(outputs)
             self.assertEqual(config.output_hidden_states, False)
             check_encoder_attentions_output(outputs)
-
-            if self.is_encoder_decoder:
-                model = model_class(config)
-                outputs = model(self._prepare_for_class(inputs_dict, model_class))
-                self.assertEqual(config.output_hidden_states, False)
-                check_decoder_attentions_output(outputs)
 
             # Check that output attentions can also be changed via the config
             del inputs_dict["output_attentions"]
@@ -277,7 +264,7 @@ class TFViTModelTest(TFModelTesterMixin, unittest.TestCase):
             del inputs_dict["output_hidden_states"]
             config.output_hidden_states = True
             check_hidden_states_output(config, inputs_dict, model_class)
-    
+
     def test_compile_tf_model(self):
         config, inputs_dict = self.model_tester.prepare_config_and_inputs_for_common()
         optimizer = tf.keras.optimizers.Adam(learning_rate=3e-5, epsilon=1e-08, clipnorm=1.0)
@@ -286,11 +273,19 @@ class TFViTModelTest(TFModelTesterMixin, unittest.TestCase):
 
         for model_class in self.all_model_classes:
             # ViT uses pixel_values instead of input_ids
-            input_ids = tf.keras.Input(batch_shape=(self.model_tester.batch_size, 512), name="input_ids", dtype="int32")
-            pixel_values = tf.keras.Input(batch_shape=(self.model_tester.batch_size, self.model_tester.image_size, 
-                                                         self.model_tester.image_size, self.model_tester.num_channels), 
-                                         name="pixel_values", 
-                                         dtype="float32")
+            input_ids = tf.keras.Input(
+                batch_shape=(self.model_tester.batch_size, 512), name="input_ids", dtype="int32"
+            )
+            pixel_values = tf.keras.Input(
+                batch_shape=(
+                    self.model_tester.batch_size,
+                    self.model_tester.image_size,
+                    self.model_tester.image_size,
+                    self.model_tester.num_channels,
+                ),
+                name="pixel_values",
+                dtype="float32",
+            )
 
             # Prepare our model
             model = model_class(config)
@@ -309,43 +304,40 @@ class TFViTModelTest(TFModelTesterMixin, unittest.TestCase):
             # Compile extended model
             extended_model = tf.keras.Model(inputs=[input_ids, pixel_values], outputs=[outputs])
             extended_model.compile(optimizer=optimizer, loss=loss, metrics=[metric])
-    
+
     @slow
     def test_model_from_pretrained(self):
-        # TODO add once available
-        # model = TFViTModel.from_pretrained("google/vit-base-patch16-224")
-        # self.assertIsNotNone(model)
-        pass
+        for model_name in TF_VIT_PRETRAINED_MODEL_ARCHIVE_LIST[:1]:
+            model = TFViTModel.from_pretrained(model_name)
+            self.assertIsNotNone(model)
+
 
 # We will verify our results on an image of cute cats
 def prepare_img():
-    url = "http://images.cocodataset.org/val2017/000000039769.jpg"
-    img = Image.open(requests.get(url, stream=True).raw)
-    return img
+    image = Image.open("./tests/fixtures/tests_samples/COCO/cats.png")
+    return image
 
 
-# @require_tf
-# # TODO uncomment once available
-# #@require_vision
-# class TFViTModelIntegrationTest(unittest.TestCase):
-#     @cached_property
-#     def default_feature_extractor(self):
-#         return ViTFeatureExtractor.from_pretrained("google/vit-base-patch16-224") if is_vision_available() else None
-    
-#     @slow
-#     def test_inference_image_classification_head(self):
-#         model = TFViTForImageClassification.from_pretrained("google/vit-base-patch16-224").to(torch_device)
-        
-#         feature_extractor = self.default_feature_extractor
-#         image = prepare_img()
-#         inputs = feature_extractor(images=image, return_tensors="tf").to(torch_device)
+@require_tf
+@require_vision
+class TFViTModelIntegrationTest(unittest.TestCase):
+    @cached_property
+    def default_feature_extractor(self):
+        return ViTFeatureExtractor.from_pretrained("google/vit-base-patch16-224") if is_vision_available() else None
 
-#         # forward pass
-#         outputs = model(input_ids=None, pixel_values=pixel_values)
-        
-#         # verify the logits
-#         expected_shape = torch.Size((1, 1000))
-#         self.assertEqual(outputs.logits.shape, expected_shape)
+    @slow
+    def test_inference_image_classification_head(self):
+        model = TFViTForImageClassification.from_pretrained("google/vit-base-patch16-224")
 
-#         expected_slice = tf.constant([-0.2744, 0.8215, -0.0836])
-#         tf.debugging.assert_near(output[0, :3], expected_slice, atol=1e-4)
+        feature_extractor = self.default_feature_extractor
+        image = prepare_img()
+        inputs = feature_extractor(images=image, return_tensors="tf")
+
+        # forward pass
+        outputs = model(inputs)
+
+        # verify the logits
+        self.assertEqual(outputs.logits.shape, [1, 1000])
+
+        expected_slice = tf.constant([-0.2744, 0.8215, -0.0836])
+        tf.debugging.assert_near(outputs[0, :3], expected_slice, atol=1e-4)

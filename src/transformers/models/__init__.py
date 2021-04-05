@@ -17,7 +17,6 @@
 # limitations under the License.
 
 from . import (
-    vit,
     albert,
     auto,
     bart,

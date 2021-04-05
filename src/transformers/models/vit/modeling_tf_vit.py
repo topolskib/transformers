@@ -15,31 +15,21 @@
 """ TF 2.0 ViT model. """
 
 
-
-import math
-from typing import Any, Dict, Optional, Tuple, Union
 import collections
+import math
 from itertools import repeat
+from typing import Optional, Tuple, Union
 
 import numpy as np
 import tensorflow as tf
 
 from ...activations_tf import get_tf_activation
-from ...file_utils import (
-    add_code_sample_docstrings,
-    add_start_docstrings,
-    add_start_docstrings_to_model_forward,
-)
-from ...modeling_tf_outputs import (
-    TFBaseModelOutput,
-    TFBaseModelOutputWithPooling,
-    TFSequenceClassifierOutput,
-)
+from ...file_utils import add_start_docstrings, add_start_docstrings_to_model_forward, replace_return_docstrings
+from ...modeling_tf_outputs import TFBaseModelOutput, TFBaseModelOutputWithPooling, TFSequenceClassifierOutput
 from ...modeling_tf_utils import (
     TFModelInputType,
     TFPreTrainedModel,
     TFSequenceClassificationLoss,
-    TFSequenceSummary,
     get_initializer,
     input_processing,
     keras_serializable,
@@ -77,7 +67,7 @@ to_2tuple = _ntuple(2)
 class TFViTEmbeddings(tf.keras.layers.Layer):
     """
     Construct the cls token, position and patch embeddings.
-    
+
     Based on timm implementation, which can be found here:
     https://github.com/rwightman/pytorch-image-models/blob/master/timm/models/vision_transformer.py
     """
@@ -96,15 +86,16 @@ class TFViTEmbeddings(tf.keras.layers.Layer):
     def build(self, input_shape: tf.TensorShape):
         self.cls_token = self.add_weight(
             name="cls_token",
-            shape=[1, 1, self.hidden_size], 
+            shape=[1, 1, self.hidden_size],
             initializer=get_initializer(self.initializer_range),
         )
         with tf.name_scope("patch_embeddings"):
-            self.patch_embeddings = PatchEmbeddings(image_size=self.image_size,
-                                                    patch_size=self.patch_size,
-                                                    num_channels=self.num_channels,
-                                                    embed_dim=self.hidden_size,
-                                    )
+            self.patch_embeddings = PatchEmbeddings(
+                image_size=self.image_size,
+                patch_size=self.patch_size,
+                num_channels=self.num_channels,
+                embed_dim=self.hidden_size,
+            )
         with tf.name_scope("position_embeddings"):
             num_patches = self.patch_embeddings.num_patches
             self.position_embeddings = self.add_weight(
@@ -129,8 +120,8 @@ class TFViTEmbeddings(tf.keras.layers.Layer):
         assert pixel_values is not None
 
         batch_size = pixel_values.shape[0]
-        embeddings = self.patch_embeddings(pixel_values) 
-        
+        embeddings = self.patch_embeddings(pixel_values)
+
         cls_tokens = tf.tile(input=self.cls_token, multiples=[batch_size, 1, 1])
         embeddings = tf.concat([cls_tokens, embeddings], axis=1)
 
@@ -144,7 +135,7 @@ class TFViTEmbeddings(tf.keras.layers.Layer):
 class PatchEmbeddings(tf.keras.layers.Layer):
     """
     Image to Patch Embedding.
-    
+
     Based on timm implementation, which can be found here:
     https://github.com/rwightman/pytorch-image-models/blob/master/timm/models/vision_transformer.py
     """
@@ -161,11 +152,16 @@ class PatchEmbeddings(tf.keras.layers.Layer):
         self.embed_dim = embed_dim
 
     def build(self, input_shape: tf.TensorShape):
-        self.projection = tf.keras.layers.Conv2D(filters=self.embed_dim, kernel_size=self.patch_size, strides=self.patch_size,
-                                                     input_shape=input_shape, name="projection")
+        self.projection = tf.keras.layers.Conv2D(
+            filters=self.embed_dim,
+            kernel_size=self.patch_size,
+            strides=self.patch_size,
+            input_shape=input_shape,
+            name="projection",
+        )
 
         super().build(input_shape)
-    
+
     def call(self, pixel_values):
         # Conv2D only supports channels last data format
         batch_size, height, width, num_channels = pixel_values.shape
@@ -266,7 +262,7 @@ class TFViTSelfOutput(tf.keras.layers.Layer):
     The residual connection is defined in TFVitLayer instead of here (as is the case with other models), due to the
     layernorm applied before each block.
     """
-    
+
     def __init__(self, config: ViTConfig, **kwargs):
         super().__init__(**kwargs)
 
@@ -362,8 +358,12 @@ class TFViTLayer(tf.keras.layers.Layer):
         self.attention = TFViTAttention(config, name="attention")
         self.intermediate = TFViTIntermediate(config, name="intermediate")
         self.bert_output = TFViTOutput(config, name="output")
-        self.layernorm_before  = tf.keras.layers.LayerNormalization(epsilon=config.layer_norm_eps, name="layernorm_before")
-        self.layernorm_after = tf.keras.layers.LayerNormalization(epsilon=config.layer_norm_eps, name="layernorm_after")
+        self.layernorm_before = tf.keras.layers.LayerNormalization(
+            epsilon=config.layer_norm_eps, name="layernorm_before"
+        )
+        self.layernorm_after = tf.keras.layers.LayerNormalization(
+            epsilon=config.layer_norm_eps, name="layernorm_after"
+        )
 
     def call(
         self,
@@ -389,10 +389,13 @@ class TFViTLayer(tf.keras.layers.Layer):
         layer_output = self.layernorm_after(hidden_states)
 
         intermediate_output = self.intermediate(hidden_states=attention_output)
-        layer_output = self.bert_output(hidden_states=intermediate_output, input_tensor=attention_output, training=training)
+        layer_output = self.bert_output(
+            hidden_states=intermediate_output, input_tensor=attention_output, training=training
+        )
         outputs = (layer_output,) + attention_outputs[1:]  # add attentions if we output them
 
         return outputs
+
 
 class TFViTEncoder(tf.keras.layers.Layer):
     def __init__(self, config: ViTConfig, **kwargs):
@@ -477,7 +480,7 @@ class TFViTMainLayer(tf.keras.layers.Layer):
         pixel_values: tf.Tensor = None,
         **kwargs,
     ) -> Union[TFBaseModelOutput, Tuple[tf.Tensor]]:
-        
+
         inputs = input_processing(
             func=self.call,
             config=self.config,
@@ -507,7 +510,7 @@ class TFViTMainLayer(tf.keras.layers.Layer):
         # So we can broadcast to [batch_size, num_heads, from_seq_length, to_seq_length]
         # this attention mask is more simple than the triangular masking of causal attention
         # used in OpenAI GPT, we just need to prepare the broadcast dimension here.
-        #extended_attention_mask = tf.reshape(inputs["attention_mask"], (input_shape[0], 1, 1, input_shape[1]))
+        # extended_attention_mask = tf.reshape(inputs["attention_mask"], (input_shape[0], 1, 1, input_shape[1]))
 
         # Since attention_mask is 1.0 for positions we want to attend and 0.0 for
         # masked positions, this operation will create a tensor which is 0.0 for
@@ -531,7 +534,7 @@ class TFViTMainLayer(tf.keras.layers.Layer):
 
         encoder_outputs = self.encoder(
             hidden_states=embedding_output,
-            attention_mask=None, # replaced extended_attention_mask
+            attention_mask=None,  # replaced extended_attention_mask
             head_mask=inputs["head_mask"],
             output_attentions=inputs["output_attentions"],
             output_hidden_states=inputs["output_hidden_states"],
@@ -542,9 +545,7 @@ class TFViTMainLayer(tf.keras.layers.Layer):
         sequence_output = encoder_outputs[0]
 
         if not inputs["return_dict"]:
-            return (
-                sequence_output,
-            ) + encoder_outputs[1:]
+            return (sequence_output,) + encoder_outputs[1:]
 
         return TFBaseModelOutput(
             last_hidden_state=sequence_output,
@@ -554,8 +555,9 @@ class TFViTMainLayer(tf.keras.layers.Layer):
 
 
 class TFViTPreTrainedModel(TFPreTrainedModel):
-    """An abstract class to handle weights initialization and
-    a simple interface for downloading and loading pretrained models.
+    """
+    An abstract class to handle weights initialization and a simple interface for downloading and loading pretrained
+    models.
     """
 
     config_class = ViTConfig
@@ -563,13 +565,12 @@ class TFViTPreTrainedModel(TFPreTrainedModel):
 
     @property
     def dummy_inputs(self):
-        pixel_values = tf.random.normal((1,30,30,3))
+        pixel_values = tf.random.normal((1, 30, 30, 3))
         dummy_inputs = {
             "input_ids": None,
             "pixel_values": pixel_values,
         }
         return dummy_inputs
-
 
 
 VIT_START_DOCSTRING = r"""
@@ -578,9 +579,9 @@ VIT_START_DOCSTRING = r"""
     generic methods the library implements for all its model (such as downloading or saving, resizing the input
     embeddings, pruning heads etc.)
 
-    This model is also a `tf.keras.Model <https://www.tensorflow.org/api_docs/python/tf/keras/Model>`__ subclass.
-    Use it as a regular TF 2.0 Keras Model and refer to the TF 2.0 documentation for all matter related to general
-    usage and behavior.
+    This model is also a `tf.keras.Model <https://www.tensorflow.org/api_docs/python/tf/keras/Model>`__ subclass. Use
+    it as a regular TF 2.0 Keras Model and refer to the TF 2.0 documentation for all matter related to general usage
+    and behavior.
 
     .. note::
 
@@ -589,11 +590,11 @@ VIT_START_DOCSTRING = r"""
         - having all inputs as keyword arguments (like PyTorch models), or
         - having all inputs as a list, tuple or dict in the first positional arguments.
 
-        This second option is useful when using :meth:`tf.keras.Model.fit` method which currently requires having
-        all the tensors in the first argument of the model call function: :obj:`model(inputs)`.
+        This second option is useful when using :meth:`tf.keras.Model.fit` method which currently requires having all
+        the tensors in the first argument of the model call function: :obj:`model(inputs)`.
 
-        If you choose this second option, there are three possibilities you can use to gather all the input Tensors
-        in the first positional argument :
+        If you choose this second option, there are three possibilities you can use to gather all the input Tensors in
+        the first positional argument :
 
         - a single Tensor with :obj:`input_ids` only and nothing else: :obj:`model(inputs_ids)`
         - a list of varying length with one or several input Tensors IN THE ORDER given in the docstring:
@@ -603,8 +604,9 @@ VIT_START_DOCSTRING = r"""
 
     Args:
         config (:class:`~transformers.ViTConfig`): Model configuration class with all the parameters of the model.
-            Initializing with a config file does not load the weights associated with the model, only the configuration.
-            Check out the :meth:`~transformers.PreTrainedModel.from_pretrained` method to load the model weights.
+            Initializing with a config file does not load the weights associated with the model, only the
+            configuration. Check out the :meth:`~transformers.PreTrainedModel.from_pretrained` method to load the model
+            weights.
 """
 
 VIT_INPUTS_DOCSTRING = r"""
@@ -670,12 +672,7 @@ class TFViTModel(TFViTPreTrainedModel):
         self.vit = TFViTMainLayer(config, name="vit")
 
     @add_start_docstrings_to_model_forward(VIT_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
-    @add_code_sample_docstrings(
-        tokenizer_class=_TOKENIZER_FOR_DOC,
-        checkpoint="google/vit-base-patch16-224",
-        output_type=TFBaseModelOutputWithPooling,
-        config_class=_CONFIG_FOR_DOC,
-    )
+    @replace_return_docstrings(output_type=TFBaseModelOutputWithPooling, config_class=_CONFIG_FOR_DOC)
     def call(
         self,
         input_ids: Optional[TFModelInputType] = None,
@@ -690,7 +687,26 @@ class TFViTModel(TFViTPreTrainedModel):
         training: Optional[bool] = False,
         **kwargs,
     ) -> Union[TFBaseModelOutputWithPooling, Tuple[tf.Tensor]]:
-        
+        r"""
+        Returns:
+
+        Examples::
+
+            >>> from transformers import ViTFeatureExtractor, TFViTModel
+            >>> from PIL import Image
+            >>> import requests
+
+            >>> url = 'http://images.cocodataset.org/val2017/000000039769.jpg'
+            >>> image = Image.open(requests.get(url, stream=True).raw)
+
+            >>> feature_extractor = ViTFeatureExtractor.from_pretrained('google/vit-base-patch16-224-in21k')
+            >>> model = TFViTModel.from_pretrained('google/vit-base-patch16-224')
+
+            >>> inputs = feature_extractor(images=image, return_tensors="tf")
+            >>> outputs = model(inputs)
+            >>> last_hidden_states = outputs.last_hidden_state
+        """
+
         inputs = input_processing(
             func=self.call,
             config=self.config,
@@ -760,8 +776,9 @@ class TFViTClassificationHead(tf.keras.layers.Layer):
 
 
 @add_start_docstrings(
-    """ViT Model transformer with a sequence classification/regression head on top
-    e.g., for GLUE tasks. """,
+    """
+    ViT Model transformer with a sequence classification/regression head on top e.g., for GLUE tasks.
+    """,
     VIT_START_DOCSTRING,
 )
 class TFViTForImageClassification(TFViTPreTrainedModel, TFSequenceClassificationLoss):
@@ -773,13 +790,8 @@ class TFViTForImageClassification(TFViTPreTrainedModel, TFSequenceClassification
         self.vit = TFViTMainLayer(config, name="vit")
         self.classifier = TFViTClassificationHead(config, name="classifier")
 
-    # @add_start_docstrings_to_model_forward(VIT_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
-    # @add_code_sample_docstrings(
-    #     tokenizer_class=_TOKENIZER_FOR_DOC,
-    #     checkpoint="google/vit-base-patch16-224",
-    #     output_type=TFSequenceClassifierOutput,
-    #     config_class=_CONFIG_FOR_DOC,
-    # )
+    @add_start_docstrings_to_model_forward(VIT_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
+    @replace_return_docstrings(output_type=TFSequenceClassifierOutput, config_class=_CONFIG_FOR_DOC)
     def call(
         self,
         input_ids: Optional[TFModelInputType] = None,
@@ -800,6 +812,27 @@ class TFViTForImageClassification(TFViTPreTrainedModel, TFSequenceClassification
             Labels for computing the sequence classification/regression loss. Indices should be in :obj:`[0, ...,
             config.num_labels - 1]`. If :obj:`config.num_labels == 1` a regression loss is computed (Mean-Square loss),
             If :obj:`config.num_labels > 1` a classification loss is computed (Cross-Entropy).
+
+        Returns:
+
+        Examples::
+
+            >>> from transformers import ViTFeatureExtractor, TFViTForImageClassification
+            >>> from PIL import Image
+            >>> import requests
+
+            >>> url = 'http://images.cocodataset.org/val2017/000000039769.jpg'
+            >>> image = Image.open(requests.get(url, stream=True).raw)
+
+            >>> feature_extractor = ViTFeatureExtractor.from_pretrained('google/vit-base-patch16-224')
+            >>> model = TFViTForImageClassification.from_pretrained('google/vit-base-patch16-224')
+
+            >>> inputs = feature_extractor(images=image, return_tensors="tf")
+            >>> outputs = model(**inputs)
+            >>> logits = outputs.logits
+            >>> # model predicts one of the 1000 ImageNet classes
+            >>> predicted_class_idx = logits.argmax(-1).item()
+            >>> print("Predicted class:", model.config.id2label[predicted_class_idx])
         """
         inputs = input_processing(
             func=self.call,

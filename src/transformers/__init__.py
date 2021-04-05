@@ -128,7 +128,6 @@ _import_structure = {
         "load_tf2_weights_in_pytorch_model",
     ],
     # Models
-    "models.vit": ["VIT_PRETRAINED_CONFIG_ARCHIVE_MAP", "ViTConfig", "ViTTokenizer"],
     "models": [],
     "models.albert": ["ALBERT_PRETRAINED_CONFIG_ARCHIVE_MAP", "AlbertConfig"],
     "models.auto": [
@@ -214,6 +213,7 @@ _import_structure = {
         "TransfoXLCorpus",
         "TransfoXLTokenizer",
     ],
+    "models.vit": ["VIT_PRETRAINED_CONFIG_ARCHIVE_MAP", "ViTConfig", "ViTTokenizer"],
     "models.vit": ["VIT_PRETRAINED_CONFIG_ARCHIVE_MAP", "ViTConfig"],
     "models.wav2vec2": [
         "WAV_2_VEC_2_PRETRAINED_CONFIG_ARCHIVE_MAP",
@@ -970,14 +970,6 @@ if is_tf_available():
     ]
     # TensorFlow models structure
 
-    _import_structure["models.vit"].extend(
-        [
-            "TF_VIT_PRETRAINED_MODEL_ARCHIVE_LIST",
-            "TFViTForImageClassification",
-            "TFViTModel",
-            "TFViTPreTrainedModel",
-        ]
-    )
     _import_structure["models.albert"].extend(
         [
             "TF_ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST",
@@ -1264,6 +1256,14 @@ if is_tf_available():
             "TFTransfoXLPreTrainedModel",
         ]
     )
+    _import_structure["models.vit"].extend(
+        [
+            "TF_VIT_PRETRAINED_MODEL_ARCHIVE_LIST",
+            "TFViTForImageClassification",
+            "TFViTModel",
+            "TFViTPreTrainedModel",
+        ]
+    )
     _import_structure["models.xlm"].extend(
         [
             "TF_XLM_PRETRAINED_MODEL_ARCHIVE_LIST",
@@ -1419,7 +1419,6 @@ if TYPE_CHECKING:
         load_tf2_weights_in_pytorch_model,
     )
     from .models.albert import ALBERT_PRETRAINED_CONFIG_ARCHIVE_MAP, AlbertConfig
-    from .models.vit import VIT_PRETRAINED_CONFIG_ARCHIVE_MAP, ViTConfig, ViTTokenizer
     from .models.auto import (
         ALL_PRETRAINED_CONFIG_ARCHIVE_MAP,
         CONFIG_MAPPING,
@@ -1502,7 +1501,7 @@ if TYPE_CHECKING:
         TransfoXLCorpus,
         TransfoXLTokenizer,
     )
-    from .models.vit import VIT_PRETRAINED_CONFIG_ARCHIVE_MAP, ViTConfig
+    from .models.vit import VIT_PRETRAINED_CONFIG_ARCHIVE_MAP, ViTConfig, ViTTokenizer
     from .models.wav2vec2 import (
         WAV_2_VEC_2_PRETRAINED_CONFIG_ARCHIVE_MAP,
         Wav2Vec2Config,
@@ -1588,7 +1587,6 @@ if TYPE_CHECKING:
         from .utils.dummy_sentencepiece_objects import *
 
     if is_tokenizers_available():
-        from .models.vit import ViTTokenizerFast
         from .models.albert import AlbertTokenizerFast
         from .models.bart import BartTokenizerFast
         from .models.barthez import BarthezTokenizerFast
@@ -1616,6 +1614,7 @@ if TYPE_CHECKING:
         from .models.roberta import RobertaTokenizerFast
         from .models.squeezebert import SqueezeBertTokenizerFast
         from .models.t5 import T5TokenizerFast
+        from .models.vit import ViTTokenizerFast
         from .models.xlm_roberta import XLMRobertaTokenizerFast
         from .models.xlnet import XLNetTokenizerFast
         from .tokenization_utils_fast import PreTrainedTokenizerFast
@@ -2138,13 +2137,6 @@ if TYPE_CHECKING:
     # TensorFlow
     if is_tf_available():
 
-        from .models.vit import (
-            TF_VIT_PRETRAINED_MODEL_ARCHIVE_LIST,
-            TFViTForImageClassification,
-            TFViTModel,
-            TFViTPreTrainedModel,
-        )
-
         from .benchmark.benchmark_args_tf import TensorFlowBenchmarkArguments
 
         # Benchmarks
@@ -2386,6 +2378,12 @@ if TYPE_CHECKING:
             TFTransfoXLMainLayer,
             TFTransfoXLModel,
             TFTransfoXLPreTrainedModel,
+        )
+        from .models.vit import (
+            TF_VIT_PRETRAINED_MODEL_ARCHIVE_LIST,
+            TFViTForImageClassification,
+            TFViTModel,
+            TFViTPreTrainedModel,
         )
         from .models.xlm import (
             TF_XLM_PRETRAINED_MODEL_ARCHIVE_LIST,

@@ -106,7 +106,7 @@ class TFModelTesterMixin:
                 inputs_dict["end_positions"] = tf.zeros(self.model_tester.batch_size, dtype=tf.int32)
             elif model_class in [
                 TF_MODEL_FOR_SEQUENCE_CLASSIFICATION_MAPPING.values(),
-                TF_MODEL_FOR_IMAGE_CLASSIFICATION_MAPPING.values()
+                TF_MODEL_FOR_IMAGE_CLASSIFICATION_MAPPING.values(),
             ]:
                 inputs_dict["labels"] = tf.zeros(self.model_tester.batch_size, dtype=tf.int32)
             elif model_class in TF_MODEL_FOR_NEXT_SENTENCE_PREDICTION_MAPPING.values():
