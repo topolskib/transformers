@@ -21,6 +21,8 @@ from collections import OrderedDict
 from ...configuration_utils import PretrainedConfig
 from ...file_utils import add_start_docstrings
 from ...utils import logging
+
+# Add modeling imports here
 from ..albert.modeling_tf_albert import (
     TFAlbertForMaskedLM,
     TFAlbertForMultipleChoice,
@@ -153,8 +155,6 @@ from ..transfo_xl.modeling_tf_transfo_xl import (
     TFTransfoXLLMHeadModel,
     TFTransfoXLModel,
 )
-
-# Add modeling imports here
 from ..vit.modeling_tf_vit import TFViTForImageClassification, TFViTModel
 from ..xlm.modeling_tf_xlm import (
     TFXLMForMultipleChoice,
