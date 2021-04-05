@@ -23,6 +23,10 @@ from ...file_utils import add_start_docstrings
 from ...utils import logging
 
 # Add modeling imports here
+from ..vit.modeling_tf_vit import (
+    TFViTForImageClassification,
+    TFViTModel,
+)
 from ..albert.modeling_tf_albert import (
     TFAlbertForMaskedLM,
     TFAlbertForMultipleChoice,
@@ -180,6 +184,7 @@ from ..xlnet.modeling_tf_xlnet import (
     TFXLNetModel,
 )
 from .configuration_auto import (
+    ViTConfig,
     AlbertConfig,
     AutoConfig,
     BartConfig,
@@ -222,6 +227,7 @@ logger = logging.get_logger(__name__)
 TF_MODEL_MAPPING = OrderedDict(
     [
         # Base model mapping
+        (ViTConfig, TFViTModel),
         (ConvBertConfig, TFConvBertModel),
         (LEDConfig, TFLEDModel),
         (LxmertConfig, TFLxmertModel),
@@ -364,6 +370,13 @@ TF_MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING = OrderedDict(
         (BlenderbotConfig, TFBlenderbotForConditionalGeneration),
         (BlenderbotSmallConfig, TFBlenderbotSmallForConditionalGeneration),
         (BartConfig, TFBartForConditionalGeneration),
+    ]
+)
+
+TF_MODEL_FOR_IMAGE_CLASSIFICATION_MAPPING = OrderedDict(
+    [
+        # Model for Image Classification mapping
+        (ViTConfig, TFViTForImageClassification),
     ]
 )
 

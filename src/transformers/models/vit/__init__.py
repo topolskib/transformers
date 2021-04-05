@@ -17,7 +17,7 @@
 # limitations under the License.
 from typing import TYPE_CHECKING
 
-from ...file_utils import _BaseLazyModule, is_torch_available, is_vision_available
+from ...file_utils import _BaseLazyModule, is_torch_available, is_vision_available, is_tf_available
 
 
 _import_structure = {
@@ -35,6 +35,14 @@ if is_torch_available():
         "ViTPreTrainedModel",
     ]
 
+if is_tf_available():
+    _import_structure["modeling_tf_vit"] = [
+        "TF_VIT_PRETRAINED_MODEL_ARCHIVE_LIST",
+        "TFViTForImageClassification",
+        "TFViTModel",
+        "TFViTPreTrainedModel",
+    ]
+
 
 if TYPE_CHECKING:
     from .configuration_vit import VIT_PRETRAINED_CONFIG_ARCHIVE_MAP, ViTConfig
@@ -48,6 +56,14 @@ if TYPE_CHECKING:
             ViTForImageClassification,
             ViTModel,
             ViTPreTrainedModel,
+        )
+
+    if is_tf_available():
+        from .modeling_tf_vit import (
+            TF_VIT_PRETRAINED_MODEL_ARCHIVE_LIST,
+            TFViTForImageClassification,
+            TFViTModel,
+            TFViTPreTrainedModel,
         )
 
 

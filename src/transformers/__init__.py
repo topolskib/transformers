@@ -128,6 +128,7 @@ _import_structure = {
         "load_tf2_weights_in_pytorch_model",
     ],
     # Models
+    "models.vit": ["VIT_PRETRAINED_CONFIG_ARCHIVE_MAP", "ViTConfig", "ViTTokenizer"],
     "models": [],
     "models.albert": ["ALBERT_PRETRAINED_CONFIG_ARCHIVE_MAP", "AlbertConfig"],
     "models.auto": [
@@ -303,6 +304,7 @@ else:
 # tokenizers-backed objects
 if is_tokenizers_available():
     # Fast tokenizers
+    _import_structure["models.vit"].append("ViTTokenizerFast")
     _import_structure["models.convbert"].append("ConvBertTokenizerFast")
     _import_structure["models.albert"].append("AlbertTokenizerFast")
     _import_structure["models.bart"].append("BartTokenizerFast")
@@ -967,6 +969,15 @@ if is_tf_available():
         "shape_list",
     ]
     # TensorFlow models structure
+
+    _import_structure["models.vit"].extend(
+        [
+            "TF_VIT_PRETRAINED_MODEL_ARCHIVE_LIST",
+            "TFViTForImageClassification",
+            "TFViTModel",
+            "TFViTPreTrainedModel",
+        ]
+    )
     _import_structure["models.albert"].extend(
         [
             "TF_ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST",
@@ -984,6 +995,7 @@ if is_tf_available():
     _import_structure["models.auto"].extend(
         [
             "TF_MODEL_FOR_CAUSAL_LM_MAPPING",
+            "TF_MODEL_FOR_IMAGE_CLASSIFICATION_MAPPING",
             "TF_MODEL_FOR_MASKED_LM_MAPPING",
             "TF_MODEL_FOR_MULTIPLE_CHOICE_MAPPING",
             "TF_MODEL_FOR_NEXT_SENTENCE_PREDICTION_MAPPING",
@@ -1407,6 +1419,7 @@ if TYPE_CHECKING:
         load_tf2_weights_in_pytorch_model,
     )
     from .models.albert import ALBERT_PRETRAINED_CONFIG_ARCHIVE_MAP, AlbertConfig
+    from .models.vit import VIT_PRETRAINED_CONFIG_ARCHIVE_MAP, ViTConfig, ViTTokenizer
     from .models.auto import (
         ALL_PRETRAINED_CONFIG_ARCHIVE_MAP,
         CONFIG_MAPPING,
@@ -1575,6 +1588,7 @@ if TYPE_CHECKING:
         from .utils.dummy_sentencepiece_objects import *
 
     if is_tokenizers_available():
+        from .models.vit import ViTTokenizerFast
         from .models.albert import AlbertTokenizerFast
         from .models.bart import BartTokenizerFast
         from .models.barthez import BarthezTokenizerFast
@@ -2124,6 +2138,13 @@ if TYPE_CHECKING:
     # TensorFlow
     if is_tf_available():
 
+        from .models.vit import (
+            TF_VIT_PRETRAINED_MODEL_ARCHIVE_LIST,
+            TFViTForImageClassification,
+            TFViTModel,
+            TFViTPreTrainedModel,
+        )
+
         from .benchmark.benchmark_args_tf import TensorFlowBenchmarkArguments
 
         # Benchmarks
@@ -2153,6 +2174,7 @@ if TYPE_CHECKING:
         )
         from .models.auto import (
             TF_MODEL_FOR_CAUSAL_LM_MAPPING,
+            TF_MODEL_FOR_IMAGE_CLASSIFICATION_MAPPING,
             TF_MODEL_FOR_MASKED_LM_MAPPING,
             TF_MODEL_FOR_MULTIPLE_CHOICE_MAPPING,
             TF_MODEL_FOR_NEXT_SENTENCE_PREDICTION_MAPPING,

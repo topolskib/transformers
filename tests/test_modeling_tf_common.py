@@ -41,6 +41,7 @@ if is_tf_available():
 
     from transformers import (
         TF_MODEL_FOR_CAUSAL_LM_MAPPING,
+        TF_MODEL_FOR_IMAGE_CLASSIFICATION_MAPPING,
         TF_MODEL_FOR_MASKED_LM_MAPPING,
         TF_MODEL_FOR_MULTIPLE_CHOICE_MAPPING,
         TF_MODEL_FOR_NEXT_SENTENCE_PREDICTION_MAPPING,
@@ -103,7 +104,10 @@ class TFModelTesterMixin:
             elif model_class in TF_MODEL_FOR_QUESTION_ANSWERING_MAPPING.values():
                 inputs_dict["start_positions"] = tf.zeros(self.model_tester.batch_size, dtype=tf.int32)
                 inputs_dict["end_positions"] = tf.zeros(self.model_tester.batch_size, dtype=tf.int32)
-            elif model_class in TF_MODEL_FOR_SEQUENCE_CLASSIFICATION_MAPPING.values():
+            elif model_class in [
+                TF_MODEL_FOR_SEQUENCE_CLASSIFICATION_MAPPING.values(),
+                TF_MODEL_FOR_IMAGE_CLASSIFICATION_MAPPING.values()
+            ]:
                 inputs_dict["labels"] = tf.zeros(self.model_tester.batch_size, dtype=tf.int32)
             elif model_class in TF_MODEL_FOR_NEXT_SENTENCE_PREDICTION_MAPPING.values():
                 inputs_dict["next_sentence_label"] = tf.zeros(self.model_tester.batch_size, dtype=tf.int32)
@@ -1228,6 +1232,22 @@ def ids_tensor(shape, vocab_size, rng=None, name=None, dtype=None):
     output = tf.constant(values, shape=shape, dtype=dtype if dtype is not None else tf.int32)
 
     return output
+
+
+def floats_tensor(shape, scale=1.0, rng=None, name=None, dtype=None):
+    """Creates a random float32 tensor"""
+    if rng is None:
+        rng = random.Random()
+
+    total_dims = 1
+    for dim in shape:
+        total_dims *= dim
+
+    values = []
+    for _ in range(total_dims):
+        values.append(rng.random() * scale)
+
+    return tf.constant(values, shape=shape, dtype=dtype if dtype is not None else tf.float32)
 
 
 @require_tf
