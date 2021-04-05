@@ -37,6 +37,7 @@ from ...modeling_tf_utils import (
 )
 from ...utils import logging
 from .configuration_vit import ViTConfig
+from .modeling_vit import to_2tuple
 
 
 logger = logging.get_logger(__name__)
@@ -48,20 +49,6 @@ TF_VIT_PRETRAINED_MODEL_ARCHIVE_LIST = [
     "google/vit-base-patch16-224",
     # See all ViT models at https://huggingface.co/models?filter=vit
 ]
-
-# Copied from
-# https://github.com/rwightman/pytorch-image-models/blob/b9bd960a032c75ca6b808ddeed76bee5f3ed4972/timm/models/layers/helpers.py
-# From PyTorch internals
-def _ntuple(n):
-    def parse(x):
-        if isinstance(x, collections.abc.Iterable):
-            return x
-        return tuple(repeat(x, n))
-
-    return parse
-
-
-to_2tuple = _ntuple(2)
 
 
 class TFViTEmbeddings(tf.keras.layers.Layer):

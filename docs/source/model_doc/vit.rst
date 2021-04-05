@@ -50,7 +50,8 @@ Tips:
 - The Vision Transformer was pre-trained using a resolution of 224x224. During fine-tuning, it is often beneficial to
   use a higher resolution than pre-training `(Touvron et al., 2019) <https://arxiv.org/abs/1906.06423>`__, `(Kolesnikov
   et al., 2020) <https://arxiv.org/abs/1912.11370>`__. The authors report the best results with a resolution of 384x384
-  during fine-tuning.
+  during fine-tuning. When fine-tuning on higher resolutions, the authors perform 2D interpolation of the pre-trained
+  position embeddings, according to their location in the original image.
 - As the Vision Transformer expects each image to be of the same size (resolution), one can use
   :class:`~transformers.ViTFeatureExtractor` to resize (or rescale) and normalize images for the model.
 - Both the patch resolution and image resolution used during pre-training or fine-tuning are reflected in the name of
