@@ -168,6 +168,7 @@ _import_structure = {
     "models.deberta": ["DEBERTA_PRETRAINED_CONFIG_ARCHIVE_MAP", "DebertaConfig", "DebertaTokenizer"],
     "models.deberta_v2": ["DEBERTA_V2_PRETRAINED_CONFIG_ARCHIVE_MAP", "DebertaV2Config"],
     "models.deit": ["DEIT_PRETRAINED_CONFIG_ARCHIVE_MAP", "DeiTConfig"],
+    "models.detr": ["DETR_PRETRAINED_CONFIG_ARCHIVE_MAP", "DetrConfig"],
     "models.distilbert": ["DISTILBERT_PRETRAINED_CONFIG_ARCHIVE_MAP", "DistilBertConfig", "DistilBertTokenizer"],
     "models.dpr": [
         "DPR_PRETRAINED_CONFIG_ARCHIVE_MAP",
@@ -443,7 +444,6 @@ if is_torch_available():
     _import_structure["generation_utils"] = ["top_k_top_p_filtering"]
     _import_structure["modeling_utils"] = ["Conv1D", "PreTrainedModel", "apply_chunking_to_forward", "prune_layer"]
     # PyTorch models structure
-
     _import_structure["models.albert"].extend(
         [
             "ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST",
@@ -620,6 +620,11 @@ if is_torch_available():
             "DeiTForImageClassificationWithTeacher",
             "DeiTModel",
             "DeiTPreTrainedModel",
+    _import_structure["models.detr"].extend(
+        [
+            "DETR_PRETRAINED_MODEL_ARCHIVE_LIST",
+            "DetrForObjectDetection",
+            "DetrModel",
         ]
     )
     _import_structure["models.distilbert"].extend(
@@ -1519,6 +1524,7 @@ if TYPE_CHECKING:
     from .models.deberta import DEBERTA_PRETRAINED_CONFIG_ARCHIVE_MAP, DebertaConfig, DebertaTokenizer
     from .models.deberta_v2 import DEBERTA_V2_PRETRAINED_CONFIG_ARCHIVE_MAP, DebertaV2Config
     from .models.deit import DEIT_PRETRAINED_CONFIG_ARCHIVE_MAP, DeiTConfig
+    from .models.detr import DETR_PRETRAINED_CONFIG_ARCHIVE_MAP, DetrConfig
     from .models.distilbert import DISTILBERT_PRETRAINED_CONFIG_ARCHIVE_MAP, DistilBertConfig, DistilBertTokenizer
     from .models.dpr import (
         DPR_PRETRAINED_CONFIG_ARCHIVE_MAP,
@@ -1712,7 +1718,6 @@ if TYPE_CHECKING:
 
     # Modeling
     if is_torch_available():
-
         # Benchmarks
         from .benchmark.benchmark import PyTorchBenchmark
         from .benchmark.benchmark_args import PyTorchBenchmarkArguments
@@ -1913,6 +1918,7 @@ if TYPE_CHECKING:
             DeiTModel,
             DeiTPreTrainedModel,
         )
+        from .models.detr import DETR_PRETRAINED_MODEL_ARCHIVE_LIST, DetrForObjectDetection, DetrModel
         from .models.distilbert import (
             DISTILBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
             DistilBertForMaskedLM,
