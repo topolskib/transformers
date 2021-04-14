@@ -383,6 +383,7 @@ else:
 if is_vision_available():
     _import_structure["image_utils"] = ["ImageFeatureExtractionMixin"]
     _import_structure["models.deit"].append("DeiTFeatureExtractor")
+    _import_structure["models.detr"].append("DetrFeatureExtractor")
     _import_structure["models.vit"].append("ViTFeatureExtractor")
 else:
     from .utils import dummy_vision_objects
@@ -621,6 +622,8 @@ if is_torch_available():
             "DeiTForImageClassificationWithTeacher",
             "DeiTModel",
             "DeiTPreTrainedModel",
+        ]
+    )
     _import_structure["models.detr"].extend(
         [
             "DETR_PRETRAINED_MODEL_ARCHIVE_LIST",
@@ -1713,6 +1716,7 @@ if TYPE_CHECKING:
     if is_vision_available():
         from .image_utils import ImageFeatureExtractionMixin
         from .models.deit import DeiTFeatureExtractor
+        from .models.detr import DetrFeatureExtractor
         from .models.vit import ViTFeatureExtractor
     else:
         from .utils.dummy_vision_objects import *
