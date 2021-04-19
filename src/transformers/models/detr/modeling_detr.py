@@ -1448,6 +1448,9 @@ class DetrModel(DetrPreTrainedModel):
         src, mask = features[-1].decompose()
         assert mask is not None
 
+        print("Feature map:")
+        print(src.sum())
+
         # Second, apply 1x1 convolution to reduce the channel dimension to d_model (256 by default)
         src = self.input_projection(src)
         
