@@ -25,6 +25,7 @@ import torch.nn.functional as F
 import torchvision
 from torch import Tensor, nn
 from torchvision.ops.boxes import box_area
+from torchvision.models._utils import IntermediateLayerGetter
 
 from timm import create_model
 
@@ -181,34 +182,50 @@ class FrozenBatchNorm2d(nn.Module):
         return x * scale + bias
 
 
-class Backbone(nn.Module):
-    """Timm convolutional backbone.
-    
-    If resnet, replace nn.BatchNorm2d by FrozenBatchNorm2d defined above.
-    
-    """
-    def __init__(self, name: str, train_backbone: bool, dilation: bool):
+class BackboneBase(nn.Module):
+    def __init__(self, backbone: nn.Module, train_backbone: bool, num_channels: int, return_interm_layers: bool):
         super().__init__()
-        
-        #TODO add support for replace_stride_with_dilation
-        kwargs = {}
-        if name in ["resnet18", "resnet34", "resnet50", "resnet101"]: 
-            kwargs["norm_layer"] = FrozenBatchNorm2d
-        self.body = create_model(name, pretrained=True, num_classes=0, **kwargs)
-        self.num_channels = self.body.num_features
-
-        for name, parameter in self.body.named_parameters():
+        for name, parameter in backbone.named_parameters():
             if not train_backbone or "layer2" not in name and "layer3" not in name and "layer4" not in name:
                 parameter.requires_grad_(False)
-        
-    def forward(self, pixel_values: torch.Tensor, pixel_mask: torch.Tensor):
-        # send pixel_values through the body to get feature map
-        feature_map = self.body.forward_features(pixel_values)
+        if return_interm_layers:
+            return_layers = {"layer1": "0", "layer2": "1", "layer3": "2", "layer4": "3"}
+        else:
+            return_layers = {"layer4": "0"}
+        self.body = IntermediateLayerGetter(backbone, return_layers=return_layers)
+        self.num_channels = num_channels
 
+    def forward(self, pixel_values: torch.Tensor, pixel_mask: torch.Tensor):
+        # send pixel_values through the IntermediateLayerGetter
+        output_dict = self.body(pixel_values)
+        # currently there's no support for intermediate layers of the backbone
+        feature_map = output_dict["0"]
         assert pixel_mask is not None
-        # we downsample the pixel_mask to match the shape of the feature map
+        # we downsample the pixel_mask to match the feature map
         mask = F.interpolate(pixel_mask[None].float(), size=feature_map.shape[-2:]).to(torch.bool)[0]
         return feature_map, mask
+
+    # # this one should be removed in the future
+    # def forward(self, tensor_list: NestedTensor):
+    #     xs = self.body(tensor_list.tensors)
+    #     out: Dict[str, NestedTensor] = {}
+    #     for name, x in xs.items():
+    #         m = tensor_list.mask
+    #         assert m is not None
+    #         mask = F.interpolate(m[None].float(), size=x.shape[-2:]).to(torch.bool)[0]
+    #         out[name] = NestedTensor(x, mask)
+    #     return out
+
+
+class Backbone(BackboneBase):
+    """ResNet backbone with frozen BatchNorm."""
+
+    def __init__(self, name: str, train_backbone: bool, return_interm_layers: bool, dilation: bool):
+        backbone = getattr(torchvision.models, name)(
+            replace_stride_with_dilation=[False, False, dilation], pretrained=True, norm_layer=FrozenBatchNorm2d
+        )
+        num_channels = 512 if name in ("resnet18", "resnet34") else 2048
+        super().__init__(backbone, train_backbone, num_channels, return_interm_layers)
 
 
 class Joiner(nn.Sequential):
@@ -1132,7 +1149,7 @@ class DetrModel(DetrPreTrainedModel):
         super().__init__(config)
 
         # Create backbone + positional encoding
-        backbone = Backbone(config.backbone, config.train_backbone, config.dilation)
+        backbone = Backbone(config.backbone, config.train_backbone, config.masks, config.dilation)
         position_embeddings = build_position_encoding(config)
         self.backbone = Joiner(backbone, position_embeddings)
 
