@@ -630,6 +630,7 @@ if is_torch_available():
         [
             "DETR_PRETRAINED_MODEL_ARCHIVE_LIST",
             "DetrForObjectDetection",
+            "DetrForPanopticSegmentation",
             "DetrModel",
         ]
     )
@@ -1926,7 +1927,7 @@ if TYPE_CHECKING:
             DeiTModel,
             DeiTPreTrainedModel,
         )
-        from .models.detr import DETR_PRETRAINED_MODEL_ARCHIVE_LIST, DetrForObjectDetection, DetrModel
+        from .models.detr import DETR_PRETRAINED_MODEL_ARCHIVE_LIST, DetrForObjectDetection, DetrForPanopticSegmentation, DetrModel
         from .models.distilbert import (
             DISTILBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
             DistilBertForMaskedLM,
