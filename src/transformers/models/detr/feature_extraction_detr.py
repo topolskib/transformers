@@ -554,50 +554,50 @@ class DetrFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMixin):
                 pixel_mask.append(mask)
             images = padded_images
 
-        # return as BatchFeature
-        data = {}
-        data["pixel_values"] = images
-        if pad_and_return_pixel_mask:
-            data["pixel_mask"] = pixel_mask
-        encoded_inputs = BatchFeature(data=data, tensor_type=return_tensors)
+        # # return as BatchFeature
+        # data = {}
+        # data["pixel_values"] = images
+        # if pad_and_return_pixel_mask:
+        #     data["pixel_mask"] = pixel_mask
+        # encoded_inputs = BatchFeature(data=data, tensor_type=return_tensors)
 
-        if annotations is not None:
-            # Convert to TensorType
-            tensor_type = return_tensors
-            if not isinstance(tensor_type, TensorType):
-                tensor_type = TensorType(tensor_type)
+        # if annotations is not None:
+        #     # Convert to TensorType
+        #     tensor_type = return_tensors
+        #     if not isinstance(tensor_type, TensorType):
+        #         tensor_type = TensorType(tensor_type)
 
-            if tensor_type == TensorType.TENSORFLOW:
-                if not is_tf_available():
-                    raise ImportError(
-                        "Unable to convert output to TensorFlow tensors format, TensorFlow is not installed."
-                    )
-                import tensorflow as tf
+        #     if tensor_type == TensorType.TENSORFLOW:
+        #         if not is_tf_available():
+        #             raise ImportError(
+        #                 "Unable to convert output to TensorFlow tensors format, TensorFlow is not installed."
+        #             )
+        #         import tensorflow as tf
 
-                encoded_inputs["target"] = [
-                    {k: tf.convert_to_tensor(v) for k, v in target.items()} for target in annotations
-                ]
-            elif tensor_type == TensorType.PYTORCH:
-                if not is_torch_available():
-                    raise ImportError("Unable to convert output to PyTorch tensors format, PyTorch is not installed.")
-                import torch
+        #         encoded_inputs["target"] = [
+        #             {k: tf.convert_to_tensor(v) for k, v in target.items()} for target in annotations
+        #         ]
+        #     elif tensor_type == TensorType.PYTORCH:
+        #         if not is_torch_available():
+        #             raise ImportError("Unable to convert output to PyTorch tensors format, PyTorch is not installed.")
+        #         import torch
                 
-                encoded_inputs["target"] = [
-                    {k: torch.from_numpy(v) for k, v in target.items()} for target in annotations
-                ]
+        #         encoded_inputs["target"] = [
+        #             {k: torch.from_numpy(v) for k, v in target.items()} for target in annotations
+        #         ]
             
-            elif tensor_type == TensorType.JAX:
-                if not is_flax_available():
-                    raise ImportError("Unable to convert output to JAX tensors format, JAX is not installed.")
-                import jax.numpy as jnp  # noqa: F811
+        #     elif tensor_type == TensorType.JAX:
+        #         if not is_flax_available():
+        #             raise ImportError("Unable to convert output to JAX tensors format, JAX is not installed.")
+        #         import jax.numpy as jnp  # noqa: F811
 
-                encoded_inputs["target"] = [
-                    {k: jax.numpy.asarray(v) for k, v in target.items()} for target in annotations
-                ]
-            else:
-                encoded_inputs["target"] = annotations
+        #         encoded_inputs["target"] = [
+        #             {k: jax.numpy.asarray(v) for k, v in target.items()} for target in annotations
+        #         ]
+        #     else:
+        #         encoded_inputs["target"] = annotations
 
-        return encoded_inputs
+        return images, annotations
 
     def pad_and_create_pixel_mask(self, tensor_list):
         """
