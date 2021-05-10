@@ -96,6 +96,7 @@ IGNORE_NON_AUTO_CONFIGURED = [
     # models to ignore for model xxx mapping
     "CLIPTextModel",
     "CLIPVisionModel",
+    "DetrForSegmentation",
     "DPRReader",
     "DPRSpanPredictor",
     "FlaubertForQuestionAnswering",
