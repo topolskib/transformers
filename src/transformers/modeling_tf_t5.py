@@ -313,6 +313,13 @@ class TFT5Attention(tf.keras.layers.Layer):
             weights = weights * head_mask
 
         context = tf.matmul(weights, v)  # (bs, n_heads, qlen, dim_per_head)
+
+        print("Context after multiplication with values:")
+        print(context[0,0,:3,:3])
+
+        print("Values:")
+        print(v[0,0,:3,:3])
+
         context = unshape(context)  # (bs, qlen, dim)
 
         context = self.o(context)
