@@ -957,6 +957,9 @@ class T5Stack(T5PreTrainedModel):
             assert self.embed_tokens is not None, "You have to initialize the model with valid token embeddings"
             inputs_embeds = self.embed_tokens(input_ids)
 
+        print("Sum of inputs_embeds:")
+        print(inputs_embeds.sum())
+        
         batch_size, seq_length = input_shape
 
         # required mask seq length can be calculated via length of past
