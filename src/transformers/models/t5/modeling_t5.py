@@ -478,6 +478,12 @@ class T5Attention(nn.Module):
             hidden_states, self.v, key_value_states, past_key_value[1] if past_key_value is not None else None
         )
 
+        print("we are here")
+        print("Sum of keys:")
+        print(key_states.sum())
+        print("Sum of values:")
+        print(value_states.sum())
+
         # compute scores
         scores = torch.matmul(
             query_states, key_states.transpose(3, 2)
