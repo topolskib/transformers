@@ -479,6 +479,10 @@ class T5Attention(nn.Module):
         )
 
         print("we are here")
+        print("Sum of hidden states:")
+        print(hidden_states.sum())
+        print("Sum of queries:")
+        print(query_states.sum())
         print("Sum of keys:")
         print(key_states.sum())
         print("Sum of values:")
