@@ -505,6 +505,10 @@ class T5Attention(nn.Module):
                 position_bias = position_bias + mask  # (batch_size, n_heads, seq_length, key_length)
 
         scores += position_bias
+
+        print("Scores after position bias:")
+        print(scores[0,0,:3,:3])
+
         attn_weights = F.softmax(scores.float(), dim=-1).type_as(
             scores
         )  # (batch_size, n_heads, seq_length, key_length)
@@ -512,12 +516,18 @@ class T5Attention(nn.Module):
             attn_weights, p=self.dropout, training=self.training
         )  # (batch_size, n_heads, seq_length, key_length)
 
+        print("Attention weights:")
+        print(attn_weights[0,0,:3,:3])
+        
         # Mask heads if we want to
         if layer_head_mask is not None:
             attn_weights = attn_weights * layer_head_mask
 
         attn_output = unshape(torch.matmul(attn_weights, value_states))  # (batch_size, seq_length, dim)
         attn_output = self.o(attn_output)
+
+        print("Attention output:")
+        print(attn_output[0,:3,:3])
 
         present_key_value_state = (key_states, value_states) if (self.is_decoder and use_cache) else None
         outputs = (attn_output,) + (present_key_value_state,) + (position_bias,)
