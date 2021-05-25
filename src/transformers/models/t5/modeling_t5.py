@@ -1055,6 +1055,11 @@ class T5Stack(T5PreTrainedModel):
                     None,  # past_key_value is always None with gradient checkpointing
                 )
             else:
+                print(f"Hidden states before layer {i}:")
+                print(hidden_states[0,:3,:3])
+                print(f"Sum of hidden states before layer {i}:")
+                print(hidden_states.sum())
+                
                 layer_outputs = layer_module(
                     hidden_states,
                     attention_mask=extended_attention_mask,
