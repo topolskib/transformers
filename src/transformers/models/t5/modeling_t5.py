@@ -478,7 +478,12 @@ class T5Attention(nn.Module):
             hidden_states, self.v, key_value_states, past_key_value[1] if past_key_value is not None else None
         )
 
-        print("we are here")
+        print("Shape of hidden states:")
+        print(hidden_states.shape)
+
+        print("Shape of queries:")
+        print(query_states.shape)
+        
         print("Sum of hidden states:")
         print(hidden_states.sum())
         print("Sum of queries:")
