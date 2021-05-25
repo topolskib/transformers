@@ -306,7 +306,7 @@ class TFT5Attention(tf.keras.layers.Layer):
         weights = self.dropout(weights, training=training)  # (bs, n_heads, qlen, klen)
 
         print("Attention weights:")
-        print(attn_weights[0,0,:3,:3])
+        print(weights[0,0,:3,:3])
         
         # Mask heads if we want to
         if head_mask is not None:
