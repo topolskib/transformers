@@ -314,6 +314,15 @@ class TFT5Attention(tf.keras.layers.Layer):
 
         context = tf.matmul(weights, v)  # (bs, n_heads, qlen, dim_per_head)
 
+        print("Sum of context:")
+        print(tf.math.reduce_sum(context))
+
+        print("Sum of attn weights:")
+        print(tf.math.reduce_sum(weights))
+
+        print("Sum of values:")
+        print(tf.math.reduce_sum(v))
+        
         print("Context after multiplication with values:")
         print(context[0,0,:3,:3])
 
