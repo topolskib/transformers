@@ -262,6 +262,10 @@ class TFT5Attention(tf.keras.layers.Layer):
             v = shape(self.v(input))  # (bs, n_heads, qlen, dim_per_head)
 
             print("we are here")
+            print("Sum of hidden states:")
+            print(tf.math.reduce_sum(input))
+            print("Sum of queries:")
+            print(tf.math.reduce_sum(q))
             print("Sum of keys:")
             print(tf.math.reduce_sum(k))
             print("Sum of values:")
