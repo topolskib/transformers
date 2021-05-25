@@ -509,10 +509,12 @@ class T5Attention(nn.Module):
                 if self.training and self.gradient_checkpointing:
                     position_bias.requires_grad = True
             else:
+                print("-----------------------------------")
+                
                 position_bias = self.compute_bias(real_seq_length, key_length)
 
                 print("Position bias:")
-                print(position_bias)
+                print(position_bias.sum())
 
             # if key and values are already calculated
             # we want only the last query position bias
@@ -521,9 +523,6 @@ class T5Attention(nn.Module):
 
             if mask is not None:
                 position_bias = position_bias + mask  # (batch_size, n_heads, seq_length, key_length)
-
-        print("Position bias after mask:")
-        print(position_bias)
         
         scores += position_bias
 
