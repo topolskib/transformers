@@ -519,6 +519,9 @@ class T5Attention(nn.Module):
         print("Scores after position bias:")
         print(scores[0,0,:3,:3])
 
+        print("Sum of scores:")
+        print(scores.sum())
+
         attn_weights = F.softmax(scores.float(), dim=-1).type_as(
             scores
         )  # (batch_size, n_heads, seq_length, key_length)
