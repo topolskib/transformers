@@ -281,6 +281,9 @@ class TFT5Attention(tf.keras.layers.Layer):
 
         scores = tf.einsum("bnqd,bnkd->bnqk", q, k)  # (bs, n_heads, qlen, klen)
 
+        print("Attention scores:")
+        print(scores[0,0,:3,:3])
+
         if position_bias is None:
             if not self.has_relative_attention_bias:
                 raise ValueError("No position_bias provided and no weights to compute position_bias")
@@ -340,6 +343,10 @@ class TFT5LayerSelfAttention(tf.keras.layers.Layer):
         training=False,
     ):
         norm_x = self.layer_norm(hidden_states)
+
+        print("Hidden states after layer norm:")
+        print(norm_x[0,:3,:3])
+
         attention_output = self.SelfAttention(
             norm_x,
             mask=attention_mask,
