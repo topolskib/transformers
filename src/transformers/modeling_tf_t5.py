@@ -454,6 +454,9 @@ class TFT5Block(tf.keras.layers.Layer):
         else:
             self_attn_past_key_value, cross_attn_past_key_value = None, None
 
+        print("Hidden states before self attention:")
+        print(hidden_states[0,:3,:3])
+        
         self_attention_outputs = self.layer[0](
             hidden_states,
             attention_mask=attention_mask,
@@ -467,6 +470,9 @@ class TFT5Block(tf.keras.layers.Layer):
         hidden_states, present_key_value_state = self_attention_outputs[:2]
         attention_outputs = self_attention_outputs[2:]  # Keep self-attention outputs and relative position weights
 
+        print("Hidden states after self attention:")
+        print(hidden_states[0,:3,:3])
+        
         if self.is_decoder and encoder_hidden_states is not None:
             # the actual query length is unknown for cross attention
             # if using past key value states. Need to inject it here
