@@ -685,6 +685,9 @@ class TFT5MainLayer(tf.keras.layers.Layer):
             assert self.embed_tokens is not None, "You have to intialize the model with valid token embeddings"
             inputs_embeds = self.embed_tokens(input_ids)
 
+        print("Sum of inputs embeds:")
+        print(tf.math.reduce_sum(inputs_embeds))
+        
         batch_size, seq_length = input_shape
 
         # required mask seq length can be calculated via length of past
