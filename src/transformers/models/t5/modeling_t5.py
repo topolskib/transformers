@@ -525,6 +525,12 @@ class T5Attention(nn.Module):
 
         #attn_output = unshape(torch.matmul(attn_weights, value_states))  # (batch_size, seq_length, dim)
 
+        print("Sum of context:")
+        print(context.sum())
+
+        print("Sum of values:")
+        print(value_states.sum())
+        
         context = torch.matmul(attn_weights, value_states)
         
         print("Context after multiplication with values:")
