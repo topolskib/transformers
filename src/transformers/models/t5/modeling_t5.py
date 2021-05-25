@@ -524,14 +524,17 @@ class T5Attention(nn.Module):
             attn_weights = attn_weights * layer_head_mask
 
         #attn_output = unshape(torch.matmul(attn_weights, value_states))  # (batch_size, seq_length, dim)
+        
+        context = torch.matmul(attn_weights, value_states)
 
         print("Sum of context:")
         print(context.sum())
 
+        print("Sum of attn weights:")
+        print(attn_weights.sum())
+
         print("Sum of values:")
         print(value_states.sum())
-        
-        context = torch.matmul(attn_weights, value_states)
         
         print("Context after multiplication with values:")
         print(context[0,0,:3,:3])
