@@ -260,6 +260,13 @@ class TFT5Attention(tf.keras.layers.Layer):
         if kv is None:
             k = shape(self.k(input))  # (bs, n_heads, qlen, dim_per_head)
             v = shape(self.v(input))  # (bs, n_heads, qlen, dim_per_head)
+
+            print("we are here")
+            print("Sum of keys:")
+            print(tf.math.reduce_sum(k))
+            print("Sum of values:")
+            print(tf.math.reduce_sum(v))
+
         elif past_key_value is None:
             k = v = kv
             k = shape(self.k(k))  # (bs, n_heads, qlen, dim_per_head)
