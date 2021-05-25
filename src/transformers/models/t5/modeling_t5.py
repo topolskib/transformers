@@ -523,7 +523,18 @@ class T5Attention(nn.Module):
         if layer_head_mask is not None:
             attn_weights = attn_weights * layer_head_mask
 
-        attn_output = unshape(torch.matmul(attn_weights, value_states))  # (batch_size, seq_length, dim)
+        #attn_output = unshape(torch.matmul(attn_weights, value_states))  # (batch_size, seq_length, dim)
+
+        context = torch.matmul(attn_weights, value_states)
+        
+        print("Context after multiplication with values:")
+        print(context[0,0,:3,:3])
+
+        attn_output = unshape(context)
+
+        print("Values:")
+        print(value_states[0,0,:3,:3])
+
         attn_output = self.o(attn_output)
 
         print("Attention output:")
