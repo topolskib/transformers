@@ -773,6 +773,11 @@ class TFT5MainLayer(tf.keras.layers.Layer):
             if output_hidden_states:
                 all_hidden_states = all_hidden_states + (hidden_states,)
 
+            print(f"Hidden states before layer {i}:")
+            print(hidden_states[0,:3,:3])
+            print(f"Sum of hidden states before layer {i}:")
+            print(tf.math.reduce_sum(hidden_states))
+            
             layer_outputs = layer_module(
                 hidden_states,
                 attention_mask=extended_attention_mask,
