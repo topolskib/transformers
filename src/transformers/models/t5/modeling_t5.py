@@ -483,6 +483,9 @@ class T5Attention(nn.Module):
             query_states, key_states.transpose(3, 2)
         )  # equivalent of torch.einsum("bnqd,bnkd->bnqk", query_states, key_states), compatible with onnx op>9
 
+        print("Attention scores:")
+        print(scores[0,0,:3,:3])
+        
         if position_bias is None:
             if not self.has_relative_attention_bias:
                 position_bias = torch.zeros(
@@ -542,6 +545,10 @@ class T5LayerSelfAttention(nn.Module):
         output_attentions=False,
     ):
         normed_hidden_states = self.layer_norm(hidden_states)
+
+        print("Hidden states after layer norm:")
+        print(normed_hidden_states[0,:3,:3])
+
         attention_output = self.SelfAttention(
             normed_hidden_states,
             mask=attention_mask,
