@@ -511,6 +511,9 @@ class T5Attention(nn.Module):
             else:
                 position_bias = self.compute_bias(real_seq_length, key_length)
 
+                print("Position bias:")
+                print(position_bias)
+
             # if key and values are already calculated
             # we want only the last query position bias
             if past_key_value is not None:
@@ -519,6 +522,9 @@ class T5Attention(nn.Module):
             if mask is not None:
                 position_bias = position_bias + mask  # (batch_size, n_heads, seq_length, key_length)
 
+        print("Position bias after mask:")
+        print(position_bias)
+        
         scores += position_bias
 
         print("Scores after position bias:")
