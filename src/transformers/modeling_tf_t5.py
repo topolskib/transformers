@@ -298,9 +298,16 @@ class TFT5Attention(tf.keras.layers.Layer):
                 position_bias = position_bias + mask  # (bs, n_heads, qlen, klen)
 
         scores += position_bias
+
+        print("Scores after position bias:")
+        print(scores[0,0,:3,:3])
+
         weights = tf.nn.softmax(scores, axis=-1)  # (bs, n_heads, qlen, klen)
         weights = self.dropout(weights, training=training)  # (bs, n_heads, qlen, klen)
 
+        print("Attention weights:")
+        print(attn_weights[0,0,:3,:3])
+        
         # Mask heads if we want to
         if head_mask is not None:
             weights = weights * head_mask
@@ -309,6 +316,9 @@ class TFT5Attention(tf.keras.layers.Layer):
         context = unshape(context)  # (bs, qlen, dim)
 
         context = self.o(context)
+
+        print("Attention output:")
+        print(context[0,:3,:3])
 
         outputs = (context,) + present_key_value_state
 
