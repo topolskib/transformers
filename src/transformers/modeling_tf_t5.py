@@ -313,6 +313,9 @@ class TFT5Attention(tf.keras.layers.Layer):
         print("Scores after position bias:")
         print(scores[0,0,:3,:3])
 
+        print("Sum of scores:")
+        print(tf.math.reduce_sum(scores))
+
         weights = tf.nn.softmax(scores, axis=-1)  # (bs, n_heads, qlen, klen)
         weights = self.dropout(weights, training=training)  # (bs, n_heads, qlen, klen)
 
