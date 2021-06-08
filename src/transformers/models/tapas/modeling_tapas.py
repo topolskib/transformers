@@ -1704,6 +1704,10 @@ def _segment_reduce(values, index, segment_reduce_fn, name):
     # changed "view" by "reshape" in the following line
     flat_values = values.reshape(flattened_shape.tolist())
 
+    print("flat_values:", flat_values)
+    print("index:", flat_index.indices.long())
+    print("dim_size:", flat_index.num_segments)
+
     segment_means = scatter(
         src=flat_values,
         index=flat_index.indices.type(torch.long),
