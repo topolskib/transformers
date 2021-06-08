@@ -1716,6 +1716,9 @@ def _segment_reduce(values, index, segment_reduce_fn, name):
         reduce=segment_reduce_fn,
     )
 
+    print("Segment_means:", segment_means)
+    print("Sum of segment_means:", segment_means.sum())
+    
     # Unflatten the values.
     new_shape = torch.cat(
         [
@@ -1725,6 +1728,8 @@ def _segment_reduce(values, index, segment_reduce_fn, name):
         ],
         dim=0,
     )
+
+    print("new_shape:", new_shape)
 
     output_values = segment_means.view(new_shape.tolist())
     output_index = range_index_map(index.batch_shape(), index.num_segments)
