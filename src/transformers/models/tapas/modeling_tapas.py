@@ -309,6 +309,9 @@ class TapasEmbeddings(nn.Module):
                     torch.as_tensor(self.config.max_position_embeddings - 1, device=device), position - first_position
                 )
 
+                print("Position ids:")
+                print(position_ids)
+
         if token_type_ids is None:
             token_type_ids = torch.zeros(
                 (input_shape + self.number_of_token_type_embeddings), dtype=torch.long, device=device
