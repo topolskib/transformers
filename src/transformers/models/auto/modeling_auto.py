@@ -21,6 +21,9 @@ from collections import OrderedDict
 from ...utils import logging
 
 # Add modeling imports here
+from ..segformer.modeling_segformer import (
+    SegFormerModel,
+)
 from ..albert.modeling_albert import (
     AlbertForMaskedLM,
     AlbertForMultipleChoice,
@@ -303,6 +306,7 @@ from ..xlnet.modeling_xlnet import (
 )
 from .auto_factory import auto_class_factory
 from .configuration_auto import (
+    SegFormerConfig,
     AlbertConfig,
     BartConfig,
     BertConfig,
@@ -370,6 +374,7 @@ logger = logging.get_logger(__name__)
 MODEL_MAPPING = OrderedDict(
     [
         # Base model mapping
+        (SegFormerConfig, SegFormerModel),
         (VisualBertConfig, VisualBertModel),
         (RoFormerConfig, RoFormerModel),
         (CLIPConfig, CLIPModel),
@@ -521,7 +526,6 @@ MODEL_WITH_LM_HEAD_MAPPING = OrderedDict(
 MODEL_FOR_CAUSAL_LM_MAPPING = OrderedDict(
     [
         # Model for Causal LM mapping
-        (RoFormerConfig, RoFormerForCausalLM),
         (BigBirdPegasusConfig, BigBirdPegasusForCausalLM),
         (GPTNeoConfig, GPTNeoForCausalLM),
         (BigBirdConfig, BigBirdForCausalLM),

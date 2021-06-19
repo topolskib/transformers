@@ -17,6 +17,8 @@
 # limitations under the License.
 
 from . import (
+    segformer,
+    segformer,
     albert,
     auto,
     bart,
