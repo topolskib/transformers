@@ -16,6 +16,7 @@
 
 import math
 import os
+import collections
 
 import torch
 import torch.utils.checkpoint
@@ -53,14 +54,73 @@ SEGFORMER_PRETRAINED_MODEL_ARCHIVE_LIST = [
     # See all SegFormer models at https://huggingface.co/models?filter=segformer
 ]
 
+# Inspired by
+# https://github.com/rwightman/pytorch-image-models/blob/b9bd960a032c75ca6b808ddeed76bee5f3ed4972/timm/models/layers/helpers.py
+# From PyTorch internals
+def to_2tuple(x):
+    if isinstance(x, collections.abc.Iterable):
+        return x
+    return (x, x)
+
+
+SEGFORMER_START_DOCSTRING = r"""
+    This model inherits from :class:`~transformers.PreTrainedModel`. Check the superclass documentation for the generic
+    methods the library implements for all its model (such as downloading or saving, resizing the input embeddings,
+    pruning heads etc.)
+    This model is also a PyTorch `torch.nn.Module <https://pytorch.org/docs/stable/nn.html#torch.nn.Module>`__
+    subclass. Use it as a regular PyTorch Module and refer to the PyTorch documentation for all matter related to
+    general usage and behavior.
+    Parameters:
+        config (:class:`~transformers.SegFormerConfig`):
+            Model configuration class with all the parameters of the model. Initializing with a config file does not
+            load the weights associated with the model, only the configuration. Check out the
+            :meth:`~transformers.PreTrainedModel.from_pretrained` method to load the model weights.
+"""
+
+SEGFORMER_INPUTS_DOCSTRING = r"""
+    Args:
+        pixel_values (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, num_channels, height, width)`):
+            Pixel values. Padding will be ignored by default should you provide it.
+            Pixel values can be obtained using :class:`~transformers.DetrTokenizer`. See
+            :meth:`transformers.DetrTokenizer.__call__` for details.
+        output_attentions (:obj:`bool`, `optional`):
+            Whether or not to return the attentions tensors of all attention layers. See ``attentions`` under returned
+            tensors for more detail.
+        output_hidden_states (:obj:`bool`, `optional`):
+            Whether or not to return the hidden states of all layers. See ``hidden_states`` under returned tensors for
+            more detail.
+        return_dict (:obj:`bool`, `optional`):
+            Whether or not to return a :class:`~transformers.file_utils.ModelOutput` instead of a plain tuple.
+"""
+
+
+class SegFormerPreTrainedModel(PreTrainedModel):
+    config_class = SegFormerConfig
+    base_model_prefix = "model"
+
+    def _init_weights(self, module):
+        std = self.config.init_std
+        xavier_std = self.config.init_xavier_std
+
+        if isinstance(module, (nn.Linear, nn.Conv2d, nn.BatchNorm2d)):
+            # Slightly different from the TF version which uses truncated_normal for initialization
+            # cf https://github.com/pytorch/pytorch/pull/5617
+            module.weight.data.normal_(mean=0.0, std=std)
+            if module.bias is not None:
+                module.bias.data.zero_()
+        elif isinstance(module, nn.Embedding):
+            module.weight.data.normal_(mean=0.0, std=std)
+            if module.padding_idx is not None:
+                module.weight.data[module.padding_idx].zero_()
+
 
 class SegFormerOverlapPatchEmbeddings(nn.Module):
     """Construct the patch embeddings from an image."""
 
     def __init__(self, image_size, patch_size, stride, num_channels, hidden_size):
         super().__init__()
-        self.image_size = image_size
-        self.patch_size = patch_size
+        image_size = to_2tuple(image_size)
+        patch_size = to_2tuple(patch_size)
         self.height, self.width = image_size[0] // patch_size[0], image_size[1] // patch_size[1]
         self.num_patches = self.height * self.width
         self.proj = nn.Conv2d(num_channels, hidden_size, kernel_size=patch_size, stride=stride,
@@ -78,27 +138,27 @@ class SegFormerOverlapPatchEmbeddings(nn.Module):
 
 
 class SegFormerSelfAttention(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, hidden_size, num_attention_heads, drop_path, sr_ratio):
         super().__init__()
-        if config.hidden_size % config.num_attention_heads != 0 and not hasattr(config, "embedding_size"):
+        self.hidden_size = hidden_size
+        self.num_attention_heads = num_attention_heads
+        self.drop_path = drop_path
+        self.sr_ratio = sr_ratio
+        
+        if self.hidden_size % self.num_attention_heads != 0:
             raise ValueError(
-                f"The hidden size ({config.hidden_size}) is not a multiple of the number of attention "
-                f"heads ({config.num_attention_heads})"
+                f"The hidden size ({self.hidden_size}) is not a multiple of the number of attention "
+                f"heads ({self.num_attention_heads})"
             )
 
-        self.num_attention_heads = config.num_attention_heads
-        self.attention_head_size = int(config.hidden_size / config.num_attention_heads)
+        self.attention_head_size = int(self.hidden_size / self.num_attention_heads)
         self.all_head_size = self.num_attention_heads * self.attention_head_size
 
-        self.query = nn.Linear(config.hidden_size, self.all_head_size)
-        self.key = nn.Linear(config.hidden_size, self.all_head_size)
-        self.value = nn.Linear(config.hidden_size, self.all_head_size)
+        self.query = nn.Linear(self.hidden_size, self.all_head_size)
+        self.key = nn.Linear(self.hidden_size, self.all_head_size)
+        self.value = nn.Linear(self.hidden_size, self.all_head_size)
 
-        self.dropout = nn.Dropout(config.attention_probs_dropout_prob)
-        self.position_embedding_type = getattr(config, "position_embedding_type", "absolute")
-        if self.position_embedding_type == "relative_key" or self.position_embedding_type == "relative_key_query":
-            self.max_position_embeddings = config.max_position_embeddings
-            self.distance_embedding = nn.Embedding(2 * config.max_position_embeddings - 1, self.attention_head_size)
+        self.dropout = nn.Dropout(config.attention_dropout)
 
     def transpose_for_scores(self, x):
         new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
@@ -122,9 +182,6 @@ class SegFormerSelfAttention(nn.Module):
         attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
 
         attention_scores = attention_scores / math.sqrt(self.attention_head_size)
-        if attention_mask is not None:
-            # Apply the attention mask is (precomputed for all layers in SegFormerModel forward() function)
-            attention_scores = attention_scores + attention_mask
 
         # Normalize the attention scores to probabilities.
         attention_probs = nn.Softmax(dim=-1)(attention_scores)
@@ -149,11 +206,11 @@ class SegFormerSelfAttention(nn.Module):
 
 
 class SegFormerSelfOutput(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, hidden_size):
         super().__init__()
-        self.dense = nn.Linear(config.hidden_size, config.hidden_size)
-        self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.dense = nn.Linear(hidden_size, hidden_size)
+        self.LayerNorm = nn.LayerNorm(hidden_size, eps=config.layer_norm_eps)
+        self.dropout = nn.Dropout(config.dropout)
 
     def forward(self, hidden_states, input_tensor):
         hidden_states = self.dense(hidden_states)
@@ -163,10 +220,11 @@ class SegFormerSelfOutput(nn.Module):
 
 
 class SegFormerAttention(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, hidden_size, num_attention_heads, drop_path, sr_ratio):
         super().__init__()
-        self.self = SegFormerSelfAttention(config)
-        self.output = SegFormerSelfOutput(config)
+        self.self = SegFormerSelfAttention(config=config, hidden_size=hidden_size, num_attention_heads=num_attention_heads, 
+                                            drop_path=drop_path, sr_ratio=sr_ratio)
+        self.output = SegFormerSelfOutput(config, hidden_size=hidden_size)
         self.pruned_heads = set()
 
     def prune_heads(self, heads):
@@ -221,11 +279,11 @@ class SegFormerIntermediate(nn.Module):
 
 
 class SegFormerOutput(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, hidden_size):
         super().__init__()
-        self.dense = nn.Linear(config.intermediate_size, config.hidden_size)
-        self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.dense = nn.Linear(config.intermediate_size, hidden_size)
+        self.LayerNorm = nn.LayerNorm(hidden_size, eps=config.layer_norm_eps)
+        self.dropout = nn.Dropout(config.dropout)
 
     def forward(self, hidden_states, input_tensor):
         hidden_states = self.dense(hidden_states)
@@ -235,24 +293,21 @@ class SegFormerOutput(nn.Module):
 
 
 class SegFormerEncoderLayer(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, hidden_size, num_attention_heads, drop_path, sr_ratio):
         super().__init__()
-        self.chunk_size_feed_forward = config.chunk_size_feed_forward
-        self.seq_len_dim = 1
-        self.attention = SegFormerAttention(config)
+        self.attention = SegFormerAttention(config, hidden_size=hidden_size, num_attention_heads=num_attention_heads,
+                                             drop_path=drop_path, sr_ratio=sr_ratio)
         self.intermediate = SegFormerIntermediate(config)
-        self.output = SegFormerOutput(config)
+        self.output = SegFormerOutput(config, hidden_size=hidden_size)
 
     def forward(
         self,
         hidden_states,
-        attention_mask=None,
         head_mask=None,
         output_attentions=False,
     ):
         self_attention_outputs = self.attention(
             hidden_states,
-            attention_mask,
             head_mask,
             output_attentions=output_attentions,
         )
@@ -267,38 +322,33 @@ class SegFormerEncoderLayer(nn.Module):
 
         return outputs
 
-    def feed_forward_chunk(self, attention_output):
-        intermediate_output = self.intermediate(attention_output)
-        layer_output = self.output(intermediate_output, attention_output)
-        return layer_output
-
 
 class SegFormerEncoder(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
         
-        cur = 0
         dpr = [x.item() for x in torch.linspace(0, config.drop_path_rate, sum(config.depths))]  # stochastic depth decay rule
 
-        #self.layer = nn.ModuleList([SegFormerEncoderLayer(config) for _ in range(config.num_hidden_layers)])
+        # patch embeddings
+        self.patch_embeddings = nn.ModuleList(
+            [SegFormerOverlapPatchEmbeddings(image_size=config.image_size // config.downsampling_rates[i], 
+                                             patch_size=config.patch_sizes[i], stride=config.strides[i], 
+                                             num_channels=config.hidden_sizes[i-1] if i != 0 else config.num_channels, 
+                                             hidden_size=config.hidden_sizes[i]) 
+            for i in range(config.num_encoder_blocks)]
+        )
 
-        for i in range(config.num_encoder_blocks):
-            # patch embeddings
-            embedding_name = f"patch_embeddings_{i}"
-            setattr(self, embedding_name, SegFormerOverlapPatchEmbeddings(image_size=config.image_size // config.downsampling_rates[i], 
-                                                                          patch_size=config.patch_sizes[i], stride=config.strides[i], 
-                                                                          num_channels=config.hidden_sizes[i-1] if i != 0 else config.num_channels, 
-                                                                          hidden_size=config.hidden_sizes[i]))
-            # Transformer block
-            if i != 0:
-                cur += config.depths[i-1] 
-            block_name = f"block{i}"
-            setattr(self, block_name, nn.ModuleList([SegFormerEncoderLayer(hidden_size=config.hidden_sizes[i], num_heads=config.encoder_attention_heads[i], 
-                        mlp_ratio=mlp_ratios[0], drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[cur + i], sr_ratio=sr_ratios[i])
-                        for j in range(config.depths[i])]))
-            norm_name = f"layer_norm{i}"
-            setattr(self, norm_name, nn.LayerNorm(config.hidden_sizes[i]))
+        # Transformer blocks
+        self.block = nn.ModuleList(
+            [nn.ModuleList([SegFormerEncoderLayer(config, hidden_size=config.hidden_sizes[i], num_attention_heads=config.encoder_attention_heads[i],
+                                                   drop_path=dpr[sum(config.depths[:i])+i], sr_ratio=config.sr_ratios[i])
+            for j in range(config.depths[i])])
+            for i in range(config.num_encoder_blocks)]
+        )
+            
+        # Layer norms
+        self.layer_norm = nn.ModuleList([nn.LayerNorm(config.hidden_sizes[i]) for i in range(config.num_encoder_blocks)])
 
     def forward(
         self,
@@ -315,19 +365,13 @@ class SegFormerEncoder(nn.Module):
         
         features = []
         x = pixel_values
-        for i in range(config.num_encoder_blocks):
+        for embedding_layer, block_layer, norm_layer in zip(self.patch_embeddings, self.block, self.layer_norm):
             # first, obtain patch embeddings
-            embedding_name = f"patch_embeddings_{i}"
-            embedding_layer = getattr(self, embedding_name)
             x, height, width = embedding_layer(x)
             # second, send embeddings through blocks
-            block_name = f"block{i}"
-            block = getattr(self, block_name)
-            for i, blk in enumerate(block):
+            for i, blk in enumerate(block_layer):
                 x = blk(x, height, width)
             # third, apply layer norm and reshape
-            norm_name = f"layer_norm{i}"
-            norm_layer = getattr(self, norm_name)
             x = norm_layer(x)
             x = x.reshape(batch_size, height, width, -1).permute(0, 3, 1, 2).contiguous()
             features.append(x)
@@ -384,9 +428,24 @@ class SegFormerEncoder(nn.Module):
         )
 
 
+class SegFormerDecoderLayer(nn.Module):
+    """
+    Linear Embedding
+    """
+    
+    def __init__(self, config: SegFormerConfig, input_dim):
+        super().__init__()
+        self.proj = nn.Linear(input_dim, config.d_model)
+
+    def forward(self, hidden_states: torch.Tensor):
+        hidden_states = hidden_states.flatten(2).transpose(1, 2)
+        hidden_states = self.proj(hidden_states)
+        return hidden_states
+
+
 class SegFormerDecoder(SegFormerPreTrainedModel):
     """
-    MLP decoder consisting of *config.decoder_layers* layers. Each layer is a :class:`SegFormerDecoderLayer`
+    All-MLP decoder consisting of *config.decoder_layers* layers. Each layer is a :class:`SegFormerDecoderLayer`.
 
     Args:
         config: SegFormerConfig
@@ -394,19 +453,23 @@ class SegFormerDecoder(SegFormerPreTrainedModel):
 
     def __init__(self, config: SegFormerConfig):
         super().__init__(config)
-        self.dropout = config.dropout
-        self.layerdrop = config.decoder_layerdrop
 
-        self.layers = nn.ModuleList([SegFormerDecoderLayer(config) for _ in range(config.decoder_layers)])
-        self.layernorm_embedding = nn.LayerNorm(config.d_model)
+        assert len(config.feature_strides) == len(config.in_channels)
+        assert min(config.feature_strides) == config.feature_strides[0]
+
+        for i in reversed(range(config.decoder_layers)):
+            self.linear_c = nn.ModuleList(SegFormerDecoderLayer(config, input_dim=config.in_channels[i]))
+
+        self.linear_fuse = ConvModule(
+            in_channels=embedding_dim*4,
+            out_channels=embedding_dim,
+            kernel_size=1,
+            norm_cfg=dict(type='SyncBN', requires_grad=True)
+        )
+
+        self.dropout = nn.Dropout(config.dropout)
 
         self.init_weights()
-
-    def get_input_embeddings(self):
-        return self.embed_tokens
-
-    def set_input_embeddings(self, value):
-        self.embed_tokens = value
 
     def forward(
         self,
@@ -431,7 +494,6 @@ class SegFormerDecoder(SegFormerPreTrainedModel):
 
         # decoder layers
         all_hidden_states = () if output_hidden_states else None
-        all_self_attns = () if output_attentions else None
 
         for idx, decoder_layer in enumerate(self.layers):
             # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
@@ -512,7 +574,7 @@ class SegFormerModel(SegFormerPreTrainedModel):
 
         # hierarchical Transformer encoder
         self.encoder = SegFormerEncoder(config)
-        # MLP decoder
+        # all-MLP decoder
         self.decoder = SegFormerDecoder(config)
 
         self.init_weights()
@@ -524,12 +586,6 @@ class SegFormerModel(SegFormerPreTrainedModel):
         return self.decoder
 
     @add_start_docstrings_to_model_forward(SEGFORMER_INPUTS_DOCSTRING)
-    @add_code_sample_docstrings(
-        tokenizer_class=_TOKENIZER_FOR_DOC,
-        checkpoint=_CHECKPOINT_FOR_DOC,
-        output_type=Seq2SeqModelOutput,
-        config_class=_CONFIG_FOR_DOC,
-    )
     def forward(
         self,
         pixel_values,

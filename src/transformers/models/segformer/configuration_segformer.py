@@ -29,7 +29,7 @@ SEGFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP = {
 class SegFormerConfig(PretrainedConfig):
     r"""
     This is the configuration class to store the configuration of a :class:`~transformers.SegFormerModel`.
-    It is used to instantiate an SegFormer model according to the specified arguments, defining the model
+    It is used to instantiate a SegFormer model according to the specified arguments, defining the model
     architecture. Instantiating a configuration with the defaults will yield a similar configuration to that of
     the SegFormer `nvidia/segformer-b0 <https://huggingface.co/nvidia/segformer-b0>`__ architecture.
 
@@ -70,22 +70,16 @@ class SegFormerConfig(PretrainedConfig):
             The dropout ratio for the attention probabilities.
         activation_dropout (:obj:`float`, `optional`, defaults to 0.0):
             The dropout ratio for activations inside the fully connected layer.
-        classifier_dropout (:obj:`float`, `optional`, defaults to 0.0):
-            The dropout ratio for classifier.
+        drop_path_rate (:obj:`float`, `optional`, defaults to 0.1):
+            ...
+        layer_norm_eps (:obj:`float`, `optional`, defaults to 1e-6):
+            ...
         decoder_layers (:obj:`int`, `optional`, defaults to 4):
             Number of decoder layers.
-        decoder_attention_heads (:obj:`int`, `optional`, defaults to 16):
-            Number of attention heads for each attention layer in the Transformer decoder.
         decoder_ffn_dim (:obj:`int`, `optional`, defaults to 4096):
             Dimension of the "intermediate" (often named feed-forward) layer in decoder.
         init_std (:obj:`float`, `optional`, defaults to 0.02):
             The standard deviation of the truncated_normal_initializer for initializing all weight matrices.
-        encoder_layerdrop: (:obj:`float`, `optional`, defaults to 0.0):
-            The LayerDrop probability for the encoder. See the `LayerDrop paper <see
-            https://arxiv.org/abs/1909.11556>`__ for more details.
-        decoder_layerdrop: (:obj:`float`, `optional`, defaults to 0.0):
-            The LayerDrop probability for the decoder. See the `LayerDrop paper <see
-            https://arxiv.org/abs/1909.11556>`__ for more details.
 
         Example::
 
@@ -114,19 +108,16 @@ class SegFormerConfig(PretrainedConfig):
         strides=[4, 2, 2, 2],
         encoder_attention_heads=[1, 2, 4, 8],
         encoder_ffn_dim=4096,
-        encoder_layerdrop=0.0,
-        decoder_layerdrop=0.0,
-        decoder_layers=12,
-        decoder_ffn_dim=4096,
-        decoder_attention_heads=16,
-        is_encoder_decoder=True,
         activation_function="gelu",
-        d_model=1024,
         dropout=0.1,
         attention_dropout=0.0,
         activation_dropout=0.0,
+        drop_path_rate=0.1,
+        layer_norm_eps=1e-6,
+        decoder_layers=4,
+        decoder_ffn_dim=4096,
         init_std=0.02,
-        classifier_dropout=0.0,
+        is_encoder_decoder=True,
         scale_embedding=False,
         gradient_checkpointing=False,
         **kwargs
@@ -147,18 +138,14 @@ class SegFormerConfig(PretrainedConfig):
         self.strides = strides
         self.encoder_attention_heads = encoder_attention_heads
         self.encoder_ffn_dim = encoder_ffn_dim
-        self.encoder_layers = encoder_layers
-        self.encoder_attention_heads = encoder_attention_heads
-        self.decoder_ffn_dim = decoder_ffn_dim
-        self.decoder_layers = decoder_layers
-        self.decoder_attention_heads = decoder_attention_heads
+        self.activation_function = activation_function
         self.dropout = dropout
         self.attention_dropout = attention_dropout
         self.activation_dropout = activation_dropout
-        self.activation_function = activation_function
+        self.drop_path_rate = drop_path_rate
+        self.layer_norm_eps = layer_norm_eps
+        self.decoder_layers = decoder_layers
+        self.decoder_ffn_dim = decoder_ffn_dim
         self.init_std = init_std
-        self.encoder_layerdrop = encoder_layerdrop
-        self.decoder_layerdrop = decoder_layerdrop
-        self.classifier_dropout = classifier_dropout
-        self.gradient_checkpointing = gradient_checkpointing
         self.scale_embedding = scale_embedding  # scale factor will be sqrt(d_model) if True
+        self.gradient_checkpointing = gradient_checkpointing
