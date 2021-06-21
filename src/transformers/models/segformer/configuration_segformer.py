@@ -64,16 +64,16 @@ class SegFormerConfig(PretrainedConfig):
         activation_function (:obj:`str` or :obj:`function`, `optional`, defaults to :obj:`"gelu"`):
             The non-linear activation function (function or string) in the encoder and pooler. If string,
             :obj:`"gelu"`, :obj:`"relu"`, :obj:`"silu"` and :obj:`"gelu_new"` are supported.
-        dropout (:obj:`float`, `optional`, defaults to 0.1):
+        dropout (:obj:`float`, `optional`, defaults to 0.0):
             The dropout probability for all fully connected layers in the embeddings, encoder, and pooler.
         attention_dropout (:obj:`float`, `optional`, defaults to 0.0):
             The dropout ratio for the attention probabilities.
         activation_dropout (:obj:`float`, `optional`, defaults to 0.0):
             The dropout ratio for activations inside the fully connected layer.
         drop_path_rate (:obj:`float`, `optional`, defaults to 0.1):
-            ...
+            The dropout probability for stochastic depth, used in the blocks of the Transformer encoder. 
         layer_norm_eps (:obj:`float`, `optional`, defaults to 1e-6):
-            ...
+            The epsilon used by the layer normalization layers.
         decoder_layers (:obj:`int`, `optional`, defaults to 4):
             Number of decoder layers.
         decoder_ffn_dim (:obj:`int`, `optional`, defaults to 4096):
@@ -109,7 +109,7 @@ class SegFormerConfig(PretrainedConfig):
         encoder_attention_heads=[1, 2, 4, 8],
         encoder_ffn_dim=4096,
         activation_function="gelu",
-        dropout=0.1,
+        dropout=0.0,
         attention_dropout=0.0,
         activation_dropout=0.0,
         drop_path_rate=0.1,
