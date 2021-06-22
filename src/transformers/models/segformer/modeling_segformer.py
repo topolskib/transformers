@@ -501,140 +501,95 @@ class SegFormerEncoder(nn.Module):
         )
 
 
-# class SegFormerDecoderLayer(nn.Module):
-#     """
-#     Linear Embedding
-#     """
+class SegFormerDecoderLayer(nn.Module):
+    """
+    Linear Embedding.
+    """
     
-#     def __init__(self, config: SegFormerConfig, input_dim):
-#         super().__init__()
-#         self.proj = nn.Linear(input_dim, config.d_model)
+    def __init__(self, config: SegFormerConfig, input_dim):
+        super().__init__()
+        self.proj = nn.Linear(input_dim, config.decoder_hidden_size)
 
-#     def forward(self, hidden_states: torch.Tensor):
-#         hidden_states = hidden_states.flatten(2).transpose(1, 2)
-#         hidden_states = self.proj(hidden_states)
-#         return hidden_states
+    def forward(self, hidden_states: torch.Tensor):
+        hidden_states = hidden_states.flatten(2).transpose(1, 2)
+        hidden_states = self.proj(hidden_states)
+        return hidden_states
 
 
-# class SegFormerDecoder(SegFormerPreTrainedModel):
-#     """
-#     All-MLP decoder consisting of *config.decoder_layers* layers. Each layer is a :class:`SegFormerDecoderLayer`.
+class SegFormerDecoder(SegFormerPreTrainedModel):
+    """
+    All-MLP decoder consisting of *config.decoder_layers* layers. Each layer is a :class:`SegFormerDecoderLayer`.
 
-#     Args:
-#         config: SegFormerConfig
-#     """
+    Args:
+        config: SegFormerConfig
+    """
 
-#     def __init__(self, config: SegFormerConfig):
-#         super().__init__(config)
+    def __init__(self, config: SegFormerConfig):
+        super().__init__(config)
 
-#         assert len(config.feature_strides) == len(config.in_channels)
-#         assert min(config.feature_strides) == config.feature_strides[0]
+        assert len(config.feature_strides) == len(config.in_channels)
+        assert min(config.feature_strides) == config.feature_strides[0]
+        
+        mlps = []
+        for i in reversed(range(config.decoder_layers)):
+            mlps.append(SegFormerDecoderLayer(config, input_dim=config.in_channels[i]))
 
-#         for i in reversed(range(config.decoder_layers)):
-#             self.linear_c = nn.ModuleList(SegFormerDecoderLayer(config, input_dim=config.in_channels[i]))
+        self.linear_c = nn.ModuleList(mlps)
+        
+        self.linear_fuse = nn.Conv2d(in_channels=config.decoder_hidden_size*4, out_channels=config.decoder_hidden_size, kernel_size=1)
+        self.batch_norm = nn.BatchNorm2d(config.decoder_hidden_size)
 
-#         self.linear_fuse = ConvModule(
-#             in_channels=embedding_dim*4,
-#             out_channels=embedding_dim,
-#             kernel_size=1,
-#             norm_cfg=dict(type='SyncBN', requires_grad=True)
-#         )
+        self.dropout = nn.Dropout(config.dropout)
 
-#         self.dropout = nn.Dropout(config.dropout)
+        self.init_weights()
 
-#         self.init_weights()
+    def forward(
+        self,
+        features,
+        output_hidden_states=None,
+        return_dict=None,
+    ):
+        r"""
+        Args:
+            features (:obj:`List[torch.FloatTensor]` of shape :obj:`(batch_size, sequence_length, hidden_size)`, `optional`):
+                ...
+            output_hidden_states (:obj:`bool`, `optional`):
+                Whether or not to return the hidden states of all layers. See ``hidden_states`` under returned tensors
+                for more detail.
+            return_dict (:obj:`bool`, `optional`):
+                Whether or not to return a :class:`~transformers.file_utils.ModelOutput` instead of a plain tuple.
+        """
+        output_hidden_states = (
+            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
+        )
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
-#     def forward(
-#         self,
-#         features,
-#         output_hidden_states=None,
-#         return_dict=None,
-#     ):
-#         r"""
-#         Args:
-#             features (:obj:`List[torch.FloatTensor]` of shape :obj:`(batch_size, sequence_length, hidden_size)`, `optional`):
-#                 ...
-#             output_hidden_states (:obj:`bool`, `optional`):
-#                 Whether or not to return the hidden states of all layers. See ``hidden_states`` under returned tensors
-#                 for more detail.
-#             return_dict (:obj:`bool`, `optional`):
-#                 Whether or not to return a :class:`~transformers.file_utils.ModelOutput` instead of a plain tuple.
-#         """
-#         output_hidden_states = (
-#             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
-#         )
-#         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        # decoder layers
+        all_hidden_states = () if output_hidden_states else None
+        
+        for idx, decoder_layer in enumerate(self.layers):
+            if output_hidden_states:
+                all_hidden_states += (hidden_states,)
 
-#         # decoder layers
-#         all_hidden_states = () if output_hidden_states else None
+            layer_outputs = decoder_layer(
+                hidden_states
+            )
+            hidden_states = layer_outputs[0]
 
-#         for idx, decoder_layer in enumerate(self.layers):
-#             # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
-#             if output_hidden_states:
-#                 all_hidden_states += (hidden_states,)
-#             dropout_probability = random.uniform(0, 1)
-#             if self.training and (dropout_probability < self.layerdrop):
-#                 continue
+        # add hidden states from the last decoder layer
+        if output_hidden_states:
+            all_hidden_states += (hidden_states,)
 
-#             if getattr(self.config, "gradient_checkpointing", False) and self.training:
-
-#                 if use_cache:
-#                     logger.warning("`use_cache = True` is incompatible with `config.gradient_checkpointing = True`. Setting `use_cache = False`...")
-#                     use_cache = False
-
-#                 def create_custom_forward(module):
-#                     def custom_forward(*inputs):
-#                         # None for past_key_value
-#                         return module(*inputs, output_attentions, use_cache)
-
-#                     return custom_forward
-
-#                 layer_outputs = torch.utils.checkpoint.checkpoint(
-#                     create_custom_forward(decoder_layer),
-#                     hidden_states,
-#                     attention_mask,
-#                     encoder_hidden_states,
-#                     encoder_attention_mask,
-#                     head_mask[idx] if head_mask is not None else None,
-#                     cross_attn_head_mask[idx] if cross_attn_head_mask is not None else None,
-#                     None,
-#                 )
-#             else:
-
-#                 layer_outputs = decoder_layer(
-#                     hidden_states,
-#                     attention_mask=attention_mask,
-#                     encoder_hidden_states=encoder_hidden_states,
-#                     encoder_attention_mask=encoder_attention_mask,
-#                     layer_head_mask=(head_mask[idx] if head_mask is not None else None),
-#                     cross_layer_head_mask=(cross_attn_head_mask[idx] if cross_attn_head_mask is not None else None),
-#                     past_key_value=past_key_value,
-#                     output_attentions=output_attentions,
-#                     use_cache=use_cache,
-#                 )
-#             hidden_states = layer_outputs[0]
-
-#             if output_attentions:
-#                 all_self_attns += (layer_outputs[1],)
-
-#                 if encoder_hidden_states is not None:
-#                     all_cross_attentions += (layer_outputs[2],)
-
-#         # add hidden states from the last decoder layer
-#         if output_hidden_states:
-#             all_hidden_states += (hidden_states,)
-
-#         if not return_dict:
-#             return tuple(
-#                 v
-#                 for v in [hidden_states, all_hidden_states, all_self_attns]
-#                 if v is not None
-#             )
-#         return BaseModelOutput(
-#             last_hidden_state=hidden_states,
-#             hidden_states=all_hidden_states,
-#             attentions=all_self_attns,
-#         )
+        if not return_dict:
+            return tuple(
+                v
+                for v in [hidden_states, all_hidden_states]
+                if v is not None
+            )
+        return BaseModelOutput(
+            last_hidden_state=hidden_states,
+            hidden_states=all_hidden_states,
+        )
 
 
 @add_start_docstrings(

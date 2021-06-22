@@ -76,8 +76,12 @@ class SegFormerConfig(PretrainedConfig):
             The epsilon used by the layer normalization layers.
         decoder_layers (:obj:`int`, `optional`, defaults to 4):
             Number of decoder layers.
-        decoder_ffn_dim (:obj:`int`, `optional`, defaults to 4096):
-            Dimension of the "intermediate" (often named feed-forward) layer in decoder.
+        in_channels (:obj:`List[int]`, `optional`, defaults to [32, 64, 160, 256]):
+            ...
+        feature_strides (:obj:`List[int]`, `optional`, defaults to [4, 8, 16, 32]):
+            ...
+        decoder_hidden_size (:obj:`int`, `optional`, defaults to 256):
+            The dimension of the decoder.
         init_std (:obj:`float`, `optional`, defaults to 0.02):
             The standard deviation of the truncated_normal_initializer for initializing all weight matrices.
 
@@ -116,11 +120,12 @@ class SegFormerConfig(PretrainedConfig):
         drop_path_rate=0.1,
         layer_norm_eps=1e-6,
         decoder_layers=4,
-        decoder_ffn_dim=4096,
+        in_channels=[32, 64, 160, 256],
+        feature_strides=[4, 8, 16, 32],
+        decoder_hidden_size=256,
         init_std=0.02,
         is_encoder_decoder=True,
         scale_embedding=False,
-        gradient_checkpointing=False,
         **kwargs
     ):
         super().__init__(
@@ -147,7 +152,8 @@ class SegFormerConfig(PretrainedConfig):
         self.drop_path_rate = drop_path_rate
         self.layer_norm_eps = layer_norm_eps
         self.decoder_layers = decoder_layers
-        self.decoder_ffn_dim = decoder_ffn_dim
+        self.in_channels = in_channels
+        self.feature_strides = feature_strides
+        self.decoder_hidden_size = decoder_hidden_size
         self.init_std = init_std
         self.scale_embedding = scale_embedding  # scale factor will be sqrt(d_model) if True
-        self.gradient_checkpointing = gradient_checkpointing
