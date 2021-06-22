@@ -59,8 +59,8 @@ class SegFormerConfig(PretrainedConfig):
             Stride before each encoder block.
         encoder_attention_heads (:obj:`List[int]`, `optional`, defaults to [1, 2, 4, 8]):
             Number of attention heads for each attention layer in each block of the Transformer encoder.
-        encoder_ffn_dim (:obj:`int`, `optional`, defaults to 4096):
-            Dimension of the "intermediate" (often named feed-forward) layer in encoder.
+        mlp_ratio (:obj:`List[int]`, `optional`, defaults to [4, 4, 4, 4]):
+            Ratio of the size of the hidden layer compared to the size of the input layer of the Mix FFNs in the encoder blocks.
         activation_function (:obj:`str` or :obj:`function`, `optional`, defaults to :obj:`"gelu"`):
             The non-linear activation function (function or string) in the encoder and pooler. If string,
             :obj:`"gelu"`, :obj:`"relu"`, :obj:`"silu"` and :obj:`"gelu_new"` are supported.
@@ -102,11 +102,12 @@ class SegFormerConfig(PretrainedConfig):
         num_encoder_blocks=4,
         depths=[2, 2, 2, 2],
         sr_ratios=[8, 4, 2, 1],
-        hidden_sizes=[64, 128, 256, 512],
+        hidden_sizes=[32, 64, 160, 256],
         downsampling_rates=[1, 4, 8, 16],
         patch_sizes=[7, 3, 3, 3],
         strides=[4, 2, 2, 2],
         encoder_attention_heads=[1, 2, 4, 8],
+        mlp_ratio=[4, 4, 4, 4],
         encoder_ffn_dim=4096,
         activation_function="gelu",
         dropout=0.0,
@@ -137,6 +138,7 @@ class SegFormerConfig(PretrainedConfig):
         self.patch_sizes = patch_sizes
         self.strides = strides
         self.encoder_attention_heads = encoder_attention_heads
+        self.mlp_ratio = mlp_ratio
         self.encoder_ffn_dim = encoder_ffn_dim
         self.activation_function = activation_function
         self.dropout = dropout

@@ -172,8 +172,7 @@ class SegFormerEfficientSelfAttention(nn.Module):
         super().__init__()
         self.hidden_size = hidden_size
         self.num_attention_heads = num_attention_heads
-        self.sr_ratio = sr_ratio
-        
+
         if self.hidden_size % self.num_attention_heads != 0:
             raise ValueError(
                 f"The hidden size ({self.hidden_size}) is not a multiple of the number of attention "
@@ -189,6 +188,11 @@ class SegFormerEfficientSelfAttention(nn.Module):
 
         self.dropout = nn.Dropout(config.attention_dropout)
 
+        self.sr_ratio = sr_ratio
+        if sr_ratio > 1:
+            self.sr = nn.Conv2d(hidden_size, hidden_size, kernel_size=sr_ratio, stride=sr_ratio)
+            self.layer_norm = nn.LayerNorm(hidden_size)
+
     def transpose_for_scores(self, x):
         new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
         x = x.view(*new_x_shape)
@@ -203,11 +207,16 @@ class SegFormerEfficientSelfAttention(nn.Module):
         head_mask=None,
         output_attentions=False,
     ):
-        mixed_query_layer = self.query(hidden_states)
+        query_layer = self.transpose_for_scores(self.query(hidden_states))
 
+        if self.sr_ratio > 1:
+            batch_size, seq_len, num_channels = hidden_states.shape
+            hidden_states = hidden_states.permute(0, 2, 1).reshape(batch_size, num_channels, height, width)
+            hidden_states = self.sr(hidden_states).reshape(batch_size, num_channels, -1).permute(0, 2, 1)
+            hidden_states = self.layer_norm(hidden_states)
+        
         key_layer = self.transpose_for_scores(self.key(hidden_states))
         value_layer = self.transpose_for_scores(self.value(hidden_states))
-        query_layer = self.transpose_for_scores(mixed_query_layer)
 
         # Take the dot product between "query" and "key" to get the raw attention scores.
         attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
@@ -236,18 +245,18 @@ class SegFormerEfficientSelfAttention(nn.Module):
         return outputs
 
 
-class SegFormerSelfOutput(nn.Module):
-    def __init__(self, config, hidden_size):
-        super().__init__()
-        self.dense = nn.Linear(hidden_size, hidden_size)
-        self.LayerNorm = nn.LayerNorm(hidden_size, eps=config.layer_norm_eps)
-        self.dropout = nn.Dropout(config.dropout)
+# class SegFormerSelfOutput(nn.Module):
+#     def __init__(self, config, hidden_size):
+#         super().__init__()
+#         self.dense = nn.Linear(hidden_size, hidden_size)
+#         self.LayerNorm = nn.LayerNorm(hidden_size, eps=config.layer_norm_eps)
+#         self.dropout = nn.Dropout(config.dropout)
 
-    def forward(self, hidden_states, input_tensor):
-        hidden_states = self.dense(hidden_states)
-        hidden_states = self.dropout(hidden_states)
-        hidden_states = self.LayerNorm(hidden_states + input_tensor)
-        return hidden_states
+#     def forward(self, hidden_states, input_tensor):
+#         hidden_states = self.dense(hidden_states)
+#         hidden_states = self.dropout(hidden_states)
+#         hidden_states = self.LayerNorm(hidden_states + input_tensor)
+#         return hidden_states
 
 
 class SegFormerAttention(nn.Module):
@@ -255,7 +264,6 @@ class SegFormerAttention(nn.Module):
         super().__init__()
         self.self = SegFormerEfficientSelfAttention(config=config, hidden_size=hidden_size, num_attention_heads=num_attention_heads, 
                                                      sr_ratio=sr_ratio)
-        self.output = SegFormerSelfOutput(config, hidden_size=hidden_size)
         self.pruned_heads = set()
 
     def prune_heads(self, heads):
@@ -291,7 +299,9 @@ class SegFormerAttention(nn.Module):
             head_mask,
             output_attentions,
         )
-        attention_output = self.output(self_outputs[0], hidden_states)
+
+        #attention_output = self.output(self_outputs[0], hidden_states)
+        attention_output = self_outputs[0]
         outputs = (attention_output,) + self_outputs[1:]  # add attentions if we output them
         return outputs
 
@@ -336,13 +346,14 @@ class SegFormerMixFFN(nn.Module):
 class SegFormerEncoderLayer(nn.Module):
     """This corresponds to the Block class in the original implementation."""
     
-    def __init__(self, config, hidden_size, num_attention_heads, drop_path, sr_ratio):
+    def __init__(self, config, hidden_size, num_attention_heads, drop_path, sr_ratio, mlp_ratio):
         super().__init__()
         self.layer_norm_1 = nn.LayerNorm(hidden_size)
         self.attention = SegFormerAttention(config, hidden_size=hidden_size, num_attention_heads=num_attention_heads, sr_ratio=sr_ratio)
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.layer_norm_2 = nn.LayerNorm(hidden_size)
-        self.mlp = SegFormerMixFFN(config, in_features=hidden_size, hidden_features=config.encoder_ffn_dim)
+        mlp_hidden_size = int(hidden_size * mlp_ratio)
+        self.mlp = SegFormerMixFFN(config, in_features=hidden_size, hidden_features=mlp_hidden_size)
 
     def forward(
         self,
@@ -352,23 +363,28 @@ class SegFormerEncoderLayer(nn.Module):
         head_mask=None,
         output_attentions=False,
     ):
-        hidden_states = self.layer_norm_1(hidden_states)
         self_attention_outputs = self.attention(
-            hidden_states,
+            self.layer_norm_1(hidden_states), # in SegFormer, layernorm is applied before self-attention
             height,
             width,
             head_mask,
             output_attentions=output_attentions,
         )
         attention_output = self_attention_outputs[0]
-
         outputs = self_attention_outputs[1:]  # add self attentions if we output attention weights
 
-        # layer_output = apply_chunking_to_forward(
-        #     self.feed_forward_chunk, self.chunk_size_feed_forward, self.seq_len_dim, attention_output
-        # )
-        # outputs = (layer_output,) + outputs
+        # first residual connection (with stochastic depth)
+        attention_output = self.drop_path(attention_output)
+        hidden_states = attention_output + hidden_states 
 
+        mlp_output = self.mlp(self.layer_norm_2(hidden_states), height, width)
+        
+        # second residual connection (with stochastic depth)
+        mlp_output = self.drop_path(mlp_output)
+        layer_output = mlp_output + hidden_states 
+
+        outputs = (layer_output,) + outputs
+        
         return outputs
 
 
@@ -398,7 +414,7 @@ class SegFormerEncoder(nn.Module):
                 cur += config.depths[i-1]
             for j in range(config.depths[i]):
                 layers.append(SegFormerEncoderLayer(config, hidden_size=config.hidden_sizes[i], num_attention_heads=config.encoder_attention_heads[i],
-                                                   drop_path=dpr[cur + j], sr_ratio=config.sr_ratios[i]))
+                                                   drop_path=dpr[cur + j], sr_ratio=config.sr_ratios[i], mlp_ratio=config.mlp_ratio[i]))
             blocks.append(nn.ModuleList(layers))
         
         self.block = nn.ModuleList(blocks)
@@ -420,17 +436,18 @@ class SegFormerEncoder(nn.Module):
         batch_size = pixel_values.shape[0]
         
         features = []
-        x = pixel_values
+        hidden_states = pixel_values
         for embedding_layer, block_layer, norm_layer in zip(self.patch_embeddings, self.block, self.layer_norm):
             # first, obtain patch embeddings
-            x, height, width = embedding_layer(x)
+            hidden_states, height, width = embedding_layer(hidden_states)
             # second, send embeddings through blocks
             for i, blk in enumerate(block_layer):
-                x = blk(x, height, width)
+                layer_outputs = blk(hidden_states, height, width)
+                hidden_states = layer_outputs[0]
             # third, apply layer norm and reshape
-            x = norm_layer(x)
-            x = x.reshape(batch_size, height, width, -1).permute(0, 3, 1, 2).contiguous()
-            features.append(x)
+            hidden_states = norm_layer(hidden_states)
+            hidden_states = hidden_states.reshape(batch_size, height, width, -1).permute(0, 3, 1, 2).contiguous()
+            features.append(hidden_states)
         
         # for i, layer_module in enumerate(self.layer):
         #     if output_hidden_states:
@@ -638,8 +655,8 @@ class SegFormerModel(SegFormerPreTrainedModel):
     def get_encoder(self):
         return self.encoder
 
-    def get_decoder(self):
-        return self.decoder
+    # def get_decoder(self):
+    #     return self.decoder
 
     @add_start_docstrings_to_model_forward(SEGFORMER_INPUTS_DOCSTRING)
     def forward(
@@ -675,26 +692,28 @@ class SegFormerModel(SegFormerPreTrainedModel):
             )
 
         # decoder outputs consists of (dec_features, dec_hidden, dec_attn)
-        decoder_outputs = self.decoder(
-            input_ids=decoder_input_ids,
-            attention_mask=decoder_attention_mask,
-            encoder_hidden_states=encoder_outputs[0],
-            encoder_attention_mask=attention_mask,
-            head_mask=decoder_head_mask,
-            inputs_embeds=decoder_inputs_embeds,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
-        )
+        # decoder_outputs = self.decoder(
+        #     input_ids=decoder_input_ids,
+        #     attention_mask=decoder_attention_mask,
+        #     encoder_hidden_states=encoder_outputs[0],
+        #     encoder_attention_mask=attention_mask,
+        #     head_mask=decoder_head_mask,
+        #     inputs_embeds=decoder_inputs_embeds,
+        #     output_attentions=output_attentions,
+        #     output_hidden_states=output_hidden_states,
+        #     return_dict=return_dict,
+        # )
 
-        if not return_dict:
-            return decoder_outputs + encoder_outputs
+        # if not return_dict:
+        #     return decoder_outputs + encoder_outputs
 
-        return Seq2SeqModelOutput(
-            last_hidden_state=decoder_outputs.last_hidden_state,
-            decoder_hidden_states=decoder_outputs.hidden_states,
-            decoder_attentions=decoder_outputs.attentions,
-            encoder_last_hidden_state=encoder_outputs.last_hidden_state,
-            encoder_hidden_states=encoder_outputs.hidden_states,
-            encoder_attentions=encoder_outputs.attentions,
-        )
+        # return Seq2SeqModelOutput(
+        #     last_hidden_state=decoder_outputs.last_hidden_state,
+        #     decoder_hidden_states=decoder_outputs.hidden_states,
+        #     decoder_attentions=decoder_outputs.attentions,
+        #     encoder_last_hidden_state=encoder_outputs.last_hidden_state,
+        #     encoder_hidden_states=encoder_outputs.hidden_states,
+        #     encoder_attentions=encoder_outputs.attentions,
+        # )
+
+        return encoder_outputs
