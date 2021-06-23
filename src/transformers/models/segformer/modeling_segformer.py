@@ -15,7 +15,6 @@
 """ PyTorch SegFormer model. """
 
 import math
-import os
 import collections
 
 import torch
@@ -32,6 +31,7 @@ from ...file_utils import (
 )
 from ...modeling_outputs import (
     BaseModelOutput,
+    Seq2SeqModelOutput,
 )
 from ...modeling_utils import (
     PreTrainedModel,
@@ -50,7 +50,7 @@ _CHECKPOINT_FOR_DOC = "nvidia/segformer-b0"
 _CONFIG_FOR_DOC = "SegFormerConfig"
 
 SEGFORMER_PRETRAINED_MODEL_ARCHIVE_LIST = [
-    "nvidia/segformer-b0",
+    "nvidia/segformer-b0-fine-tuned-ade-512-512",
     # See all SegFormer models at https://huggingface.co/models?filter=segformer
 ]
 
@@ -64,7 +64,7 @@ def to_2tuple(x):
 
 
 # Stochastic depth implementation
-# Inspired by https://github.com/rwightman/pytorch-image-models/blob/master/timm/models/layers/drop.py
+# Taken from https://github.com/rwightman/pytorch-image-models/blob/master/timm/models/layers/drop.py
 def drop_path(x, drop_prob: float = 0., training: bool = False):
     """Drop paths (Stochastic Depth) per sample (when applied in main path of residual blocks).
     This is the same as the DropConnect impl I created for EfficientNet, etc networks, however,
@@ -203,7 +203,6 @@ class SegFormerEfficientSelfAttention(nn.Module):
         hidden_states,
         height,
         width,
-        attention_mask=None,
         head_mask=None,
         output_attentions=False,
     ):
@@ -435,54 +434,21 @@ class SegFormerEncoder(nn.Module):
 
         batch_size = pixel_values.shape[0]
         
-        features = []
         hidden_states = pixel_values
         for embedding_layer, block_layer, norm_layer in zip(self.patch_embeddings, self.block, self.layer_norm):
             # first, obtain patch embeddings
             hidden_states, height, width = embedding_layer(hidden_states)
             # second, send embeddings through blocks
             for i, blk in enumerate(block_layer):
-                layer_outputs = blk(hidden_states, height, width)
+                layer_outputs = blk(hidden_states, height, width, head_mask, output_attentions)
                 hidden_states = layer_outputs[0]
-            # third, apply layer norm and reshape
+                if output_attentions:
+                    all_self_attentions = all_self_attentions + (layer_outputs[1],)
+            # third, apply layer norm and reshape back to (batch_size, num_channels, height, width)
             hidden_states = norm_layer(hidden_states)
             hidden_states = hidden_states.reshape(batch_size, height, width, -1).permute(0, 3, 1, 2).contiguous()
-            features.append(hidden_states)
-        
-        # for i, layer_module in enumerate(self.layer):
-        #     if output_hidden_states:
-        #         all_hidden_states = all_hidden_states + (hidden_states,)
-
-        #     layer_head_mask = head_mask[i] if head_mask is not None else None
-
-        #     if getattr(self.config, "gradient_checkpointing", False) and self.training:
-
-        #         def create_custom_forward(module):
-        #             def custom_forward(*inputs):
-        #                 return module(*inputs, output_attentions)
-
-        #             return custom_forward
-
-        #         layer_outputs = torch.utils.checkpoint.checkpoint(
-        #             create_custom_forward(layer_module),
-        #             hidden_states,
-        #             attention_mask,
-        #             layer_head_mask,
-        #         )
-        #     else:
-        #         layer_outputs = layer_module(
-        #             hidden_states,
-        #             attention_mask,
-        #             layer_head_mask,
-        #             output_attentions,
-        #         )
-
-        #     hidden_states = layer_outputs[0]
-        #     if output_attentions:
-        #         all_self_attentions = all_self_attentions + (layer_outputs[1],)
-
-        # if output_hidden_states:
-        #     all_hidden_states = all_hidden_states + (hidden_states,)
+            if output_hidden_states:
+                all_hidden_states = all_hidden_states + (hidden_states,)
 
         if not return_dict:
             return tuple(
@@ -518,7 +484,7 @@ class SegFormerDecoderLayer(nn.Module):
 
 class SegFormerDecoder(SegFormerPreTrainedModel):
     """
-    All-MLP decoder consisting of *config.decoder_layers* layers. Each layer is a :class:`SegFormerDecoderLayer`.
+    All-MLP decoder consisting of *config.num_encoder_blocks* layers. Each layer is a :class:`SegFormerDecoderLayer`.
 
     Args:
         config: SegFormerConfig
@@ -526,17 +492,17 @@ class SegFormerDecoder(SegFormerPreTrainedModel):
 
     def __init__(self, config: SegFormerConfig):
         super().__init__(config)
-
-        assert len(config.feature_strides) == len(config.in_channels)
-        assert min(config.feature_strides) == config.feature_strides[0]
         
+        # linear layers which will unify the channel dimension of each of the encoder blocks to the same config.decoder_hidden_size
         mlps = []
-        for i in reversed(range(config.decoder_layers)):
-            mlps.append(SegFormerDecoderLayer(config, input_dim=config.in_channels[i]))
-
+        for i in range(config.num_encoder_blocks):
+            decoder_layer = SegFormerDecoderLayer(config, input_dim=config.hidden_sizes[i])
+            mlps.append(decoder_layer)
         self.linear_c = nn.ModuleList(mlps)
-        
-        self.linear_fuse = nn.Conv2d(in_channels=config.decoder_hidden_size*4, out_channels=config.decoder_hidden_size, kernel_size=1)
+
+        self.linear_fuse = nn.Conv2d(in_channels=config.decoder_hidden_size*config.num_encoder_blocks, 
+                                     out_channels=config.decoder_hidden_size, 
+                                     kernel_size=1)
         self.batch_norm = nn.BatchNorm2d(config.decoder_hidden_size)
 
         self.dropout = nn.Dropout(config.dropout)
@@ -545,50 +511,40 @@ class SegFormerDecoder(SegFormerPreTrainedModel):
 
     def forward(
         self,
-        features,
-        output_hidden_states=None,
+        encoder_hidden_states,
         return_dict=None,
     ):
         r"""
         Args:
-            features (:obj:`List[torch.FloatTensor]` of shape :obj:`(batch_size, sequence_length, hidden_size)`, `optional`):
+            encoder_hidden_states (:obj:`Tuple[torch.FloatTensor]` of shape :obj:`(batch_size, ..., ...)`, `optional`):
                 ...
-            output_hidden_states (:obj:`bool`, `optional`):
-                Whether or not to return the hidden states of all layers. See ``hidden_states`` under returned tensors
-                for more detail.
             return_dict (:obj:`bool`, `optional`):
                 Whether or not to return a :class:`~transformers.file_utils.ModelOutput` instead of a plain tuple.
         """
-        output_hidden_states = (
-            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
-        )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-
-        # decoder layers
-        all_hidden_states = () if output_hidden_states else None
         
-        for idx, decoder_layer in enumerate(self.layers):
-            if output_hidden_states:
-                all_hidden_states += (hidden_states,)
+        # decoder layers
+        batch_size, _, _, _ = encoder_hidden_states[-1].shape
+        upsampled_encoder_hidden_states = []
+        for encoder_hidden_state, decoder_layer in zip(encoder_hidden_states, self.linear_c):
 
-            layer_outputs = decoder_layer(
-                hidden_states
-            )
-            hidden_states = layer_outputs[0]
-
-        # add hidden states from the last decoder layer
-        if output_hidden_states:
-            all_hidden_states += (hidden_states,)
+            encoder_hidden_state = decoder_layer(encoder_hidden_state).permute(0, 2, 1).reshape(batch_size, -1, encoder_hidden_state.shape[2], encoder_hidden_state.shape[3])
+            encoder_hidden_state = nn.functional.interpolate(encoder_hidden_state, size=encoder_hidden_states[0].size()[2:], mode='bilinear', align_corners=False)
+            upsampled_encoder_hidden_states.append(encoder_hidden_state)
+        
+        hidden_states = self.linear_fuse(torch.cat(upsampled_encoder_hidden_states[::-1], dim=1))
+        hidden_states = self.batch_norm(hidden_states)
+        hidden_states = self.dropout(hidden_states)
 
         if not return_dict:
             return tuple(
                 v
-                for v in [hidden_states, all_hidden_states]
+                for v in [hidden_states, None]
                 if v is not None
             )
         return BaseModelOutput(
             last_hidden_state=hidden_states,
-            hidden_states=all_hidden_states,
+            hidden_states=upsampled_encoder_hidden_states,
         )
 
 
@@ -603,15 +559,15 @@ class SegFormerModel(SegFormerPreTrainedModel):
         # hierarchical Transformer encoder
         self.encoder = SegFormerEncoder(config)
         # all-MLP decoder
-        #self.decoder = SegFormerDecoder(config)
+        self.decoder = SegFormerDecoder(config)
 
         self.init_weights()
 
     def get_encoder(self):
         return self.encoder
 
-    # def get_decoder(self):
-    #     return self.decoder
+    def get_decoder(self):
+        return self.decoder
 
     @add_start_docstrings_to_model_forward(SEGFORMER_INPUTS_DOCSTRING)
     def forward(
@@ -619,8 +575,6 @@ class SegFormerModel(SegFormerPreTrainedModel):
         pixel_values,
         head_mask=None,
         encoder_outputs=None,
-        inputs_embeds=None,
-        decoder_inputs_embeds=None,
         output_attentions=None,
         output_hidden_states=None,
         return_dict=None,
@@ -634,8 +588,9 @@ class SegFormerModel(SegFormerPreTrainedModel):
         if encoder_outputs is None:
             encoder_outputs = self.encoder(
                 pixel_values,
+                head_mask=head_mask,
                 output_attentions=output_attentions,
-                output_hidden_states=output_hidden_states,
+                output_hidden_states=True, # set to True
                 return_dict=return_dict,
             )
         # If the user passed a tuple for encoder_outputs, we wrap it in a BaseModelOutput when return_dict=True
@@ -647,28 +602,19 @@ class SegFormerModel(SegFormerPreTrainedModel):
             )
 
         # decoder outputs consists of (dec_features, dec_hidden, dec_attn)
-        # decoder_outputs = self.decoder(
-        #     input_ids=decoder_input_ids,
-        #     attention_mask=decoder_attention_mask,
-        #     encoder_hidden_states=encoder_outputs[0],
-        #     encoder_attention_mask=attention_mask,
-        #     head_mask=decoder_head_mask,
-        #     inputs_embeds=decoder_inputs_embeds,
-        #     output_attentions=output_attentions,
-        #     output_hidden_states=output_hidden_states,
-        #     return_dict=return_dict,
-        # )
+        decoder_outputs = self.decoder(
+            encoder_hidden_states=encoder_outputs.hidden_states,
+            return_dict=return_dict,
+        )
 
-        # if not return_dict:
-        #     return decoder_outputs + encoder_outputs
+        if not return_dict:
+            return decoder_outputs + encoder_outputs
 
-        # return Seq2SeqModelOutput(
-        #     last_hidden_state=decoder_outputs.last_hidden_state,
-        #     decoder_hidden_states=decoder_outputs.hidden_states,
-        #     decoder_attentions=decoder_outputs.attentions,
-        #     encoder_last_hidden_state=encoder_outputs.last_hidden_state,
-        #     encoder_hidden_states=encoder_outputs.hidden_states,
-        #     encoder_attentions=encoder_outputs.attentions,
-        # )
-
-        return encoder_outputs
+        return Seq2SeqModelOutput(
+            last_hidden_state=decoder_outputs.last_hidden_state,
+            decoder_hidden_states=decoder_outputs.hidden_states,
+            decoder_attentions=None,
+            encoder_last_hidden_state=encoder_outputs.last_hidden_state,
+            encoder_hidden_states=encoder_outputs.hidden_states,
+            encoder_attentions=encoder_outputs.attentions,
+        )

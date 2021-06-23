@@ -21,7 +21,7 @@ from ...utils import logging
 logger = logging.get_logger(__name__)
 
 SEGFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP = {
-    "nvidia/segformer-b0": "https://huggingface.co/nvidia/segformer-b0/resolve/main/config.json",
+    "nvidia/segformer-b0-fine-tuned-ade-512-512": "https://huggingface.co/nvidia/segformer-b0-fine-tuned-ade-512-512/resolve/main/config.json",
     # See all SegFormer models at https://huggingface.co/models?filter=segformer
 }
 
@@ -31,7 +31,8 @@ class SegFormerConfig(PretrainedConfig):
     This is the configuration class to store the configuration of a :class:`~transformers.SegFormerModel`.
     It is used to instantiate a SegFormer model according to the specified arguments, defining the model
     architecture. Instantiating a configuration with the defaults will yield a similar configuration to that of
-    the SegFormer `nvidia/segformer-b0 <https://huggingface.co/nvidia/segformer-b0>`__ architecture.
+    the SegFormer `nvidia/segformer-b0-fine-tuned-ade-512-512 <https://huggingface.co/nvidia/segformer-b0-fine-tuned-ade-512-512>`__ 
+    architecture.
 
     Configuration objects inherit from  :class:`~transformers.PretrainedConfig` and can be used
     to control the model outputs. Read the documentation from  :class:`~transformers.PretrainedConfig`
@@ -74,12 +75,6 @@ class SegFormerConfig(PretrainedConfig):
             The dropout probability for stochastic depth, used in the blocks of the Transformer encoder. 
         layer_norm_eps (:obj:`float`, `optional`, defaults to 1e-6):
             The epsilon used by the layer normalization layers.
-        decoder_layers (:obj:`int`, `optional`, defaults to 4):
-            Number of decoder layers.
-        in_channels (:obj:`List[int]`, `optional`, defaults to [32, 64, 160, 256]):
-            ...
-        feature_strides (:obj:`List[int]`, `optional`, defaults to [4, 8, 16, 32]):
-            ...
         decoder_hidden_size (:obj:`int`, `optional`, defaults to 256):
             The dimension of the decoder.
         init_std (:obj:`float`, `optional`, defaults to 0.02):
@@ -89,10 +84,10 @@ class SegFormerConfig(PretrainedConfig):
 
         >>> from transformers import SegFormerModel, SegFormerConfig
 
-        >>> # Initializing a SegFormer nvidia/segformer-b0 style configuration
+        >>> # Initializing a SegFormer nvidia/segformer-b0-fine-tuned-ade-512-512 style configuration
         >>> configuration = SegFormerConfig()
 
-        >>> # Initializing a model from the nvidia/segformer-b0 style configuration
+        >>> # Initializing a model from the nvidia/segformer-b0-fine-tuned-ade-512-512 style configuration
         >>> model = SegFormerModel(configuration)
 
         >>> # Accessing the model configuration
@@ -119,9 +114,6 @@ class SegFormerConfig(PretrainedConfig):
         activation_dropout=0.0,
         drop_path_rate=0.1,
         layer_norm_eps=1e-6,
-        decoder_layers=4,
-        in_channels=[32, 64, 160, 256],
-        feature_strides=[4, 8, 16, 32],
         decoder_hidden_size=256,
         init_std=0.02,
         is_encoder_decoder=True,
@@ -151,9 +143,6 @@ class SegFormerConfig(PretrainedConfig):
         self.activation_dropout = activation_dropout
         self.drop_path_rate = drop_path_rate
         self.layer_norm_eps = layer_norm_eps
-        self.decoder_layers = decoder_layers
-        self.in_channels = in_channels
-        self.feature_strides = feature_strides
         self.decoder_hidden_size = decoder_hidden_size
         self.init_std = init_std
         self.scale_embedding = scale_embedding  # scale factor will be sqrt(d_model) if True
