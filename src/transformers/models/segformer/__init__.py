@@ -17,24 +17,19 @@
 # limitations under the License.
 from typing import TYPE_CHECKING
 
-from ...file_utils import _BaseLazyModule, is_tokenizers_available, is_torch_available
+from ...file_utils import _BaseLazyModule, is_tokenizers_available, is_torch_available, is_vision_available
 
 
 _import_structure = {
     "configuration_segformer": ["SEGFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP", "SegFormerConfig"],
-    "tokenization_segformer": ["SegFormerTokenizer"],
 }
 
-if is_tokenizers_available():
-    _import_structure["tokenization_segformer_fast"] = ["SegFormerTokenizerFast"]
+if is_vision_available():
+    _import_structure["feature_extraction_segformer"] = ["SegFormerFeatureExtractor"]
 
 if is_torch_available():
     _import_structure["modeling_segformer"] = [
         "SEGFORMER_PRETRAINED_MODEL_ARCHIVE_LIST",
-        "SegFormerForCausalLM",
-        "SegFormerForConditionalGeneration",
-        "SegFormerForQuestionAnswering",
-        "SegFormerForSequenceClassification",
         "SegFormerModel",
         "SegFormerPreTrainedModel",
     ]
@@ -42,18 +37,13 @@ if is_torch_available():
 
 if TYPE_CHECKING:
     from .configuration_segformer import SEGFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP, SegFormerConfig
-    from .tokenization_segformer import SegFormerTokenizer
 
-    if is_tokenizers_available():
-        from .tokenization_segformer_fast import SegFormerTokenizerFast
-
+    if is_vision_available():
+        from .feature_extraction_segformer import SegFormerFeatureExtractor
+    
     if is_torch_available():
         from .modeling_segformer import (
             SEGFORMER_PRETRAINED_MODEL_ARCHIVE_LIST,
-            SegFormerForCausalLM,
-            SegFormerForConditionalGeneration,
-            SegFormerForQuestionAnswering,
-            SegFormerForSequenceClassification,
             SegFormerModel,
             SegFormerPreTrainedModel,
         )

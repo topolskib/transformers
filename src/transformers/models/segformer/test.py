@@ -14,5 +14,7 @@ outputs = model(pixel_values)
 for i in outputs.encoder_hidden_states:
     print(i.shape)
 
+print(outputs.last_hidden_state.shape)
+
 # for name, param in model.named_parameters():
 #     print(name, param.shape)
