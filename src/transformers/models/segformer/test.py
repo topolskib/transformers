@@ -1,11 +1,13 @@
-from transformers import SegFormerConfig, SegFormerModel
 import torch
+
+from transformers import SegFormerConfig, SegFormerModel
+
 
 config = SegFormerConfig()
 
 model = SegFormerModel(config)
 
-pixel_values = torch.randn((2,3,224,224))
+pixel_values = torch.randn((2, 3, 512, 512))
 
 outputs = model(pixel_values)
 

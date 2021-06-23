@@ -133,8 +133,6 @@ _import_structure = {
         "load_tf2_weights_in_pytorch_model",
     ],
     # Models
-    "models.segformer": ["SEGFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP", "SegFormerConfig", "SegFormerTokenizer"],
-    "models.segformer": ["SEGFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP", "SegFormerConfig", "SegFormerTokenizer"],
     "models": [],
     "models.albert": ["ALBERT_PRETRAINED_CONFIG_ARCHIVE_MAP", "AlbertConfig"],
     "models.auto": [
@@ -227,6 +225,8 @@ _import_structure = {
     "models.retribert": ["RETRIBERT_PRETRAINED_CONFIG_ARCHIVE_MAP", "RetriBertConfig", "RetriBertTokenizer"],
     "models.roberta": ["ROBERTA_PRETRAINED_CONFIG_ARCHIVE_MAP", "RobertaConfig", "RobertaTokenizer"],
     "models.roformer": ["ROFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP", "RoFormerConfig", "RoFormerTokenizer"],
+    "models.segformer": ["SEGFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP", "SegFormerConfig", "SegFormerTokenizer"],
+    "models.segformer": ["SEGFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP", "SegFormerConfig", "SegFormerTokenizer"],
     "models.speech_to_text": [
         "SPEECH_TO_TEXT_PRETRAINED_CONFIG_ARCHIVE_MAP",
         "Speech2TextConfig",
@@ -495,32 +495,6 @@ if is_torch_available():
 
     # PyTorch models structure
 
-    _import_structure["models.segformer"].extend(
-        [
-            "SEGFORMER_PRETRAINED_MODEL_ARCHIVE_LIST",
-            "SegFormerForCausalLM",
-            "SegFormerForConditionalGeneration",
-            "SegFormerForQuestionAnswering",
-            "SegFormerForSequenceClassification",
-            "SegFormerModel",
-        ]
-    )
-
-    _import_structure["models.segformer"].extend(
-        [
-            "SEGFORMER_PRETRAINED_MODEL_ARCHIVE_LIST",
-            "SegFormerForMaskedLM",
-            "SegFormerForCausalLM",
-            "SegFormerForMultipleChoice",
-            "SegFormerForQuestionAnswering",
-            "SegFormerForSequenceClassification",
-            "SegFormerForTokenClassification",
-            "SegFormerLayer",
-            "SegFormerModel",
-            "SegFormerPreTrainedModel",
-            "load_tf_weights_in_segformer",
-        ]
-    )
     _import_structure["models.albert"].extend(
         [
             "ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST",
@@ -567,7 +541,6 @@ if is_torch_available():
             "AutoModelWithLMHead",
         ]
     )
-
     _import_structure["models.bart"].extend(
         [
             "BART_PRETRAINED_MODEL_ARCHIVE_LIST",
@@ -580,6 +553,7 @@ if is_torch_available():
             "PretrainedBartModel",
         ]
     )
+
     _import_structure["models.bert"].extend(
         [
             "BERT_PRETRAINED_MODEL_ARCHIVE_LIST",
@@ -597,6 +571,7 @@ if is_torch_available():
             "load_tf_weights_in_bert",
         ]
     )
+
     _import_structure["models.bert_generation"].extend(
         [
             "BertGenerationDecoder",
@@ -1008,6 +983,31 @@ if is_torch_available():
             "RoFormerModel",
             "RoFormerPreTrainedModel",
             "load_tf_weights_in_roformer",
+        ]
+    )
+    _import_structure["models.segformer"].extend(
+        [
+            "SEGFORMER_PRETRAINED_MODEL_ARCHIVE_LIST",
+            "SegFormerForCausalLM",
+            "SegFormerForConditionalGeneration",
+            "SegFormerForQuestionAnswering",
+            "SegFormerForSequenceClassification",
+            "SegFormerModel",
+        ]
+    )
+    _import_structure["models.segformer"].extend(
+        [
+            "SEGFORMER_PRETRAINED_MODEL_ARCHIVE_LIST",
+            "SegFormerForCausalLM",
+            "SegFormerForMaskedLM",
+            "SegFormerForMultipleChoice",
+            "SegFormerForQuestionAnswering",
+            "SegFormerForSequenceClassification",
+            "SegFormerForTokenClassification",
+            "SegFormerLayer",
+            "SegFormerModel",
+            "SegFormerPreTrainedModel",
+            "load_tf_weights_in_segformer",
         ]
     )
     _import_structure["models.speech_to_text"].extend(
@@ -1724,8 +1724,6 @@ if TYPE_CHECKING:
         load_tf2_weights_in_pytorch_model,
     )
     from .models.albert import ALBERT_PRETRAINED_CONFIG_ARCHIVE_MAP, AlbertConfig
-    from .models.segformer import SEGFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP, SegFormerConfig, SegFormerTokenizer
-    from .models.segformer import SEGFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP, SegFormerConfig, SegFormerTokenizer
     from .models.auto import (
         ALL_PRETRAINED_CONFIG_ARCHIVE_MAP,
         CONFIG_MAPPING,
@@ -1812,6 +1810,7 @@ if TYPE_CHECKING:
     from .models.retribert import RETRIBERT_PRETRAINED_CONFIG_ARCHIVE_MAP, RetriBertConfig, RetriBertTokenizer
     from .models.roberta import ROBERTA_PRETRAINED_CONFIG_ARCHIVE_MAP, RobertaConfig, RobertaTokenizer
     from .models.roformer import ROFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP, RoFormerConfig, RoFormerTokenizer
+    from .models.segformer import SEGFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP, SegFormerConfig, SegFormerTokenizer
     from .models.speech_to_text import SPEECH_TO_TEXT_PRETRAINED_CONFIG_ARCHIVE_MAP, Speech2TextConfig
     from .models.squeezebert import SQUEEZEBERT_PRETRAINED_CONFIG_ARCHIVE_MAP, SqueezeBertConfig, SqueezeBertTokenizer
     from .models.t5 import T5_PRETRAINED_CONFIG_ARCHIVE_MAP, T5Config
@@ -1911,8 +1910,6 @@ if TYPE_CHECKING:
         from .utils.dummy_sentencepiece_objects import *
 
     if is_tokenizers_available():
-        from .models.segformer import SegFormerTokenizerFast
-        from .models.segformer import SegFormerTokenizerFast
         from .models.albert import AlbertTokenizerFast
         from .models.bart import BartTokenizerFast
         from .models.barthez import BarthezTokenizerFast
@@ -1942,6 +1939,7 @@ if TYPE_CHECKING:
         from .models.retribert import RetriBertTokenizerFast
         from .models.roberta import RobertaTokenizerFast
         from .models.roformer import RoFormerTokenizerFast
+        from .models.segformer import SegFormerTokenizerFast
         from .models.squeezebert import SqueezeBertTokenizerFast
         from .models.t5 import T5TokenizerFast
         from .models.xlm_roberta import XLMRobertaTokenizerFast
@@ -1989,28 +1987,6 @@ if TYPE_CHECKING:
 
     if is_torch_available():
 
-        from .models.segformer import (
-            SEGFORMER_PRETRAINED_MODEL_ARCHIVE_LIST,
-            SegFormerForConditionalGeneration,
-            SegFormerForCausalLM,
-            SegFormerForQuestionAnswering,
-            SegFormerForSequenceClassification,
-            SegFormerModel,
-        )
-
-        from .models.segformer import (
-            SEGFORMER_PRETRAINED_MODEL_ARCHIVE_LIST,
-            SegFormerForMaskedLM,
-            SegFormerForCausalLM,
-            SegFormerForMultipleChoice,
-            SegFormerForQuestionAnswering,
-            SegFormerForSequenceClassification,
-            SegFormerForTokenClassification,
-            SegFormerLayer,
-            SegFormerModel,
-            SegFormerPreTrainedModel,
-            load_tf_weights_in_segformer,
-        )
         # Benchmarks
         from .benchmark.benchmark import PyTorchBenchmark
         from .benchmark.benchmark_args import PyTorchBenchmarkArguments
@@ -2460,6 +2436,20 @@ if TYPE_CHECKING:
             RoFormerModel,
             RoFormerPreTrainedModel,
             load_tf_weights_in_roformer,
+        )
+        from .models.segformer import (
+            SEGFORMER_PRETRAINED_MODEL_ARCHIVE_LIST,
+            SegFormerForCausalLM,
+            SegFormerForConditionalGeneration,
+            SegFormerForMaskedLM,
+            SegFormerForMultipleChoice,
+            SegFormerForQuestionAnswering,
+            SegFormerForSequenceClassification,
+            SegFormerForTokenClassification,
+            SegFormerLayer,
+            SegFormerModel,
+            SegFormerPreTrainedModel,
+            load_tf_weights_in_segformer,
         )
         from .models.speech_to_text import (
             SPEECH_TO_TEXT_PRETRAINED_MODEL_ARCHIVE_LIST,

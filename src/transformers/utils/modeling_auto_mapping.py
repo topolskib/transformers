@@ -40,7 +40,6 @@ MODEL_FOR_QUESTION_ANSWERING_MAPPING_NAMES = OrderedDict(
 
 MODEL_FOR_CAUSAL_LM_MAPPING_NAMES = OrderedDict(
     [
-        ("RoFormerConfig", "RoFormerForCausalLM"),
         ("BigBirdPegasusConfig", "BigBirdPegasusForCausalLM"),
         ("GPTNeoConfig", "GPTNeoForCausalLM"),
         ("BigBirdConfig", "BigBirdForCausalLM"),
@@ -251,6 +250,7 @@ MODEL_FOR_TOKEN_CLASSIFICATION_MAPPING_NAMES = OrderedDict(
 
 MODEL_MAPPING_NAMES = OrderedDict(
     [
+        ("SegFormerConfig", "SegFormerModel"),
         ("VisualBertConfig", "VisualBertModel"),
         ("RoFormerConfig", "RoFormerModel"),
         ("CLIPConfig", "CLIPModel"),

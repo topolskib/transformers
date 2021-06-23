@@ -28,24 +28,23 @@ SEGFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP = {
 
 class SegFormerConfig(PretrainedConfig):
     r"""
-    This is the configuration class to store the configuration of a :class:`~transformers.SegFormerModel`.
-    It is used to instantiate a SegFormer model according to the specified arguments, defining the model
-    architecture. Instantiating a configuration with the defaults will yield a similar configuration to that of
-    the SegFormer `nvidia/segformer-b0-fine-tuned-ade-512-512 <https://huggingface.co/nvidia/segformer-b0-fine-tuned-ade-512-512>`__ 
+    This is the configuration class to store the configuration of a :class:`~transformers.SegFormerModel`. It is used
+    to instantiate a SegFormer model according to the specified arguments, defining the model architecture.
+    Instantiating a configuration with the defaults will yield a similar configuration to that of the SegFormer
+    `nvidia/segformer-b0-fine-tuned-ade-512-512 <https://huggingface.co/nvidia/segformer-b0-fine-tuned-ade-512-512>`__
     architecture.
 
-    Configuration objects inherit from  :class:`~transformers.PretrainedConfig` and can be used
-    to control the model outputs. Read the documentation from  :class:`~transformers.PretrainedConfig`
-    for more information.
+    Configuration objects inherit from :class:`~transformers.PretrainedConfig` and can be used to control the model
+    outputs. Read the documentation from :class:`~transformers.PretrainedConfig` for more information.
 
 
     Args:
-        image_size (:obj:`int`, `optional`, defaults to 224):
+        image_size (:obj:`int`, `optional`, defaults to 512):
             The size (resolution) of each image.
         num_channels (:obj:`int`, `optional`, defaults to 3):
             The number of input channels.
         num_encoder_blocks (:obj:`int`, `optional`, defaults to 4):
-            The number of encoder blocks (i.e. stages in the Mix Transformer encoder). 
+            The number of encoder blocks (i.e. stages in the Mix Transformer encoder).
         depths (:obj:`List[int]`, `optional`, defaults to [2, 2, 2, 2]):
             The number of layers in each encoder block.
         sr_ratios (:obj:`List[int]`, `optional`, defaults to [8, 4, 2, 1]):
@@ -53,7 +52,7 @@ class SegFormerConfig(PretrainedConfig):
         hidden_sizes (:obj:`List[int]`, `optional`, defaults to [32, 64, 160, 256]):
             Dimension of each of the encoder blocks.
         downsampling_rates (:obj:`List[int]`, `optional`, defaults to [1, 4, 8, 16]):
-            Downsample rate of the image resolution before each encoder block.
+            Downsample rate of the image resolution compared to the original image size before each encoder block.
         patch_sizes (:obj:`List[int]`, `optional`, defaults to [7, 3, 3, 3]):
             Patch size before each encoder block.
         strides (:obj:`List[int]`, `optional`, defaults to [4, 2, 2, 2]):
@@ -61,7 +60,8 @@ class SegFormerConfig(PretrainedConfig):
         encoder_attention_heads (:obj:`List[int]`, `optional`, defaults to [1, 2, 4, 8]):
             Number of attention heads for each attention layer in each block of the Transformer encoder.
         mlp_ratio (:obj:`List[int]`, `optional`, defaults to [4, 4, 4, 4]):
-            Ratio of the size of the hidden layer compared to the size of the input layer of the Mix FFNs in the encoder blocks.
+            Ratio of the size of the hidden layer compared to the size of the input layer of the Mix FFNs in the
+            encoder blocks.
         activation_function (:obj:`str` or :obj:`function`, `optional`, defaults to :obj:`"gelu"`):
             The non-linear activation function (function or string) in the encoder and pooler. If string,
             :obj:`"gelu"`, :obj:`"relu"`, :obj:`"silu"` and :obj:`"gelu_new"` are supported.
@@ -72,7 +72,7 @@ class SegFormerConfig(PretrainedConfig):
         activation_dropout (:obj:`float`, `optional`, defaults to 0.0):
             The dropout ratio for activations inside the fully connected layer.
         drop_path_rate (:obj:`float`, `optional`, defaults to 0.1):
-            The dropout probability for stochastic depth, used in the blocks of the Transformer encoder. 
+            The dropout probability for stochastic depth, used in the blocks of the Transformer encoder.
         layer_norm_eps (:obj:`float`, `optional`, defaults to 1e-6):
             The epsilon used by the layer normalization layers.
         decoder_hidden_size (:obj:`int`, `optional`, defaults to 256):
@@ -94,6 +94,7 @@ class SegFormerConfig(PretrainedConfig):
         >>> configuration = model.config
     """
     model_type = "segformer"
+
     def __init__(
         self,
         image_size=224,
@@ -120,10 +121,7 @@ class SegFormerConfig(PretrainedConfig):
         scale_embedding=False,
         **kwargs
     ):
-        super().__init__(
-            is_encoder_decoder=is_encoder_decoder,
-            **kwargs
-        )
+        super().__init__(is_encoder_decoder=is_encoder_decoder, **kwargs)
 
         self.image_size = image_size
         self.num_channels = num_channels

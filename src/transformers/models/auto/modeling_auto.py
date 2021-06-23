@@ -19,11 +19,6 @@ import warnings
 from collections import OrderedDict
 
 from ...utils import logging
-
-# Add modeling imports here
-from ..segformer.modeling_segformer import (
-    SegFormerModel,
-)
 from ..albert.modeling_albert import (
     AlbertForMaskedLM,
     AlbertForMultipleChoice,
@@ -254,6 +249,9 @@ from ..roformer.modeling_roformer import (
     RoFormerForTokenClassification,
     RoFormerModel,
 )
+
+# Add modeling imports here
+from ..segformer.modeling_segformer import SegFormerModel
 from ..speech_to_text.modeling_speech_to_text import Speech2TextForConditionalGeneration, Speech2TextModel
 from ..squeezebert.modeling_squeezebert import (
     SqueezeBertForMaskedLM,
@@ -306,7 +304,6 @@ from ..xlnet.modeling_xlnet import (
 )
 from .auto_factory import auto_class_factory
 from .configuration_auto import (
-    SegFormerConfig,
     AlbertConfig,
     BartConfig,
     BertConfig,
@@ -353,6 +350,7 @@ from .configuration_auto import (
     RetriBertConfig,
     RobertaConfig,
     RoFormerConfig,
+    SegFormerConfig,
     Speech2TextConfig,
     SqueezeBertConfig,
     T5Config,

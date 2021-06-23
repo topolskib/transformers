@@ -17,8 +17,6 @@
 # limitations under the License.
 
 from . import (
-    segformer,
-    segformer,
     albert,
     auto,
     bart,
@@ -72,6 +70,7 @@ from . import (
     retribert,
     roberta,
     roformer,
+    segformer,
     speech_to_text,
     squeezebert,
     t5,

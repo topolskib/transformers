@@ -35,9 +35,9 @@ PATH_TO_DOC = "docs/source"
 # Being in this list is an exception and should **not** be the rule.
 IGNORE_NON_TESTED = [
     # models to ignore for not tested
-"SegFormerEncoder",  # Building part of bigger (tested) model.
+    "SegFormerEncoder",  # Building part of bigger (tested) model.
     "SegFormerDecoder",  # Building part of bigger (tested) model.
-    "SegFormerDecoderWrapper", # Building part of bigger (tested) model.
+    "SegFormerDecoderWrapper",  # Building part of bigger (tested) model.
     "BigBirdPegasusEncoder",  # Building part of bigger (tested) model.
     "BigBirdPegasusDecoder",  # Building part of bigger (tested) model.
     "BigBirdPegasusDecoderWrapper",  # Building part of bigger (tested) model.
@@ -97,7 +97,7 @@ TEST_FILES_WITH_NO_COMMON_TESTS = [
 # should **not** be the rule.
 IGNORE_NON_AUTO_CONFIGURED = [
     # models to ignore for model xxx mapping
-"SegFormerEncoder",
+    "SegFormerEncoder",
     "SegFormerDecoder",
     "SegFormerDecoderWrapper",
     "CLIPTextModel",

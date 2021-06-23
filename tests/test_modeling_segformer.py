@@ -33,17 +33,14 @@ if is_torch_available():
 
     from transformers import (
         SegFormerConfig,
+        SegFormerForCausalLM,
         SegFormerForConditionalGeneration,
         SegFormerForQuestionAnswering,
-        SegFormerForCausalLM,
         SegFormerForSequenceClassification,
         SegFormerModel,
         SegFormerTokenizer,
     )
-    from transformers.models.segformer.modeling_segformer import (
-        SegFormerDecoder,
-        SegFormerEncoder,
-    )
+    from transformers.models.segformer.modeling_segformer import SegFormerDecoder, SegFormerEncoder
 
 
 def prepare_segformer_inputs_dict(
@@ -156,7 +153,9 @@ class SegFormerModelTester:
         next_attention_mask = torch.cat([attention_mask, next_attn_mask], dim=-1)
 
         output_from_no_past = model(next_input_ids, attention_mask=next_attention_mask)["last_hidden_state"]
-        output_from_past = model(next_tokens, attention_mask=next_attention_mask, past_key_values=past_key_values)["last_hidden_state"]
+        output_from_past = model(next_tokens, attention_mask=next_attention_mask, past_key_values=past_key_values)[
+            "last_hidden_state"
+        ]
 
         # select random slice
         random_slice_idx = ids_tensor((1,), output_from_past.shape[-1]).item()
@@ -204,7 +203,12 @@ class SegFormerModelTester:
 @require_torch
 class SegFormerModelTest(ModelTesterMixin, GenerationTesterMixin, unittest.TestCase):
     all_model_classes = (
-        (SegFormerModel, SegFormerForConditionalGeneration, SegFormerForSequenceClassification, SegFormerForQuestionAnswering)
+        (
+            SegFormerModel,
+            SegFormerForConditionalGeneration,
+            SegFormerForSequenceClassification,
+            SegFormerForQuestionAnswering,
+        )
         if is_torch_available()
         else ()
     )
@@ -313,10 +317,10 @@ TOLERANCE = 1e-4
 class SegFormerModelIntegrationTests(unittest.TestCase):
     @cached_property
     def default_tokenizer(self):
-        return SegFormerTokenizer.from_pretrained('nvidia/segformer-b0')
+        return SegFormerTokenizer.from_pretrained("nvidia/segformer-b0")
 
     def test_inference_no_head(self):
-        model = SegFormerModel.from_pretrained('nvidia/segformer-b0').to(torch_device)
+        model = SegFormerModel.from_pretrained("nvidia/segformer-b0").to(torch_device)
         input_ids = _long_tensor([[0, 31414, 232, 328, 740, 1140, 12695, 69, 46078, 1588, 2]])
         decoder_input_ids = _long_tensor([[2, 0, 31414, 232, 328, 740, 1140, 12695, 69, 46078, 1588]])
         inputs_dict = prepare_segformer_inputs_dict(model.config, input_ids, decoder_input_ids)
@@ -331,7 +335,7 @@ class SegFormerModelIntegrationTests(unittest.TestCase):
         self.assertTrue(torch.allclose(output[:, :3, :3], expected_slice, atol=TOLERANCE))
 
     def test_inference_head(self):
-        model = SegFormerForConditionalGeneration.from_pretrained('nvidia/segformer-b0').to(torch_device)
+        model = SegFormerForConditionalGeneration.from_pretrained("nvidia/segformer-b0").to(torch_device)
 
         # change to intended input
         input_ids = _long_tensor([[0, 31414, 232, 328, 740, 1140, 12695, 69, 46078, 1588, 2]])
@@ -348,8 +352,8 @@ class SegFormerModelIntegrationTests(unittest.TestCase):
         self.assertTrue(torch.allclose(output[:, :3, :3], expected_slice, atol=TOLERANCE))
 
     def test_seq_to_seq_generation(self):
-        hf = SegFormerForConditionalGeneration.from_pretrained('nvidia/segformer-b0').to(torch_device)
-        tok = SegFormerTokenizer.from_pretrained('nvidia/segformer-b0')
+        hf = SegFormerForConditionalGeneration.from_pretrained("nvidia/segformer-b0").to(torch_device)
+        tok = SegFormerTokenizer.from_pretrained("nvidia/segformer-b0")
 
         batch_input = [
             # string 1,
