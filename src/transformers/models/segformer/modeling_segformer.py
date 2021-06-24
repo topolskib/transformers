@@ -29,7 +29,7 @@ from ...file_utils import (
     add_start_docstrings_to_model_forward,
     replace_return_docstrings,
 )
-from ...modeling_outputs import BaseModelOutput, Seq2SeqModelOutput
+from ...modeling_outputs import BaseModelOutput, Seq2SeqModelOutput, Seq2SeqSequenceClassifierOutput
 from ...modeling_utils import PreTrainedModel, find_pruneable_heads_and_indices, prune_linear_layer
 from ...utils import logging
 from .configuration_segformer import SegFormerConfig
@@ -641,4 +641,69 @@ class SegFormerModel(SegFormerPreTrainedModel):
             encoder_last_hidden_state=encoder_outputs.last_hidden_state,
             encoder_hidden_states=encoder_outputs.hidden_states,
             encoder_attentions=encoder_outputs.attentions,
+        )
+
+
+@add_start_docstrings(
+    """
+    SegFormer model with an image segmentation head on top (a linear layer on top of the decoder outputs) e.g. for ADE20k, CityScapes.
+    """,
+    SEGFORMER_START_DOCSTRING,
+)
+class SegFormerForImageSegmentation(SegFormerPreTrainedModel):
+    def __init__(self, config: SegFormerConfig, **kwargs):
+        super().__init__(config, **kwargs)
+        self.model = SegFormerModel(config)
+        self.classifier = nn.Conv2d(config.decoder_hidden_size, config.num_labels, kernel_size=1)
+
+    @add_start_docstrings_to_model_forward(SEGFORMER_INPUTS_DOCSTRING)
+    def forward(
+        self,
+        pixel_values,
+        head_mask=None,
+        encoder_outputs=None,
+        output_attentions=None,
+        output_hidden_states=None,
+        labels=None,
+        return_dict=None,
+    ):
+        r"""
+        labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size, height, width)`, `optional`):
+            Labels for computing the image segmentation loss. Indices should be in :obj:`[0, ...,
+            config.num_labels - 1]`. If :obj:`config.num_labels > 1` a classification loss is computed (Cross-Entropy).
+        """
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        outputs = self.model(
+            pixel_values,
+            head_mask=head_mask,
+            encoder_outputs=encoder_outputs,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+        hidden_states = outputs[0]  # last hidden state
+
+        logits = self.classifier(hidden_states)
+
+        loss = None
+        if labels is not None:
+            if self.config.num_labels == 1:
+                raise ValueError("The number of labels should be greater than one")
+            else:
+                loss_fct = CrossEntropyLoss()
+                loss = loss_fct(logits.view(-1, self.config.num_labels), labels.view(-1))
+
+        if not return_dict:
+            output = (logits,) + outputs[1:]
+            return ((loss,) + output) if loss is not None else output
+
+        return Seq2SeqSequenceClassifierOutput(
+            loss=loss,
+            logits=logits,
+            decoder_hidden_states=outputs.decoder_hidden_states,
+            decoder_attentions=outputs.decoder_attentions,
+            encoder_last_hidden_state=outputs.encoder_last_hidden_state,
+            encoder_hidden_states=outputs.encoder_hidden_states,
+            encoder_attentions=outputs.encoder_attentions,
         )

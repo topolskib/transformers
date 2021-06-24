@@ -225,8 +225,7 @@ _import_structure = {
     "models.retribert": ["RETRIBERT_PRETRAINED_CONFIG_ARCHIVE_MAP", "RetriBertConfig", "RetriBertTokenizer"],
     "models.roberta": ["ROBERTA_PRETRAINED_CONFIG_ARCHIVE_MAP", "RobertaConfig", "RobertaTokenizer"],
     "models.roformer": ["ROFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP", "RoFormerConfig", "RoFormerTokenizer"],
-    "models.segformer": ["SEGFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP", "SegFormerConfig", "SegFormerTokenizer"],
-    "models.segformer": ["SEGFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP", "SegFormerConfig", "SegFormerTokenizer"],
+    "models.segformer": ["SEGFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP", "SegFormerConfig"],
     "models.speech_to_text": [
         "SPEECH_TO_TEXT_PRETRAINED_CONFIG_ARCHIVE_MAP",
         "Speech2TextConfig",
@@ -332,8 +331,6 @@ else:
 # tokenizers-backed objects
 if is_tokenizers_available():
     # Fast tokenizers
-    _import_structure["models.segformer"].append("SegFormerTokenizerFast")
-    _import_structure["models.segformer"].append("SegFormerTokenizerFast")
     _import_structure["models.roformer"].append("RoFormerTokenizerFast")
     _import_structure["models.clip"].append("CLIPTokenizerFast")
     _import_structure["models.convbert"].append("ConvBertTokenizerFast")
@@ -988,26 +985,9 @@ if is_torch_available():
     _import_structure["models.segformer"].extend(
         [
             "SEGFORMER_PRETRAINED_MODEL_ARCHIVE_LIST",
-            "SegFormerForCausalLM",
-            "SegFormerForConditionalGeneration",
-            "SegFormerForQuestionAnswering",
-            "SegFormerForSequenceClassification",
-            "SegFormerModel",
-        ]
-    )
-    _import_structure["models.segformer"].extend(
-        [
-            "SEGFORMER_PRETRAINED_MODEL_ARCHIVE_LIST",
-            "SegFormerForCausalLM",
-            "SegFormerForMaskedLM",
-            "SegFormerForMultipleChoice",
-            "SegFormerForQuestionAnswering",
-            "SegFormerForSequenceClassification",
-            "SegFormerForTokenClassification",
-            "SegFormerLayer",
+            "SegFormerForImageSegmentation",
             "SegFormerModel",
             "SegFormerPreTrainedModel",
-            "load_tf_weights_in_segformer",
         ]
     )
     _import_structure["models.speech_to_text"].extend(
@@ -1810,7 +1790,7 @@ if TYPE_CHECKING:
     from .models.retribert import RETRIBERT_PRETRAINED_CONFIG_ARCHIVE_MAP, RetriBertConfig, RetriBertTokenizer
     from .models.roberta import ROBERTA_PRETRAINED_CONFIG_ARCHIVE_MAP, RobertaConfig, RobertaTokenizer
     from .models.roformer import ROFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP, RoFormerConfig, RoFormerTokenizer
-    from .models.segformer import SEGFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP, SegFormerConfig, SegFormerTokenizer
+    from .models.segformer import SEGFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP, SegFormerConfig
     from .models.speech_to_text import SPEECH_TO_TEXT_PRETRAINED_CONFIG_ARCHIVE_MAP, Speech2TextConfig
     from .models.squeezebert import SQUEEZEBERT_PRETRAINED_CONFIG_ARCHIVE_MAP, SqueezeBertConfig, SqueezeBertTokenizer
     from .models.t5 import T5_PRETRAINED_CONFIG_ARCHIVE_MAP, T5Config
@@ -1939,7 +1919,6 @@ if TYPE_CHECKING:
         from .models.retribert import RetriBertTokenizerFast
         from .models.roberta import RobertaTokenizerFast
         from .models.roformer import RoFormerTokenizerFast
-        from .models.segformer import SegFormerTokenizerFast
         from .models.squeezebert import SqueezeBertTokenizerFast
         from .models.t5 import T5TokenizerFast
         from .models.xlm_roberta import XLMRobertaTokenizerFast
@@ -2439,17 +2418,9 @@ if TYPE_CHECKING:
         )
         from .models.segformer import (
             SEGFORMER_PRETRAINED_MODEL_ARCHIVE_LIST,
-            SegFormerForCausalLM,
-            SegFormerForConditionalGeneration,
-            SegFormerForMaskedLM,
-            SegFormerForMultipleChoice,
-            SegFormerForQuestionAnswering,
-            SegFormerForSequenceClassification,
-            SegFormerForTokenClassification,
-            SegFormerLayer,
+            SegFormerForImageSegmentation,
             SegFormerModel,
             SegFormerPreTrainedModel,
-            load_tf_weights_in_segformer,
         )
         from .models.speech_to_text import (
             SPEECH_TO_TEXT_PRETRAINED_MODEL_ARCHIVE_LIST,
