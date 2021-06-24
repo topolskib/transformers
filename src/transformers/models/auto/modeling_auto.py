@@ -21,6 +21,15 @@ from collections import OrderedDict
 from ...utils import logging
 
 # Add modeling imports here
+from ..segformer.modeling_segformer import (
+    SegFormerForMaskedLM,
+    SegFormerForCausalLM,
+    SegFormerForMultipleChoice,
+    SegFormerForQuestionAnswering,
+    SegFormerForSequenceClassification,
+    SegFormerForTokenClassification,
+    SegFormerModel,
+)
 from ..albert.modeling_albert import (
     AlbertForMaskedLM,
     AlbertForMultipleChoice,
@@ -319,6 +328,7 @@ from ..xlnet.modeling_xlnet import (
 )
 from .auto_factory import _BaseAutoModelClass, auto_class_update
 from .configuration_auto import (
+    SegFormerConfig,
     AlbertConfig,
     BartConfig,
     BertConfig,
@@ -389,6 +399,7 @@ MODEL_MAPPING = OrderedDict(
     [
         # Base model mapping
         (RemBertConfig, RemBertModel),
+        (SegFormerConfig, SegFormerModel),
         (VisualBertConfig, VisualBertModel),
         (CanineConfig, CanineModel),
         (RoFormerConfig, RoFormerModel),
@@ -649,6 +660,7 @@ MODEL_FOR_SEQUENCE_CLASSIFICATION_MAPPING = OrderedDict(
         # Model for Sequence Classification mapping
         (RemBertConfig, RemBertForSequenceClassification),
         (CanineConfig, CanineForSequenceClassification),
+        (SegFormerConfig, SegFormerForSequenceClassification),
         (RoFormerConfig, RoFormerForSequenceClassification),
         (BigBirdPegasusConfig, BigBirdPegasusForSequenceClassification),
         (BigBirdConfig, BigBirdForSequenceClassification),
