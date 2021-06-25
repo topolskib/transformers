@@ -265,7 +265,7 @@ from ..roformer.modeling_roformer import (
     RoFormerForTokenClassification,
     RoFormerModel,
 )
-from ..segformer.modeling_segformer import SegFormerForImageSegmentation, SegFormerModel
+from ..segformer.modeling_segformer import SegFormerModel
 from ..speech_to_text.modeling_speech_to_text import Speech2TextForConditionalGeneration, Speech2TextModel
 from ..squeezebert.modeling_squeezebert import (
     SqueezeBertForMaskedLM,

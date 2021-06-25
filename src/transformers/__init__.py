@@ -1032,7 +1032,7 @@ if is_torch_available():
     _import_structure["models.segformer"].extend(
         [
             "SEGFORMER_PRETRAINED_MODEL_ARCHIVE_LIST",
-            "SegFormerImageSegmentation",
+            "SegFormerForImageSegmentation",
             "SegFormerLayer",
             "SegFormerModel",
             "SegFormerPreTrainedModel",

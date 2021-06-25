@@ -24,17 +24,9 @@ from torch import nn
 from torch.nn import CrossEntropyLoss
 
 from ...activations import ACT2FN
-from ...file_utils import (
-    add_start_docstrings,
-    add_start_docstrings_to_model_forward,
-    replace_return_docstrings,
-)
+from ...file_utils import add_start_docstrings, add_start_docstrings_to_model_forward, replace_return_docstrings
 from ...modeling_outputs import BaseModelOutput, SequenceClassifierOutput
-from ...modeling_utils import (
-    PreTrainedModel,
-    find_pruneable_heads_and_indices,
-    prune_linear_layer,
-)
+from ...modeling_utils import PreTrainedModel, find_pruneable_heads_and_indices, prune_linear_layer
 from ...utils import logging
 from .configuration_segformer import SegFormerConfig
 
@@ -199,12 +191,25 @@ class SegFormerEfficientSelfAttention(nn.Module):
         return outputs
 
 
+class SegFormerSelfOutput(nn.Module):
+    def __init__(self, config, hidden_size):
+        super().__init__()
+        self.dense = nn.Linear(hidden_size, hidden_size)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+
+    def forward(self, hidden_states, input_tensor):
+        hidden_states = self.dense(hidden_states)
+        hidden_states = self.dropout(hidden_states)
+        return hidden_states
+
+
 class SegFormerAttention(nn.Module):
     def __init__(self, config, hidden_size, num_attention_heads, sr_ratio):
         super().__init__()
         self.self = SegFormerEfficientSelfAttention(
             config=config, hidden_size=hidden_size, num_attention_heads=num_attention_heads, sr_ratio=sr_ratio
         )
+        self.output = SegFormerSelfOutput(config, hidden_size=hidden_size)
         self.pruned_heads = set()
 
     def prune_heads(self, heads):
@@ -241,8 +246,7 @@ class SegFormerAttention(nn.Module):
             output_attentions,
         )
 
-        # attention_output = self.output(self_outputs[0], hidden_states)
-        attention_output = self_outputs[0]
+        attention_output = self.output(self_outputs[0], hidden_states)
         outputs = (attention_output,) + self_outputs[1:]  # add attentions if we output them
         return outputs
 
@@ -461,6 +465,8 @@ SEGFORMER_START_DOCSTRING = r"""
     behavior.
 
 
+
+
     Parameters:
         config (:class:`~transformers.SegFormerConfig`): Model configuration class with all the parameters of the model.
             Initializing with a config file does not load the weights associated with the model, only the
@@ -470,6 +476,8 @@ SEGFORMER_START_DOCSTRING = r"""
 
 SEGFORMER_INPUTS_DOCSTRING = r"""
 
+
+
     Args:
         pixel_values (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, num_channels, height, width)`):
             Pixel values. Padding will be ignored by default should you provide it. Pixel values can be obtained using
@@ -478,6 +486,8 @@ SEGFORMER_INPUTS_DOCSTRING = r"""
 
         head_mask (:obj:`torch.FloatTensor` of shape :obj:`(num_heads,)` or :obj:`(num_layers, num_heads)`, `optional`):
             Mask to nullify selected heads of the self-attention modules. Mask values selected in ``[0, 1]``:
+
+
 
 
             - 1 indicates the head is **not masked**,
@@ -592,10 +602,11 @@ class SegFormerForImageSegmentation(SegFormerPreTrainedModel):
             in_channels=config.decoder_hidden_size * config.num_encoder_blocks,
             out_channels=config.decoder_hidden_size,
             kernel_size=1,
+            bias=False,
         )
         self.batch_norm = nn.BatchNorm2d(config.decoder_hidden_size)
 
-        self.dropout = nn.Dropout(config.dropout)
+        self.dropout = nn.Dropout(config.classifier_dropout_prob)
 
         self.classifier = nn.Conv2d(config.decoder_hidden_size, config.num_labels, kernel_size=1)
 

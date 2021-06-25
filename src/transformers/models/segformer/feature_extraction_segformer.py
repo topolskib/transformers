@@ -35,10 +35,12 @@ def is_seq_of(seq, expected_type, seq_type=None):
     Check whether it is a sequence of some type.
 
 
+
     Args:
         seq (Sequence): The sequence to be checked.
         expected_type (type): Expected type of sequence items.
         seq_type (type, optional): Expected sequence type.
+
 
 
     Returns:
@@ -102,8 +104,10 @@ class AlignedResize(object):
         """
         Randomly select an img_scale from given candidates.
 
+
         Args:
             img_scales (list[tuple]): Images scales for selection.
+
 
         Returns:
             (tuple, int): Returns a tuple ``(img_scale, scale_dix)``, where ``img_scale`` is the selected image scale
@@ -120,9 +124,11 @@ class AlignedResize(object):
         """
         Randomly sample an img_scale when ``multiscale_mode=='range'``.
 
+
         Args:
             img_scales (list[tuple]): Images scale range for sampling.
                 There must be two tuples in img_scales, which specify the lower and uper bound of image scales.
+
 
         Returns:
             (tuple, None): Returns a tuple ``(img_scale, None)``, where ``img_scale`` is sampled scale and None is just
@@ -143,10 +149,12 @@ class AlignedResize(object):
         Randomly sample an img_scale when ``ratio_range`` is specified. A ratio will be randomly sampled from the range
         specified by ``ratio_range``. Then it would be multiplied with ``img_scale`` to generate sampled scale.
 
+
         Args:
             img_scale (tuple): Images scale base to multiply with ratio.
             ratio_range (tuple[float]): The minimum and maximum ratio to scale
                 the ``img_scale``.
+
 
         Returns:
             (tuple, None): Returns a tuple ``(scale, None)``, where ``scale`` is sampled ratio multiplied with
@@ -166,8 +174,10 @@ class AlignedResize(object):
         specified, a ratio will be sampled and be multiplied with ``img_scale``. If multiple scales are specified by
         ``img_scale``, a scale will be sampled according to ``multiscale_mode``. Otherwise, single scale will be used.
 
+
         Args:
             results (dict): Result dict from :obj:`dataset`.
+
 
         Returns:
             dict: Two new keys 'scale` and 'scale_idx` are added into ``results``, which would be used by subsequent
@@ -245,8 +255,10 @@ class AlignedResize(object):
         """
         Call function to resize images, bounding boxes, masks, semantic segmentation map.
 
+
         Args:
             results (dict): Result dict from loading pipeline.
+
 
         Returns:
             dict: Resized results, 'img_shape', 'pad_shape', 'scale_factor', 'keep_ratio' keys are added into result
@@ -266,6 +278,7 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
 
     This feature extractor inherits from :class:`~transformers.FeatureExtractionMixin` which contains most of the main
     methods. Users should refer to this superclass for more information regarding those methods.
+
 
 
     Args:
@@ -325,6 +338,7 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
            PIL images.
 
 
+
         Args:
             images (:obj:`PIL.Image.Image`, :obj:`np.ndarray`, :obj:`torch.Tensor`, :obj:`List[PIL.Image.Image]`, :obj:`List[np.ndarray]`, :obj:`List[torch.Tensor]`):
                 The image or batch of images to be prepared. Each image can be a PIL image, NumPy array or PyTorch
@@ -335,14 +349,17 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
                 If set, will return tensors of a particular framework. Acceptable values are:
 
 
+
                 * :obj:`'tf'`: Return TensorFlow :obj:`tf.constant` objects.
                 * :obj:`'pt'`: Return PyTorch :obj:`torch.Tensor` objects.
                 * :obj:`'np'`: Return NumPy :obj:`np.ndarray` objects.
                 * :obj:`'jax'`: Return JAX :obj:`jnp.ndarray` objects.
 
 
+
         Returns:
             :class:`~transformers.BatchFeature`: A :class:`~transformers.BatchFeature` with the following fields:
+
 
 
             - **pixel_values** -- Pixel values to be fed to a model, of shape (batch_size, num_channels, height,

@@ -39,6 +39,8 @@ class SegFormerConfig(PretrainedConfig):
 
 
 
+
+
     Args:
         image_size (:obj:`int`, `optional`, defaults to 512):
             The size (resolution) of each image.
@@ -66,10 +68,12 @@ class SegFormerConfig(PretrainedConfig):
         hidden_act (:obj:`str` or :obj:`function`, `optional`, defaults to :obj:`"gelu"`):
             The non-linear activation function (function or string) in the encoder and pooler. If string,
             :obj:`"gelu"`, :obj:`"relu"`, :obj:`"selu"` and :obj:`"gelu_new"` are supported.
-        hidden_dropout_prob (:obj:`float`, `optional`, defaults to 0.1):
-            The dropout probabilitiy for all fully connected layers in the embeddings, encoder, and pooler.
-        attention_probs_dropout_prob (:obj:`float`, `optional`, defaults to 0.1):
+        hidden_dropout_prob (:obj:`float`, `optional`, defaults to 0.0):
+            The dropout probability for all fully connected layers in the embeddings, encoder, and pooler.
+        attention_probs_dropout_prob (:obj:`float`, `optional`, defaults to 0.0):
             The dropout ratio for the attention probabilities.
+        classifier_dropout_prob (:obj:`float`, `optional`, defaults to 0.1):
+            The dropout probability before the classification head.
         initializer_range (:obj:`float`, `optional`, defaults to 0.02):
             The standard deviation of the truncated_normal_initializer for initializing all weight matrices.
         drop_path_rate (:obj:`float`, `optional`, defaults to 0.1):
@@ -78,6 +82,8 @@ class SegFormerConfig(PretrainedConfig):
             The epsilon used by the layer normalization layers.
         decoder_hidden_size (:obj:`int`, `optional`, defaults to 256):
             The dimension of the decoder.
+
+
 
 
         Example::
@@ -109,8 +115,9 @@ class SegFormerConfig(PretrainedConfig):
         num_attention_heads=[1, 2, 4, 8],
         mlp_ratio=[4, 4, 4, 4],
         hidden_act="gelu",
-        hidden_dropout_prob=0.1,
-        attention_probs_dropout_prob=0.1,
+        hidden_dropout_prob=0.0,
+        attention_probs_dropout_prob=0.0,
+        classifier_dropout_prob=0.1,
         initializer_range=0.02,
         drop_path_rate=0.1,
         layer_norm_eps=1e-6,
@@ -134,6 +141,7 @@ class SegFormerConfig(PretrainedConfig):
         self.hidden_act = hidden_act
         self.hidden_dropout_prob = hidden_dropout_prob
         self.attention_probs_dropout_prob = attention_probs_dropout_prob
+        self.classifier_dropout_prob = classifier_dropout_prob
         self.initializer_range = initializer_range
         self.drop_path_rate = drop_path_rate
         self.layer_norm_eps = layer_norm_eps

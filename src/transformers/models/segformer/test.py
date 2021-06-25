@@ -1,17 +1,19 @@
 import torch
 
-from transformers import SegFormerConfig, SegFormerModel
+from transformers import SegFormerConfig, SegFormerForImageSegmentation, SegFormerModel
 
 
 config = SegFormerConfig()
 
-model = SegFormerModel(config)
+model = SegFormerForImageSegmentation(config)
 
 pixel_values = torch.randn((2, 3, 512, 512))
 
 outputs = model(pixel_values)
 
-print(outputs.last_hidden_state.shape)
+print(outputs.logits.shape)
 
-# for name, param in model.named_parameters():
-#     print(name, param.shape)
+# print(outputs.last_hidden_state.shape)
+
+for name, param in model.named_parameters():
+    print(name, param.shape)
