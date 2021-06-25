@@ -143,6 +143,8 @@ def convert_segformer_checkpoint(model_name, checkpoint_path, pytorch_dump_folde
 
     # rename keys
     state_dict = rename_keys(state_dict)
+    del state_dict['conv_seg.weight']
+    del state_dict['conv_seg.bias']
 
     # key and value matrices need special treatment
     read_in_k_v(state_dict, config)
