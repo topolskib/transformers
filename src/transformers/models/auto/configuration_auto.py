@@ -19,7 +19,6 @@ from collections import OrderedDict
 
 from ...configuration_utils import PretrainedConfig
 from ..albert.configuration_albert import ALBERT_PRETRAINED_CONFIG_ARCHIVE_MAP, AlbertConfig
-from ..segformer.configuration_segformer import SEGFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP, SegFormerConfig
 from ..bart.configuration_bart import BART_PRETRAINED_CONFIG_ARCHIVE_MAP, BartConfig
 from ..bert.configuration_bert import BERT_PRETRAINED_CONFIG_ARCHIVE_MAP, BertConfig
 from ..bert_generation.configuration_bert_generation import BertGenerationConfig
@@ -74,6 +73,7 @@ from ..rembert.configuration_rembert import REMBERT_PRETRAINED_CONFIG_ARCHIVE_MA
 from ..retribert.configuration_retribert import RETRIBERT_PRETRAINED_CONFIG_ARCHIVE_MAP, RetriBertConfig
 from ..roberta.configuration_roberta import ROBERTA_PRETRAINED_CONFIG_ARCHIVE_MAP, RobertaConfig
 from ..roformer.configuration_roformer import ROFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP, RoFormerConfig
+from ..segformer.configuration_segformer import SEGFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP, SegFormerConfig
 from ..speech_to_text.configuration_speech_to_text import (
     SPEECH_TO_TEXT_PRETRAINED_CONFIG_ARCHIVE_MAP,
     Speech2TextConfig,
@@ -389,9 +389,11 @@ class AutoConfig:
 
         List options
 
+
         Args:
             pretrained_model_name_or_path (:obj:`str` or :obj:`os.PathLike`):
                 Can be either:
+
 
                     - A string, the `model id` of a pretrained model configuration hosted inside a model repo on
                       huggingface.co. Valid model ids can be located at the root-level, like ``bert-base-uncased``, or
@@ -427,6 +429,7 @@ class AutoConfig:
                 The values in kwargs of any keys which are configuration attributes will be used to override the loaded
                 values. Behavior concerning key/value pairs whose keys are *not* configuration attributes is controlled
                 by the ``return_unused_kwargs`` keyword parameter.
+
 
         Examples::
 

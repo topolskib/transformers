@@ -15,33 +15,23 @@
 """ PyTorch SegFormer model. """
 
 
-
-
-import math
-import os
 import collections
+import math
 
 import torch
 import torch.utils.checkpoint
-from packaging import version
 from torch import nn
-from torch.nn import CrossEntropyLoss, MSELoss
+from torch.nn import CrossEntropyLoss
 
 from ...activations import ACT2FN
 from ...file_utils import (
-    add_code_sample_docstrings,
     add_start_docstrings,
     add_start_docstrings_to_model_forward,
     replace_return_docstrings,
 )
-from ...modeling_outputs import (
-    BaseModelOutput,
-    SequenceClassifierOutput,
-)
+from ...modeling_outputs import BaseModelOutput, SequenceClassifierOutput
 from ...modeling_utils import (
     PreTrainedModel,
-    SequenceSummary,
-    apply_chunking_to_forward,
     find_pruneable_heads_and_indices,
     prune_linear_layer,
 )
@@ -102,6 +92,7 @@ class DropPath(nn.Module):
 
     def forward(self, x):
         return drop_path(x, self.drop_prob, self.training)
+
 
 class SegFormerOverlapPatchEmbeddings(nn.Module):
     """Construct the patch embeddings from an image."""
@@ -346,7 +337,7 @@ class SegFormerEncoder(nn.Module):
         self.config = config
 
         # stochastic depth decay rule
-        dpr = [x.item() for x in torch.linspace(0, config.drop_path_rate, sum(config.depths))]  
+        dpr = [x.item() for x in torch.linspace(0, config.drop_path_rate, sum(config.depths))]
 
         # patch embeddings
         embeddings = []
@@ -439,8 +430,8 @@ class SegFormerEncoder(nn.Module):
 
 class SegFormerPreTrainedModel(PreTrainedModel):
     """
-    An abstract class to handle weights initialization and
-    a simple interface for downloading and loading pretrained models.
+    An abstract class to handle weights initialization and a simple interface for downloading and loading pretrained
+    models.
     """
 
     config_class = SegFormerConfig
@@ -448,7 +439,7 @@ class SegFormerPreTrainedModel(PreTrainedModel):
     _keys_to_ignore_on_load_missing = [r"position_ids"]
 
     def _init_weights(self, module):
-        """ Initialize the weights """
+        """Initialize the weights"""
         if isinstance(module, nn.Linear):
             # Slightly different from the TF version which uses truncated_normal for initialization
             # cf https://github.com/pytorch/pytorch/pull/5617
@@ -465,24 +456,29 @@ class SegFormerPreTrainedModel(PreTrainedModel):
 
 
 SEGFORMER_START_DOCSTRING = r"""
-    This model is a PyTorch `torch.nn.Module <https://pytorch.org/docs/stable/nn.html#torch.nn.Module>`_ sub-class.
-    Use it as a regular PyTorch Module and refer to the PyTorch documentation for all matter related to general
-    usage and behavior.
+    This model is a PyTorch `torch.nn.Module <https://pytorch.org/docs/stable/nn.html#torch.nn.Module>`_ sub-class. Use
+    it as a regular PyTorch Module and refer to the PyTorch documentation for all matter related to general usage and
+    behavior.
+
 
     Parameters:
         config (:class:`~transformers.SegFormerConfig`): Model configuration class with all the parameters of the model.
-            Initializing with a config file does not load the weights associated with the model, only the configuration.
-            Check out the :meth:`~transformers.PreTrainedModel.from_pretrained` method to load the model weights.
+            Initializing with a config file does not load the weights associated with the model, only the
+            configuration. Check out the :meth:`~transformers.PreTrainedModel.from_pretrained` method to load the model
+            weights.
 """
 
 SEGFORMER_INPUTS_DOCSTRING = r"""
+
     Args:
         pixel_values (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, num_channels, height, width)`):
             Pixel values. Padding will be ignored by default should you provide it. Pixel values can be obtained using
-            :class:`~transformers.SegFormerFeatureExtractor`. See :meth:`transformers.SegFormerFeatureExtractor.__call__` for details.
+            :class:`~transformers.SegFormerFeatureExtractor`. See
+            :meth:`transformers.SegFormerFeatureExtractor.__call__` for details.
 
         head_mask (:obj:`torch.FloatTensor` of shape :obj:`(num_heads,)` or :obj:`(num_layers, num_heads)`, `optional`):
             Mask to nullify selected heads of the self-attention modules. Mask values selected in ``[0, 1]``:
+
 
             - 1 indicates the head is **not masked**,
             - 0 indicates the head is **masked**.
@@ -502,19 +498,19 @@ SEGFORMER_INPUTS_DOCSTRING = r"""
     SEGFORMER_START_DOCSTRING,
 )
 class SegFormerModel(SegFormerPreTrainedModel):
-
     def __init__(self, config):
         super().__init__(config)
         self.config = config
 
+        # hierarchical Transformer encoder
         self.encoder = SegFormerEncoder(config)
 
         self.init_weights()
 
     def _prune_heads(self, heads_to_prune):
-        """Prunes heads of the model.
-        heads_to_prune: dict of {layer_num: list of heads to prune in this layer}
-        See base class PreTrainedModel
+        """
+        Prunes heads of the model. heads_to_prune: dict of {layer_num: list of heads to prune in this layer} See base
+        class PreTrainedModel
         """
         for layer, heads in heads_to_prune.items():
             self.encoder.layer[layer].attention.prune_heads(heads)
@@ -539,7 +535,7 @@ class SegFormerModel(SegFormerPreTrainedModel):
         # attention_probs has shape bsz x n_heads x N x N
         # input head_mask has shape [num_heads] or [num_hidden_layers x num_heads]
         # and head_mask is converted to shape [num_hidden_layers x batch x num_heads x seq_length x seq_length]
-        #head_mask = self.get_head_mask(head_mask, self.config.num_encoder_blocks)
+        # head_mask = self.get_head_mask(head_mask, self.config.num_encoder_blocks)
 
         encoder_outputs = self.encoder(
             pixel_values,
@@ -560,8 +556,23 @@ class SegFormerModel(SegFormerPreTrainedModel):
         )
 
 
+class SegFormerMLP(nn.Module):
+    """
+    Linear Embedding.
+    """
+
+    def __init__(self, config: SegFormerConfig, input_dim):
+        super().__init__()
+        self.proj = nn.Linear(input_dim, config.decoder_hidden_size)
+
+    def forward(self, hidden_states: torch.Tensor):
+        hidden_states = hidden_states.flatten(2).transpose(1, 2)
+        hidden_states = self.proj(hidden_states)
+        return hidden_states
+
+
 @add_start_docstrings(
-    """SegFormer Model transformer with an all-MLP decoder head on top e.g. for ade20k, CityScapes. """,
+    """SegFormer Model transformer with an all-MLP decoder head on top e.g. for ADE20k, CityScapes. """,
     SEGFORMER_START_DOCSTRING,
 )
 class SegFormerForImageSegmentation(SegFormerPreTrainedModel):
@@ -569,54 +580,79 @@ class SegFormerForImageSegmentation(SegFormerPreTrainedModel):
         super().__init__(config)
         self.num_labels = config.num_labels
         self.segformer = SegFormerModel(config)
-        self.classifier = SegFormerClassificationHead(config)
+
+        # linear layers which will unify the channel dimension of each of the encoder blocks to the same config.decoder_hidden_size
+        mlps = []
+        for i in range(config.num_encoder_blocks):
+            mlp = SegFormerMLP(config, input_dim=config.hidden_sizes[i])
+            mlps.append(mlp)
+        self.linear_c = nn.ModuleList(mlps)
+
+        self.linear_fuse = nn.Conv2d(
+            in_channels=config.decoder_hidden_size * config.num_encoder_blocks,
+            out_channels=config.decoder_hidden_size,
+            kernel_size=1,
+        )
+        self.batch_norm = nn.BatchNorm2d(config.decoder_hidden_size)
+
+        self.dropout = nn.Dropout(config.dropout)
+
+        self.classifier = nn.Conv2d(config.decoder_hidden_size, config.num_labels, kernel_size=1)
 
         self.init_weights()
 
     @add_start_docstrings_to_model_forward(SEGFORMER_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
     def forward(
-            self,
-            input_ids=None,
-            attention_mask=None,
-            token_type_ids=None,
-            position_ids=None,
-            head_mask=None,
-            inputs_embeds=None,
-            labels=None,
-            output_attentions=None,
-            output_hidden_states=None,
-            return_dict=None,
+        self,
+        pixel_values,
+        head_mask=None,
+        labels=None,
+        output_attentions=None,
+        output_hidden_states=None,
+        return_dict=None,
     ):
         r"""
-        labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size,)`, `optional`):
-            Labels for computing the sequence classification/regression loss.
-            Indices should be in :obj:`[0, ..., config.num_labels - 1]`.
-            If :obj:`config.num_labels == 1` a regression loss is computed (Mean-Square loss),
-            If :obj:`config.num_labels > 1` a classification loss is computed (Cross-Entropy).
+        labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size, height, width)`, `optional`): Labels for computing
+        the image segmentation loss. Indices should be in :obj:`[0, ..., config.num_labels - 1]`. If
+        :obj:`config.num_labels > 1` a classification loss is computed (Cross-Entropy).
         """
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         outputs = self.segformer(
-            input_ids,
-            attention_mask=attention_mask,
-            token_type_ids=token_type_ids,
-            position_ids=position_ids,
+            pixel_values,
             head_mask=head_mask,
-            inputs_embeds=inputs_embeds,
             output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
+            output_hidden_states=True,  # we need the intermediate hidden states
             return_dict=return_dict,
         )
+
+        encoder_hidden_states = outputs.hidden_states
+        batch_size, _, _, _ = encoder_hidden_states[-1].shape
+        all_hidden_states = ()
+        for encoder_hidden_state, mlp in zip(encoder_hidden_states, self.linear_c):
+            # unify channel dimension
+            encoder_hidden_state = (
+                mlp(encoder_hidden_state)
+                .permute(0, 2, 1)
+                .reshape(batch_size, -1, encoder_hidden_state.shape[2], encoder_hidden_state.shape[3])
+            )
+            # upsample
+            encoder_hidden_state = nn.functional.interpolate(
+                encoder_hidden_state, size=encoder_hidden_states[0].size()[2:], mode="bilinear", align_corners=False
+            )
+            all_hidden_states += (encoder_hidden_state,)
+
+        hidden_states = self.linear_fuse(torch.cat(all_hidden_states[::-1], dim=1))
+        hidden_states = self.batch_norm(hidden_states)
+        hidden_states = self.dropout(hidden_states)
 
         sequence_output = outputs[0]
         logits = self.classifier(sequence_output)
 
         loss = None
         if labels is not None:
-            if self.num_labels == 1:
-                #  We are doing regression
-                loss_fct = MSELoss()
-                loss = loss_fct(logits.view(-1), labels.view(-1))
+            if self.config.num_labels == 1:
+                raise ValueError("The number of labels should be greater than one")
             else:
                 loss_fct = CrossEntropyLoss()
                 loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))

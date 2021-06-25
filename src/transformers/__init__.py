@@ -133,7 +133,6 @@ _import_structure = {
         "load_tf2_weights_in_pytorch_model",
     ],
     # Models
-    "models.segformer": ["SEGFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP", "SegFormerConfig"],
     "models": [],
     "models.albert": ["ALBERT_PRETRAINED_CONFIG_ARCHIVE_MAP", "AlbertConfig"],
     "models.auto": [
@@ -228,6 +227,7 @@ _import_structure = {
     "models.retribert": ["RETRIBERT_PRETRAINED_CONFIG_ARCHIVE_MAP", "RetriBertConfig", "RetriBertTokenizer"],
     "models.roberta": ["ROBERTA_PRETRAINED_CONFIG_ARCHIVE_MAP", "RobertaConfig", "RobertaTokenizer"],
     "models.roformer": ["ROFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP", "RoFormerConfig", "RoFormerTokenizer"],
+    "models.segformer": ["SEGFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP", "SegFormerConfig"],
     "models.speech_to_text": [
         "SPEECH_TO_TEXT_PRETRAINED_CONFIG_ARCHIVE_MAP",
         "Speech2TextConfig",
@@ -416,8 +416,8 @@ if is_vision_available():
     _import_structure["models.clip"].append("CLIPProcessor")
     _import_structure["models.deit"].append("DeiTFeatureExtractor")
     _import_structure["models.detr"].append("DetrFeatureExtractor")
-    _import_structure["models.vit"].append("ViTFeatureExtractor")
     _import_structure["models.segformer"].append("SegFormerFeatureExtractor")
+    _import_structure["models.vit"].append("ViTFeatureExtractor")
 else:
     from .utils import dummy_vision_objects
 
@@ -1812,7 +1812,6 @@ if TYPE_CHECKING:
         load_tf2_weights_in_pytorch_model,
     )
     from .models.albert import ALBERT_PRETRAINED_CONFIG_ARCHIVE_MAP, AlbertConfig
-    from .models.segformer import SEGFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP, SegFormerConfig
     from .models.auto import (
         ALL_PRETRAINED_CONFIG_ARCHIVE_MAP,
         CONFIG_MAPPING,
@@ -1901,6 +1900,7 @@ if TYPE_CHECKING:
     from .models.retribert import RETRIBERT_PRETRAINED_CONFIG_ARCHIVE_MAP, RetriBertConfig, RetriBertTokenizer
     from .models.roberta import ROBERTA_PRETRAINED_CONFIG_ARCHIVE_MAP, RobertaConfig, RobertaTokenizer
     from .models.roformer import ROFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP, RoFormerConfig, RoFormerTokenizer
+    from .models.segformer import SEGFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP, SegFormerConfig
     from .models.speech_to_text import SPEECH_TO_TEXT_PRETRAINED_CONFIG_ARCHIVE_MAP, Speech2TextConfig
     from .models.squeezebert import SQUEEZEBERT_PRETRAINED_CONFIG_ARCHIVE_MAP, SqueezeBertConfig, SqueezeBertTokenizer
     from .models.t5 import T5_PRETRAINED_CONFIG_ARCHIVE_MAP, T5Config
@@ -2061,8 +2061,8 @@ if TYPE_CHECKING:
         from .models.clip import CLIPFeatureExtractor, CLIPProcessor
         from .models.deit import DeiTFeatureExtractor
         from .models.detr import DetrFeatureExtractor
-        from .models.vit import ViTFeatureExtractor
         from .models.segformer import SegFormerFeatureExtractor
+        from .models.vit import ViTFeatureExtractor
     else:
         from .utils.dummy_vision_objects import *
 

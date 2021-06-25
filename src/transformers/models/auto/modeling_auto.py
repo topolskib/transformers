@@ -19,17 +19,6 @@ import warnings
 from collections import OrderedDict
 
 from ...utils import logging
-
-# Add modeling imports here
-from ..segformer.modeling_segformer import (
-    SegFormerForMaskedLM,
-    SegFormerForCausalLM,
-    SegFormerForMultipleChoice,
-    SegFormerForQuestionAnswering,
-    SegFormerForSequenceClassification,
-    SegFormerForTokenClassification,
-    SegFormerModel,
-)
 from ..albert.modeling_albert import (
     AlbertForMaskedLM,
     AlbertForMultipleChoice,
@@ -276,6 +265,7 @@ from ..roformer.modeling_roformer import (
     RoFormerForTokenClassification,
     RoFormerModel,
 )
+from ..segformer.modeling_segformer import SegFormerForImageSegmentation, SegFormerModel
 from ..speech_to_text.modeling_speech_to_text import Speech2TextForConditionalGeneration, Speech2TextModel
 from ..squeezebert.modeling_squeezebert import (
     SqueezeBertForMaskedLM,
@@ -328,7 +318,6 @@ from ..xlnet.modeling_xlnet import (
 )
 from .auto_factory import _BaseAutoModelClass, auto_class_update
 from .configuration_auto import (
-    SegFormerConfig,
     AlbertConfig,
     BartConfig,
     BertConfig,
@@ -377,6 +366,7 @@ from .configuration_auto import (
     RetriBertConfig,
     RobertaConfig,
     RoFormerConfig,
+    SegFormerConfig,
     Speech2TextConfig,
     SqueezeBertConfig,
     T5Config,
@@ -660,7 +650,6 @@ MODEL_FOR_SEQUENCE_CLASSIFICATION_MAPPING = OrderedDict(
         # Model for Sequence Classification mapping
         (RemBertConfig, RemBertForSequenceClassification),
         (CanineConfig, CanineForSequenceClassification),
-        (SegFormerConfig, SegFormerForSequenceClassification),
         (RoFormerConfig, RoFormerForSequenceClassification),
         (BigBirdPegasusConfig, BigBirdPegasusForSequenceClassification),
         (BigBirdConfig, BigBirdForSequenceClassification),

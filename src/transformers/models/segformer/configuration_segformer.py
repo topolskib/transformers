@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright NVIDIA and The HuggingFace Inc. team. All rights reserved.
+# Copyright 2021 NVIDIA and The HuggingFace Inc. team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,14 +28,15 @@ SEGFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP = {
 
 class SegFormerConfig(PretrainedConfig):
     r"""
-    This is the configuration class to store the configuration of a :class:`~transformers.SegFormerModel`.
-    It is used to instantiate an BrandNewBERT model according to the specified arguments, defining the model
-    architecture. Instantiating a configuration with the defaults will yield a similar configuration to that of
-    the BrandNewBERT `nvidia/segformer-b0-512-512-ade-160k <https://huggingface.co/nvidia/segformer-b0-512-512-ade-160k>`__ architecture.
+    This is the configuration class to store the configuration of a :class:`~transformers.SegFormerModel`. It is used
+    to instantiate an BrandNewBERT model according to the specified arguments, defining the model architecture.
+    Instantiating a configuration with the defaults will yield a similar configuration to that of the BrandNewBERT
+    `nvidia/segformer-b0-512-512-ade-160k <https://huggingface.co/nvidia/segformer-b0-512-512-ade-160k>`__
+    architecture.
 
-    Configuration objects inherit from  :class:`~transformers.PretrainedConfig` and can be used
-    to control the model outputs. Read the documentation from  :class:`~transformers.PretrainedConfig`
-    for more information.
+    Configuration objects inherit from :class:`~transformers.PretrainedConfig` and can be used to control the model
+    outputs. Read the documentation from :class:`~transformers.PretrainedConfig` for more information.
+
 
 
     Args:
@@ -63,8 +64,8 @@ class SegFormerConfig(PretrainedConfig):
             Ratio of the size of the hidden layer compared to the size of the input layer of the Mix FFNs in the
             encoder blocks.
         hidden_act (:obj:`str` or :obj:`function`, `optional`, defaults to :obj:`"gelu"`):
-            The non-linear activation function (function or string) in the encoder and pooler.
-            If string, :obj:`"gelu"`, :obj:`"relu"`, :obj:`"selu"` and :obj:`"gelu_new"` are supported.
+            The non-linear activation function (function or string) in the encoder and pooler. If string,
+            :obj:`"gelu"`, :obj:`"relu"`, :obj:`"selu"` and :obj:`"gelu_new"` are supported.
         hidden_dropout_prob (:obj:`float`, `optional`, defaults to 0.1):
             The dropout probabilitiy for all fully connected layers in the embeddings, encoder, and pooler.
         attention_probs_dropout_prob (:obj:`float`, `optional`, defaults to 0.1):
@@ -77,6 +78,7 @@ class SegFormerConfig(PretrainedConfig):
             The epsilon used by the layer normalization layers.
         decoder_hidden_size (:obj:`int`, `optional`, defaults to 256):
             The dimension of the decoder.
+
 
         Example::
 
@@ -92,6 +94,7 @@ class SegFormerConfig(PretrainedConfig):
         >>> configuration = model.config
     """
     model_type = "segformer"
+
     def __init__(
         self,
         image_size=224,
@@ -115,9 +118,7 @@ class SegFormerConfig(PretrainedConfig):
         is_encoder_decoder=False,
         **kwargs
     ):
-        super().__init__(
-            **kwargs
-        )
+        super().__init__(**kwargs)
 
         self.image_size = image_size
         self.num_channels = num_channels
