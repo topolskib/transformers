@@ -526,6 +526,7 @@ class SegFormerModel(SegFormerPreTrainedModel):
             self.encoder.layer[layer].attention.prune_heads(heads)
 
     @add_start_docstrings_to_model_forward(SEGFORMER_INPUTS_DOCSTRING.format("(batch_size, sequence_length)"))
+    @replace_return_docstrings(output_type=BaseModelOutput, config_class=_CONFIG_FOR_DOC)
     def forward(
         self,
         pixel_values,
@@ -534,6 +535,26 @@ class SegFormerModel(SegFormerPreTrainedModel):
         output_hidden_states=None,
         return_dict=None,
     ):
+        r"""
+        Returns:
+
+        Examples::
+
+            >>> from transformers import SegFormerFeatureExtractor, SegFormerModel
+            >>> from PIL import Image
+            >>> import requests
+            
+            >>> feature_extractor = SegFormerFeatureExtractor.from_pretrained("nvidia/segformer-b0")
+            >>> model = SegFormerModel("nvidia/segformer-b0")
+            
+            >>> url = 'http://images.cocodataset.org/val2017/000000039769.jpg'
+            >>> image = Image.open(requests.get(url, stream=True).raw)
+            
+            >>> inputs = feature_extractor(images=image, return_tensors="pt")
+            >>> outputs = model(**inputs)
+            >>> sequence_output = outputs.last_hidden_state 
+        """
+        
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
@@ -613,6 +634,7 @@ class SegFormerForImageSegmentation(SegFormerPreTrainedModel):
         self.init_weights()
 
     @add_start_docstrings_to_model_forward(SEGFORMER_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
+    @replace_return_docstrings(output_type=SequenceClassifierOutput, config_class=_CONFIG_FOR_DOC)
     def forward(
         self,
         pixel_values,
@@ -626,6 +648,24 @@ class SegFormerForImageSegmentation(SegFormerPreTrainedModel):
         labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size, height, width)`, `optional`): Labels for computing
         the image segmentation loss. Indices should be in :obj:`[0, ..., config.num_labels - 1]`. If
         :obj:`config.num_labels > 1` a classification loss is computed (Cross-Entropy).
+        
+        Returns:
+
+        Examples::
+
+            >>> from transformers import SegFormerFeatureExtractor, SegFormerForImageSegmentation
+            >>> from PIL import Image
+            >>> import requests
+            
+            >>> feature_extractor = SegFormerFeatureExtractor.from_pretrained("nvidia/segformer-b0-fine-tuned-ade-512-512")
+            >>> model = SegFormerForImageSegmentation("nvidia/segformer-b0-fine-tuned-ade-512-512")
+            
+            >>> url = 'http://images.cocodataset.org/val2017/000000039769.jpg'
+            >>> image = Image.open(requests.get(url, stream=True).raw)
+            
+            >>> inputs = feature_extractor(images=image, return_tensors="pt")
+            >>> outputs = model(**inputs)
+            >>> logits = outputs.logits # shape (batch_size, num_labels, height/4, width/4)
         """
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 

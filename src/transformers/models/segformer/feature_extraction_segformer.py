@@ -34,14 +34,10 @@ def is_seq_of(seq, expected_type, seq_type=None):
     """
     Check whether it is a sequence of some type.
 
-
-
     Args:
         seq (Sequence): The sequence to be checked.
         expected_type (type): Expected type of sequence items.
         seq_type (type, optional): Expected sequence type.
-
-
 
     Returns:
         bool: Whether the sequence is valid.
@@ -104,10 +100,8 @@ class AlignedResize(object):
         """
         Randomly select an img_scale from given candidates.
 
-
         Args:
             img_scales (list[tuple]): Images scales for selection.
-
 
         Returns:
             (tuple, int): Returns a tuple ``(img_scale, scale_dix)``, where ``img_scale`` is the selected image scale
@@ -124,11 +118,9 @@ class AlignedResize(object):
         """
         Randomly sample an img_scale when ``multiscale_mode=='range'``.
 
-
         Args:
             img_scales (list[tuple]): Images scale range for sampling.
                 There must be two tuples in img_scales, which specify the lower and uper bound of image scales.
-
 
         Returns:
             (tuple, None): Returns a tuple ``(img_scale, None)``, where ``img_scale`` is sampled scale and None is just
@@ -149,12 +141,10 @@ class AlignedResize(object):
         Randomly sample an img_scale when ``ratio_range`` is specified. A ratio will be randomly sampled from the range
         specified by ``ratio_range``. Then it would be multiplied with ``img_scale`` to generate sampled scale.
 
-
         Args:
             img_scale (tuple): Images scale base to multiply with ratio.
             ratio_range (tuple[float]): The minimum and maximum ratio to scale
                 the ``img_scale``.
-
 
         Returns:
             (tuple, None): Returns a tuple ``(scale, None)``, where ``scale`` is sampled ratio multiplied with
@@ -174,10 +164,8 @@ class AlignedResize(object):
         specified, a ratio will be sampled and be multiplied with ``img_scale``. If multiple scales are specified by
         ``img_scale``, a scale will be sampled according to ``multiscale_mode``. Otherwise, single scale will be used.
 
-
         Args:
             results (dict): Result dict from :obj:`dataset`.
-
 
         Returns:
             dict: Two new keys 'scale` and 'scale_idx` are added into ``results``, which would be used by subsequent
@@ -224,7 +212,7 @@ class AlignedResize(object):
             w_scale = new_w / w
             h_scale = new_h / h
         else:
-            img, w_scale, h_scale = self.resize(image=results["img"], size=results["scale"])
+            img = self.resize(image=results["img"], size=results["scale"])
 
             h, w = img.shape[:2]
             assert (
@@ -280,11 +268,10 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
     methods. Users should refer to this superclass for more information regarding those methods.
 
 
-
     Args:
         do_resize (:obj:`bool`, `optional`, defaults to :obj:`True`):
             Whether to resize the input to a certain :obj:`size`.
-        size (:obj:`int` or :obj:`Tuple(int)`, `optional`, defaults to 512):
+        size (:obj:`int` or :obj:`Tuple(int)`, `optional`, defaults to (2048, 512)):
             Resize the input to the given size. If a tuple is provided, it should be (width, height). If only an
             integer is provided, then the input will be resized to (size, size). Only has an effect if :obj:`do_resize`
             is set to :obj:`True`.
@@ -316,6 +303,7 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
         super().__init__(**kwargs)
         self.do_resize = do_resize
         self.size = size
+        self.align_resize = AlignedResize()
         self.resample = resample
         self.do_normalize = do_normalize
         self.image_mean = image_mean if image_mean is not None else [0.485, 0.456, 0.406]  # ImageNet mean
