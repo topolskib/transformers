@@ -477,8 +477,6 @@ SEGFORMER_START_DOCSTRING = r"""
 
 SEGFORMER_INPUTS_DOCSTRING = r"""
 
-
-
     Args:
         pixel_values (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, num_channels, height, width)`):
             Pixel values. Padding will be ignored by default should you provide it. Pixel values can be obtained using
@@ -487,9 +485,6 @@ SEGFORMER_INPUTS_DOCSTRING = r"""
 
         head_mask (:obj:`torch.FloatTensor` of shape :obj:`(num_heads,)` or :obj:`(num_layers, num_heads)`, `optional`):
             Mask to nullify selected heads of the self-attention modules. Mask values selected in ``[0, 1]``:
-
-
-
 
             - 1 indicates the head is **not masked**,
             - 0 indicates the head is **masked**.
@@ -620,6 +615,7 @@ class SegFormerForImageSegmentation(SegFormerPreTrainedModel):
             mlps.append(mlp)
         self.linear_c = nn.ModuleList(mlps)
 
+        # the following 3 layers implement the ConvModule of the original implementation
         self.linear_fuse = nn.Conv2d(
             in_channels=config.decoder_hidden_size * config.num_encoder_blocks,
             out_channels=config.decoder_hidden_size,
@@ -627,6 +623,7 @@ class SegFormerForImageSegmentation(SegFormerPreTrainedModel):
             bias=False,
         )
         self.batch_norm = nn.BatchNorm2d(config.decoder_hidden_size)
+        self.activation = nn.ReLU()
 
         self.dropout = nn.Dropout(config.classifier_dropout_prob)
 
@@ -693,13 +690,14 @@ class SegFormerForImageSegmentation(SegFormerPreTrainedModel):
                 encoder_hidden_state, size=encoder_hidden_states[0].size()[2:], mode="bilinear", align_corners=False
             )
             all_hidden_states += (encoder_hidden_state,)
-
+        
         hidden_states = self.linear_fuse(torch.cat(all_hidden_states[::-1], dim=1))
-        hidden_states = self.batch_norm(hidden_states)
-        hidden_states = self.dropout(hidden_states)
 
-        sequence_output = outputs[0]
-        logits = self.classifier(sequence_output)
+        hidden_states = self.batch_norm(hidden_states)
+        hidden_states = self.activation(hidden_states)
+        hidden_states = self.dropout(hidden_states)
+        
+        logits = self.classifier(hidden_states)
 
         loss = None
         if labels is not None:
