@@ -14,6 +14,3 @@ outputs = model(pixel_values)
 print(outputs.logits.shape)
 
 # print(outputs.last_hidden_state.shape)
-
-for name, param in model.named_parameters():
-    print(name, param.shape)

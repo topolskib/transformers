@@ -62,7 +62,7 @@ class SegFormerConfig(PretrainedConfig):
             Stride before each encoder block.
         num_attention_heads (:obj:`List[int]`, `optional`, defaults to [1, 2, 4, 8]):
             Number of attention heads for each attention layer in each block of the Transformer encoder.
-        mlp_ratio (:obj:`List[int]`, `optional`, defaults to [4, 4, 4, 4]):
+        mlp_ratios (:obj:`List[int]`, `optional`, defaults to [4, 4, 4, 4]):
             Ratio of the size of the hidden layer compared to the size of the input layer of the Mix FFNs in the
             encoder blocks.
         hidden_act (:obj:`str` or :obj:`function`, `optional`, defaults to :obj:`"gelu"`):
@@ -112,8 +112,8 @@ class SegFormerConfig(PretrainedConfig):
         downsampling_rates=[1, 4, 8, 16],
         patch_sizes=[7, 3, 3, 3],
         strides=[4, 2, 2, 2],
-        num_attention_heads=[1, 2, 4, 8],
-        mlp_ratio=[4, 4, 4, 4],
+        num_attention_heads=[1, 2, 5, 8],
+        mlp_ratios=[4, 4, 4, 4],
         hidden_act="gelu",
         hidden_dropout_prob=0.0,
         attention_probs_dropout_prob=0.0,
@@ -136,7 +136,7 @@ class SegFormerConfig(PretrainedConfig):
         self.downsampling_rates = downsampling_rates
         self.patch_sizes = patch_sizes
         self.strides = strides
-        self.mlp_ratio = mlp_ratio
+        self.mlp_ratios = mlp_ratios
         self.num_attention_heads = num_attention_heads
         self.hidden_act = hidden_act
         self.hidden_dropout_prob = hidden_dropout_prob

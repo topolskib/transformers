@@ -154,7 +154,7 @@ class SegFormerEfficientSelfAttention(nn.Module):
         output_attentions=False,
     ):
         query_layer = self.transpose_for_scores(self.query(hidden_states))
-
+        
         if self.sr_ratio > 1:
             batch_size, seq_len, num_channels = hidden_states.shape
             hidden_states = hidden_states.permute(0, 2, 1).reshape(batch_size, num_channels, height, width)
@@ -317,9 +317,10 @@ class SegFormerLayer(nn.Module):
             head_mask,
             output_attentions=output_attentions,
         )
+        
         attention_output = self_attention_outputs[0]
         outputs = self_attention_outputs[1:]  # add self attentions if we output attention weights
-
+        
         # first residual connection (with stochastic depth)
         attention_output = self.drop_path(attention_output)
         hidden_states = attention_output + hidden_states
@@ -373,7 +374,7 @@ class SegFormerEncoder(nn.Module):
                         num_attention_heads=config.num_attention_heads[i],
                         drop_path=dpr[cur + j],
                         sr_ratio=config.sr_ratios[i],
-                        mlp_ratio=config.mlp_ratio[i],
+                        mlp_ratio=config.mlp_ratios[i],
                     )
                 )
             blocks.append(nn.ModuleList(layers))
@@ -399,7 +400,8 @@ class SegFormerEncoder(nn.Module):
         batch_size = pixel_values.shape[0]
 
         hidden_states = pixel_values
-        for embedding_layer, block_layer, norm_layer in zip(self.patch_embeddings, self.block, self.layer_norm):
+        for idx, x in enumerate(zip(self.patch_embeddings, self.block, self.layer_norm)):
+            embedding_layer, block_layer, norm_layer = x 
             # first, obtain patch embeddings
             hidden_states, height, width = embedding_layer(hidden_states)
             # second, send embeddings through blocks
@@ -411,7 +413,6 @@ class SegFormerEncoder(nn.Module):
             # third, apply layer norm and reshape back to (batch_size, num_channels, height, width)
             hidden_states = norm_layer(hidden_states)
             hidden_states = hidden_states.reshape(batch_size, height, width, -1).permute(0, 3, 1, 2).contiguous()
-            print("Shape of hidden_states", hidden_states.shape)
             if output_hidden_states:
                 all_hidden_states = all_hidden_states + (hidden_states,)
 

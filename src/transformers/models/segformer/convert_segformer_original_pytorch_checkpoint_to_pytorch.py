@@ -20,7 +20,9 @@ from collections import OrderedDict
 from pathlib import Path
 
 import torch
+import torchvision.transforms as T
 from PIL import Image
+import requests
 
 import requests
 from transformers import SegFormerConfig, SegFormerFeatureExtractor, SegFormerForImageSegmentation
@@ -100,10 +102,17 @@ def read_in_k_v(state_dict, config):
             ]
 
 
-# We will verify our results on an image of cute cats
+# We will verify our results on a COCO image
 def prepare_img():
     url = "http://images.cocodataset.org/val2017/000000039769.jpg"
     im = Image.open(requests.get(url, stream=True).raw)
+
+    transforms = T.Compose([T.Resize((512, 512)),
+            T.ToTensor(),
+            T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),]
+    )
+
+    im = transforms(im).unsqueeze(0) # batch size 1
 
     return im
 
@@ -132,9 +141,9 @@ def convert_segformer_checkpoint(model_name, checkpoint_path, pytorch_dump_folde
     feature_extractor = SegFormerFeatureExtractor()
 
     # prepare image
-    img = prepare_img()
-    encoding = feature_extractor(images=img, return_tensors="pt")
-    pixel_values = encoding["pixel_values"]
+    pixel_values = prepare_img()
+    #encoding = feature_extractor(images=img, return_tensors="pt")
+    #pixel_values = encoding["pixel_values"]
 
     logger.info(f"Converting model {model_name}...")
 
@@ -148,11 +157,14 @@ def convert_segformer_checkpoint(model_name, checkpoint_path, pytorch_dump_folde
 
     # key and value matrices need special treatment
     read_in_k_v(state_dict, config)
-
+    
     # create HuggingFace model and load state dict
     model = SegFormerForImageSegmentation(config)
     model.load_state_dict(state_dict)
     model.eval()
+
+    # forward pass
+    outputs = model(pixel_values)
 
     # finally, save model and feature extractor
     logger.info(f"Saving PyTorch model and feature extractor to {pytorch_dump_folder_path}...")
