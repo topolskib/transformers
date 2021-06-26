@@ -624,9 +624,8 @@ class SegFormerForImageSegmentation(SegFormerPreTrainedModel):
         )
         self.batch_norm = nn.BatchNorm2d(config.decoder_hidden_size)
         self.activation = nn.ReLU()
-
+        
         self.dropout = nn.Dropout(config.classifier_dropout_prob)
-
         self.classifier = nn.Conv2d(config.decoder_hidden_size, config.num_labels, kernel_size=1)
 
         self.init_weights()
@@ -692,13 +691,16 @@ class SegFormerForImageSegmentation(SegFormerPreTrainedModel):
             all_hidden_states += (encoder_hidden_state,)
         
         hidden_states = self.linear_fuse(torch.cat(all_hidden_states[::-1], dim=1))
-
         hidden_states = self.batch_norm(hidden_states)
         hidden_states = self.activation(hidden_states)
         hidden_states = self.dropout(hidden_states)
         
+        # logits are of shape (batch_size, num_labels, height/4, width/4)
         logits = self.classifier(hidden_states)
 
+        # upsample logits to the images' original size
+        logits = nn.functional.interpolate(logits, size=labels.shape[2:], mode="bilinear", align_corners=False)
+        
         loss = None
         if labels is not None:
             if self.config.num_labels == 1:
