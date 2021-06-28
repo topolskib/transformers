@@ -699,7 +699,7 @@ class SegFormerForImageSegmentation(SegFormerPreTrainedModel):
         logits = self.classifier(hidden_states)
 
         # upsample logits to the images' original size
-        logits = nn.functional.interpolate(logits, size=labels.shape[2:], mode="bilinear", align_corners=False)
+        #logits = nn.functional.interpolate(logits, size=labels.shape[2:], mode="bilinear", align_corners=False)
         
         loss = None
         if labels is not None:

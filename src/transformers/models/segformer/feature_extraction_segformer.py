@@ -145,6 +145,10 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
             :obj:`PIL.Image.BILINEAR`, :obj:`PIL.Image.HAMMING`, :obj:`PIL.Image.BICUBIC` or :obj:`PIL.Image.LANCZOS`.
             Only has an effect if :obj:`do_resize` is set to :obj:`True`.
         do_normalize (:obj:`bool`, `optional`, defaults to :obj:`True`):
+            Whether or not to randomly crop the input to a certain obj:`crop_size`.
+        crop_size (:obj:`int`, `optional`, defaults to 512):
+            The crop size to use. Only has an effect if :obj:`do_random_crop` is set to :obj:`True`.
+        do_normalize (:obj:`bool`, `optional`, defaults to :obj:`True`):
             Whether or not to normalize the input with mean and standard deviation.
         image_mean (:obj:`int`, `optional`, defaults to :obj:`[0.485, 0.456, 0.406]`):
             The sequence of means for each channel, to be used when normalizing images. Defaults to the ImageNet mean.
@@ -162,6 +166,8 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
         image_scale=(2048, 512),
         size_divisor=32,
         resample=Image.BILINEAR,
+        do_random_crop=True,
+        crop_size=(512, 512),
         do_normalize=True,
         image_mean=None,
         image_std=None,
@@ -173,6 +179,8 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
         self.image_scale = image_scale
         self.size_divisor = size_divisor
         self.resample = resample
+        self.do_random_crop = do_random_crop
+        self.crop_size = crop_size
         self.do_normalize = do_normalize
         self.image_mean = image_mean if image_mean is not None else [0.485, 0.456, 0.406]  # ImageNet mean
         self.image_std = image_std if image_std is not None else [0.229, 0.224, 0.225]  # ImageNet std
@@ -186,7 +194,7 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
             image = self.resize(image=image, size=(align_w, align_h), resample=resample)
         return image
 
-    def _resize(self, image, size, resample):
+    def align_resize_image(self, image, size, resample):
         """
         This class is based on PIL's ``resize`` method, the only difference is it ensures the long and short sides 
         are divisible by ``self.size_divisor``.  
@@ -196,7 +204,7 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
         if not isinstance(image, Image.Image):
             image = self.to_pil_image(image)
         
-        if self.keep_ratio:    
+        if self.keep_ratio:     
             w, h = image.size
             # calculate new size 
             new_size = rescale_size((w, h), scale=self.image_scale, return_scale=False)
@@ -211,7 +219,7 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
 
         return image
 
-    def _resize_seg(self, segmentation_map):
+    def resize_segmentation_map(self, segmentation_map):
         """Resize semantic segmentation map.
         
         This method is equal to _resize defined above, with the only difference that PIL.Image.NEAREST is used instead of None.
@@ -234,6 +242,18 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
             ), "gt_seg size not align. h:{} w:{}".format(h, w)
         
         return gt_seg
+    
+    def _pad_img(self, image):
+        """Pad images according to ``self.size``."""
+        padded_image = nn.functional.pad(image, pad=self.crop_size)
+        
+        return padded_image
+
+    def _pad_seg(self, segmentation_map):
+        """Pad masks according to ``results['pad_shape']``."""
+        padded_segmentation_map = nn.functional.pad(segmentation_map, pad=results['pad_shape'][:2], value=255)
+
+        return padded_segmentation_map
     
     def __call__(
         self,
@@ -301,9 +321,9 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
 
         # transformations (resizing + normalization)
         if self.do_resize and self.image_scale is not None:
-            images = [self._resize(image=image, size=self.image_scale, resample=self.resample) for image in images]
+            images = [self.align_resize_image(image=image, size=self.image_scale, resample=self.resample) for image in images]
             if segmentation_maps is not None:
-                segmentation_maps = [self._resize_seg(map) for map in segmentation_maps]
+                segmentation_maps = [self.resize_segmentation_map(map) for map in segmentation_maps]
         if self.do_normalize:
             images = [self.normalize(image=image, mean=self.image_mean, std=self.image_std) for image in images]
 
@@ -317,5 +337,9 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
 
         return encoded_inputs
 
-    def show_result():
-        return 
+    def show_result_pyplot(image, outputs, fig_size=(15, 10)):
+        """Visualize the segmentation results on the image.
+        """
+        plt.figure(figsize=fig_size)
+        plt.imshow(mmcv.bgr2rgb(img))
+        plt.show()
