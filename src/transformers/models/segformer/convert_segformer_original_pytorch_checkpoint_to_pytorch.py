@@ -136,6 +136,29 @@ def convert_segformer_checkpoint(model_name, checkpoint_path, pytorch_dump_folde
         # TODO id2label
         # config.id2label = id2label
         # config.label2id = {v: k for k, v in id2label.items()}
+    
+    size = [len("segformer."):len("segformer.")+2]
+    if size == "b1":
+        config.hidden_sizes = [64, 128, 320, 512]
+        config.decoder_hidden_size = 256
+    elif size == "b2":
+        config.hidden_sizes = [64, 128, 320, 512]
+        config.decoder_hidden_size = 768
+        config.depths = [3, 4, 6, 3]
+    elif size == "b3":
+        config.hidden_sizes = [64, 128, 320, 512]
+        config.decoder_hidden_size = 768
+        config.depths = [3, 4, 18, 3]
+    elif size == "b4":
+        config.hidden_sizes = [64, 128, 320, 512]
+        config.decoder_hidden_size = 768
+        config.depths = [3, 8, 27, 3]
+    elif size == "b5":
+        config.hidden_sizes = [64, 128, 320, 512]
+        config.decoder_hidden_size = 768
+        config.depths = [3, 6, 40, 3]
+    else:
+        raise ValueError(f"Size {size} not supported")
 
     # load feature extractor
     feature_extractor = SegFormerFeatureExtractor()
