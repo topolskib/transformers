@@ -261,6 +261,7 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
             Image.Image, np.ndarray, "torch.Tensor", List[Image.Image], List[np.ndarray], List["torch.Tensor"]  # noqa
         ],
         segmentation_maps: Union[Image.Image, List[Image.Image]] = None,
+        align: bool = False,
         return_tensors: Optional[Union[str, TensorType]] = None,
         **kwargs
     ) -> BatchFeature:
@@ -280,6 +281,9 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
 
             segmentation_maps (:obj:`PIL.Image.Image`, :obj:`List[PIL.Image.Image]`):
                 The corresponding semantic segmentation maps with the pixel-wise annotations.
+            
+            align (:obj:`bool`, `optional`, defaults to :obj:`False`):
+                Whether to ensure the long and short sides of an image are divisible by :obj:`size_divisor` when resizing.
             
             return_tensors (:obj:`str` or :class:`~transformers.file_utils.TensorType`, `optional`, defaults to :obj:`'np'`):
                 If set, will return tensors of a particular framework. Acceptable values are:
@@ -321,7 +325,10 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
 
         # transformations (resizing + normalization)
         if self.do_resize and self.image_scale is not None:
-            images = [self.align_resize_image(image=image, size=self.image_scale, resample=self.resample) for image in images]
+            if align:
+                images = [self.align_resize_image(image=image, size=self.image_scale, resample=self.resample) for image in images]
+            else:
+                images = [self.resize(image=image, size=self.image_scale, resample=self.resample) for image in images]
             if segmentation_maps is not None:
                 segmentation_maps = [self.resize_segmentation_map(map) for map in segmentation_maps]
         if self.do_normalize:

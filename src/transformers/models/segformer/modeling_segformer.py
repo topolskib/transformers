@@ -642,9 +642,9 @@ class SegFormerForImageSegmentation(SegFormerPreTrainedModel):
         return_dict=None,
     ):
         r"""
-        labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size, height, width)`, `optional`): Labels for computing
-        the image segmentation loss. Indices should be in :obj:`[0, ..., config.num_labels - 1]`. If
-        :obj:`config.num_labels > 1` a classification loss is computed (Cross-Entropy).
+        labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size, height, width)`, `optional`): Ground truth
+        semantic segmentation maps for computing the image segmentation loss. Indices should be in :obj:`[0, ..., config.num_labels - 1]`. 
+        If :obj:`config.num_labels > 1` a classification loss is computed (Cross-Entropy).
         
         Returns:
 
@@ -697,17 +697,16 @@ class SegFormerForImageSegmentation(SegFormerPreTrainedModel):
         
         # logits are of shape (batch_size, num_labels, height/4, width/4)
         logits = self.classifier(hidden_states)
-
-        # upsample logits to the images' original size
-        #logits = nn.functional.interpolate(logits, size=labels.shape[2:], mode="bilinear", align_corners=False)
         
         loss = None
         if labels is not None:
             if self.config.num_labels == 1:
                 raise ValueError("The number of labels should be greater than one")
             else:
+                # upsample logits to the images' original size
+                logits = nn.functional.interpolate(logits, size=labels.shape[2:], mode="bilinear", align_corners=False)
                 loss_fct = CrossEntropyLoss()
-                loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
+                loss = loss_fct(logits, labels.squeeze(1))
 
         if not return_dict:
             output = (logits,) + outputs[1:]
