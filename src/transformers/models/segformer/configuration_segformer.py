@@ -37,10 +37,6 @@ class SegFormerConfig(PretrainedConfig):
     Configuration objects inherit from :class:`~transformers.PretrainedConfig` and can be used to control the model
     outputs. Read the documentation from :class:`~transformers.PretrainedConfig` for more information.
 
-
-
-
-
     Args:
         image_size (:obj:`int`, `optional`, defaults to 512):
             The size (resolution) of each image.
@@ -82,9 +78,6 @@ class SegFormerConfig(PretrainedConfig):
             The epsilon used by the layer normalization layers.
         decoder_hidden_size (:obj:`int`, `optional`, defaults to 256):
             The dimension of the decoder.
-
-
-
 
         Example::
 
