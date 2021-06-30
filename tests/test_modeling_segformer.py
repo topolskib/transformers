@@ -175,6 +175,10 @@ class SegFormerModelTest(ModelTesterMixin, unittest.TestCase):
     def test_inputs_embeds(self):
         pass
 
+    @unittest.skip("SegFormer does not have get_input_embeddings method and get_output_embeddings methods")
+    def test_model_common_attributes(self):
+        pass
+    
     def test_forward_signature(self):
         config, _ = self.model_tester.prepare_config_and_inputs_for_common()
 
@@ -191,10 +195,6 @@ class SegFormerModelTest(ModelTesterMixin, unittest.TestCase):
         config, inputs_dict = self.model_tester.prepare_config_and_inputs_for_common()
         config.return_dict = True
 
-        seq_len = getattr(self.model_tester, "seq_length", None)
-        encoder_seq_length = getattr(self.model_tester, "encoder_seq_length", seq_len)
-        encoder_key_length = getattr(self.model_tester, "key_length", encoder_seq_length)
-
         for model_class in self.all_model_classes:
             inputs_dict["output_attentions"] = True
             inputs_dict["output_hidden_states"] = False
@@ -205,7 +205,9 @@ class SegFormerModelTest(ModelTesterMixin, unittest.TestCase):
             with torch.no_grad():
                 outputs = model(**self._prepare_for_class(inputs_dict, model_class))
             attentions = outputs.attentions
-            self.assertEqual(len(attentions), self.model_tester.num_encoder_blocks)
+            
+            expected_num_attentions = sum(self.model_tester.depths)       
+            self.assertEqual(len(attentions), expected_num_attentions)
 
             # check that output_attentions also work using config
             del inputs_dict["output_attentions"]
@@ -215,13 +217,22 @@ class SegFormerModelTest(ModelTesterMixin, unittest.TestCase):
             model.eval()
             with torch.no_grad():
                 outputs = model(**self._prepare_for_class(inputs_dict, model_class))
-            attentions = outputs.encoder_attentions if config.is_encoder_decoder else outputs.attentions
-            self.assertEqual(len(attentions), self.model_tester.num_encoder_blocks)
+            attentions = outputs.attentions
 
+            self.assertEqual(len(attentions), expected_num_attentions)
+
+            # verify the first attentions (first block, first layer)
             self.assertListEqual(
                     list(attentions[0].shape[-3:]),
-                    [self.model_tester.num_attention_heads, encoder_seq_length, encoder_key_length],
-                )
+                    [self.model_tester.num_attention_heads[0], None, None],
+            )
+            
+            # verify the last attentions (last block, last layer)
+            self.assertListEqual(
+                    list(attentions[-1].shape[-3:]),
+                    [self.model_tester.num_attention_heads[-1], None, None],
+            )
+            
             out_len = len(outputs)
 
             # Check attention is always last and order is fine
@@ -241,10 +252,10 @@ class SegFormerModelTest(ModelTesterMixin, unittest.TestCase):
 
             self_attentions = outputs.attentions
 
-            self.assertEqual(len(self_attentions), self.model_tester.num_encoder_blocks)
+            self.assertEqual(len(self_attentions), expected_num_attentions)
             self.assertListEqual(
                     list(self_attentions[0].shape[-3:]),
-                    [self.model_tester.num_attention_heads, encoder_seq_length, encoder_key_length],
+                    [self.model_tester.num_attention_heads[0], None, None],
             )
     
     def test_hidden_states_output(self):
@@ -258,19 +269,12 @@ class SegFormerModelTest(ModelTesterMixin, unittest.TestCase):
 
             hidden_states = outputs.hidden_states
 
-            expected_num_layers = getattr(
-                self.model_tester, "expected_num_hidden_layers", self.model_tester.num_encoder_blocks
-            )
+            expected_num_layers = self.model_tester.num_encoder_blocks
             self.assertEqual(len(hidden_states), expected_num_layers)
-
-            if hasattr(self.model_tester, "encoder_seq_length"):
-                seq_length = self.model_tester.encoder_seq_length
-            else:
-                seq_length = self.model_tester.seq_length
 
             self.assertListEqual(
                 list(hidden_states[0].shape[-2:]),
-                [seq_length, self.model_tester.hidden_size],
+                [None, self.model_tester.hidden_sizes[0]],
             )
 
         config, inputs_dict = self.model_tester.prepare_config_and_inputs_for_common()
