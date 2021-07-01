@@ -157,9 +157,10 @@ class SegFormerModelTest(ModelTesterMixin, unittest.TestCase):
         else ()
     )
 
+    test_head_masking = False
     test_pruning = False
-    test_torchscript = False
     test_resize_embeddings = False
+    test_torchscript = False
 
     def setUp(self):
         self.model_tester = SegFormerModelTester(self)
