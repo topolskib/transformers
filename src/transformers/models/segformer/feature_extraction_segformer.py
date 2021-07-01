@@ -21,10 +21,14 @@ import numpy as np
 from PIL import Image
 
 from ...feature_extraction_utils import BatchFeature, FeatureExtractionMixin
-from ...file_utils import TensorType
+from ...file_utils import TensorType, is_torch_available
 from ...image_utils import ImageFeatureExtractionMixin, is_torch_tensor
 from ...utils import logging
 
+
+if is_torch_available():
+    import torch
+    from torch import nn
 
 logger = logging.get_logger(__name__)
 
@@ -129,25 +133,28 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
         do_resize (:obj:`bool`, `optional`, defaults to :obj:`True`):
             Whether to resize/rescale the input based on a certain :obj:`image_scale`.
         keep_ratio (:obj:`bool`, `optional`, defaults to :obj:`True`):
-            Whether to keep the aspect ratio when resizing the image.
+            Whether to keep the aspect ratio when resizing the input. Only has an effect if :obj:`do_resize` is set to :obj:`True`.
         image_scale (:obj:`float` or :obj:`Tuple(int)`, `optional`, defaults to (2048, 512)):
             In case :obj:`keep_ratio` is set to :obj:`True`, the scaling factor or maximum size. If it is a float number, then 
             the image will be rescaled by this factor, else if it is a tuple of 2 integers (width, height), then the image will be 
             rescaled as large as possible within the scale. 
-            In case :obj:`keep_ratio` is set to :obj:`False`, the target size (w, h) to which the image will be resized.
+            In case :obj:`keep_ratio` is set to :obj:`False`, the target size (width, height) to which the image will be resized.
             
             Only has an effect if :obj:`do_resize` is set to :obj:`True`.
+        align (:obj:`bool`, `optional`, defaults to :obj:`True`):
+            Whether to ensure the long and short sides are divisible by :obj:`size_divisor`. Only has an effect if :obj:`do_resize` and 
+            :obj:`keep_ratio` are set to :obj:`True`.
         size_divisor (:obj:`int`, `optional`, defaults to 32):
             The integer by which both sides of an image should be divisible. Only has an effect if :obj:`do_resize` 
-            is set to :obj:`True`.
+            and :obj:`align` are set to :obj:`True`.
         resample (:obj:`int`, `optional`, defaults to :obj:`PIL.Image.BILINEAR`):
             An optional resampling filter. This can be one of :obj:`PIL.Image.NEAREST`, :obj:`PIL.Image.BOX`,
             :obj:`PIL.Image.BILINEAR`, :obj:`PIL.Image.HAMMING`, :obj:`PIL.Image.BICUBIC` or :obj:`PIL.Image.LANCZOS`.
             Only has an effect if :obj:`do_resize` is set to :obj:`True`.
-        do_normalize (:obj:`bool`, `optional`, defaults to :obj:`True`):
+        do_random_crop (:obj:`bool`, `optional`, defaults to :obj:`True`):
             Whether or not to randomly crop the input to a certain obj:`crop_size`.
-        crop_size (:obj:`int`, `optional`, defaults to 512):
-            The crop size to use. Only has an effect if :obj:`do_random_crop` is set to :obj:`True`.
+        crop_size (:obj:`Tuple[int]`, `optional`, defaults to (512, 512)):
+            The crop size to use, as a tuple (width, height). Only has an effect if :obj:`do_random_crop` is set to :obj:`True`.
         do_normalize (:obj:`bool`, `optional`, defaults to :obj:`True`):
             Whether or not to normalize the input with mean and standard deviation.
         image_mean (:obj:`int`, `optional`, defaults to :obj:`[0.485, 0.456, 0.406]`):
@@ -155,6 +162,12 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
         image_std (:obj:`int`, `optional`, defaults to :obj:`[0.229, 0.224, 0.225]`):
             The sequence of standard deviations for each channel, to be used when normalizing images. Defaults to the
             ImageNet std.
+        do_pad (:obj:`bool`, `optional`, defaults to :obj:`True`):
+            Whether or not to pad the input to :obj:`crop_size`.
+        padding_value (:obj:`int`, `optional`, defaults to 0):
+            Fill value for padding images. 
+        segmentation_padding_value (:obj:`int`, `optional`, defaults to 255):
+            Fill value for padding segmentation maps. 
     """
 
     model_input_names = ["pixel_values"]
@@ -164,6 +177,7 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
         do_resize=True,
         keep_ratio=True,
         image_scale=(2048, 512),
+        align=True,
         size_divisor=32,
         resample=Image.BILINEAR,
         do_random_crop=True,
@@ -171,12 +185,16 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
         do_normalize=True,
         image_mean=None,
         image_std=None,
+        do_pad=True,
+        padding_value=0,
+        segmentation_padding_value=255,
         **kwargs
     ):
         super().__init__(**kwargs)
         self.do_resize = do_resize
         self.keep_ratio = keep_ratio
         self.image_scale = image_scale
+        self.align = align
         self.size_divisor = size_divisor
         self.resample = resample
         self.do_random_crop = do_random_crop
@@ -184,6 +202,9 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
         self.do_normalize = do_normalize
         self.image_mean = image_mean if image_mean is not None else [0.485, 0.456, 0.406]  # ImageNet mean
         self.image_std = image_std if image_std is not None else [0.229, 0.224, 0.225]  # ImageNet std
+        self.do_pad = do_pad
+        self.padding_value = padding_value
+        self.segmentation_padding_value = segmentation_padding_value
 
     def _align(self, image, size_divisor, resample=None):
         align_w = int(np.ceil(image.size[0] / self.size_divisor)) * self.size_divisor
@@ -194,9 +215,9 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
             image = self.resize(image=image, size=(align_w, align_h), resample=resample)
         return image
 
-    def align_resize_image(self, image, size, resample):
+    def resize_image(self, image, size, resample):
         """
-        This class is based on PIL's ``resize`` method, the only difference is it ensures the long and short sides 
+        This class is based on PIL's ``resize`` method, the only difference is it is possible to ensure the long and short sides 
         are divisible by ``self.size_divisor``.  
 
         If ``self.keep_ratio`` equals ``True``, then it replicates mmcv.rescale, else it replicates mmcv.resize.       
@@ -209,13 +230,14 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
             # calculate new size 
             new_size = rescale_size((w, h), scale=self.image_scale, return_scale=False)
             image = self.resize(image=image, size=new_size, resample=resample)
-            image = self._align(image, self.size_divisor)
+            if self.align:
+                image = self._align(image, self.size_divisor)
         else:
             image = self.resize(image=image, size=self.image_scale, resample=resample)
             w, h = image.size
             assert int(np.ceil(h / self.size_divisor)) * self.size_divisor == h and \
                    int(np.ceil(w / self.size_divisor)) * self.size_divisor == w, \
-                   "img size doesn't align. h:{} w:{}".format(h,w)
+                   "image size doesn't align. h:{} w:{}".format(h,w)
 
         return image
 
@@ -232,7 +254,8 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
             # calculate new size 
             new_size = rescale_size((w, h), scale=self.image_scale, return_scale=False)
             gt_seg = self.resize(image=segmentation_map, size=new_size, resample=Image.NEAREST)
-            gt_seg = self._align(gt_seg, self.size_divisor, resample=Image.NEAREST)
+            if self.align:
+                gt_seg = self._align(gt_seg, self.size_divisor, resample=Image.NEAREST)
         else:
             gt_seg = self.resize(image=segmentation_map, size=self.image_scale, resample=Image.NEAREST)
             w, h = gt_seg.size
@@ -243,17 +266,50 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
         
         return gt_seg
     
-    def _pad_img(self, image):
-        """Pad images according to ``self.size``."""
-        padded_image = nn.functional.pad(image, pad=self.crop_size)
+    def _get_crop_bbox(self, image):
+        """Randomly get a crop bounding box."""
+        image = self.to_numpy_array(image)
+        # self.crop_size is a tuple (width, height)
+        # however image has shape (num_channels, height, width)
+        margin_h = max(image.shape[1] - self.crop_size[1], 0)
+        margin_w = max(image.shape[2] - self.crop_size[0], 0)
+        offset_h = np.random.randint(0, margin_h + 1)
+        offset_w = np.random.randint(0, margin_w + 1)
+        crop_y1, crop_y2 = offset_h, offset_h + self.crop_size[1]
+        crop_x1, crop_x2 = offset_w, offset_w + self.crop_size[0]
+
+        return crop_y1, crop_y2, crop_x1, crop_x2
+    
+    def _crop(self, image, crop_bbox):
+        image = self.to_numpy_array(image)
         
-        return padded_image
+        crop_y1, crop_y2, crop_x1, crop_x2 = crop_bbox
+        image = image[..., crop_y1:crop_y2, crop_x1:crop_x2]
+        return image
 
-    def _pad_seg(self, segmentation_map):
-        """Pad masks according to ``results['pad_shape']``."""
-        padded_segmentation_map = nn.functional.pad(segmentation_map, pad=results['pad_shape'][:2], value=255)
+    def random_crop(self, image, segmentation_map=None):
+        """Randomly crop an image and optionally its corresponding segmentation map."""
+        crop_bbox = self._get_crop_bbox(image)
+        
+        image = self._crop(image, crop_bbox)
+        
+        if segmentation_map is not None:
+            segmentation_map = self._crop(segmentation_map, crop_bbox)
+            return image, segmentation_map
 
-        return padded_segmentation_map
+        return image
+    
+    # def pad_images(self, images):
+    #     """Pad images to ``self.crop_size``."""
+    #     padded_images = nn.functional.pad(images, pad=self.crop_size, value=self.padding_value)
+        
+    #     return padded_images
+
+    # def pad_segmentation_maps(self, segmentation_maps):
+    #     """Pad masks to ``self.crop_size``."""
+    #     padded_segmentation_map = nn.functional.pad(segmentation_maps, pad=self.crop_size, value=self.segmentation_padding_value)
+
+    #     return padded_segmentation_maps
     
     def __call__(
         self,
@@ -266,7 +322,7 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
         **kwargs
     ) -> BatchFeature:
         """
-        Main method to prepare for the model one or several image(s).
+        Main method to prepare for the model one or several image(s) and optional corresponding segmentation maps.
 
         .. warning::
 
@@ -276,14 +332,11 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
         Args:
             images (:obj:`PIL.Image.Image`, :obj:`np.ndarray`, :obj:`torch.Tensor`, :obj:`List[PIL.Image.Image]`, :obj:`List[np.ndarray]`, :obj:`List[torch.Tensor]`):
                 The image or batch of images to be prepared. Each image can be a PIL image, NumPy array or PyTorch
-                tensor. In case of a NumPy array/PyTorch tensor, each image should be of shape (C, H, W), where C is a
+                tensor. In case of a NumPy array/PyTorch tensor, each image should be of shape (C, H, W), where C is the
                 number of channels, H and W are image height and width.
 
-            segmentation_maps (:obj:`PIL.Image.Image`, :obj:`List[PIL.Image.Image]`):
-                The corresponding semantic segmentation maps with the pixel-wise annotations.
-            
-            align (:obj:`bool`, `optional`, defaults to :obj:`False`):
-                Whether to ensure the long and short sides of an image are divisible by :obj:`size_divisor` when resizing.
+            segmentation_maps (:obj:`PIL.Image.Image`, :obj:`List[PIL.Image.Image]`, `optional`):
+                Optionally, the corresponding semantic segmentation maps with the pixel-wise annotations.
             
             return_tensors (:obj:`str` or :class:`~transformers.file_utils.TensorType`, `optional`, defaults to :obj:`'np'`):
                 If set, will return tensors of a particular framework. Acceptable values are:
@@ -323,14 +376,16 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
         if not is_batched:
             images = [images]
 
-        # transformations (resizing + normalization)
+        # transformations (resizing, random cropping, normalization)
         if self.do_resize and self.image_scale is not None:
-            if align:
-                images = [self.align_resize_image(image=image, size=self.image_scale, resample=self.resample) for image in images]
-            else:
-                images = [self.resize(image=image, size=self.image_scale, resample=self.resample) for image in images]
+            images = [self.resize_image(image=image, size=self.image_scale, resample=self.resample) for image in images]
             if segmentation_maps is not None:
                 segmentation_maps = [self.resize_segmentation_map(map) for map in segmentation_maps]
+        if self.do_random_crop:
+            if segmentation_maps is not None:
+                segmentation_maps = [self.random_crop(image, map) for image, map in zip(images, segmentation_maps)]
+            else:
+                images = [self.random_crop(image) for image in images]
         if self.do_normalize:
             images = [self.normalize(image=image, mean=self.image_mean, std=self.image_std) for image in images]
 
@@ -342,11 +397,10 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
 
         encoded_inputs = BatchFeature(data=data, tensor_type=return_tensors)
 
-        return encoded_inputs
+        # # TODO make padding not dependent on PyTorch
+        # if self.do_pad:
+        #     encoded_inputs["pixel_values"] = self.pad_images(encoded_inputs["pixel_values"])
+        #     if segmentation_maps is not None:
+        #          encoded_inputs["labels"] = self.pad_segmentation_maps(encoded_inputs["labels"])
 
-    def show_result_pyplot(image, outputs, fig_size=(15, 10)):
-        """Visualize the segmentation results on the image.
-        """
-        plt.figure(figsize=fig_size)
-        plt.imshow(mmcv.bgr2rgb(img))
-        plt.show()
+        return encoded_inputs
