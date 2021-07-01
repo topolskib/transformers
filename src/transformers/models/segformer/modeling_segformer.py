@@ -108,6 +108,7 @@ class SegFormerOverlapPatchEmbeddings(nn.Module):
     def forward(self, pixel_values):
 
         x = self.proj(pixel_values)
+        print("Shape after conv projection:", x.shape)
         _, _, height, width = x.shape
         x = x.flatten(2).transpose(1, 2)
         x = self.layer_norm(x)
@@ -158,7 +159,11 @@ class SegFormerEfficientSelfAttention(nn.Module):
         if self.sr_ratio > 1:
             batch_size, seq_len, num_channels = hidden_states.shape
             hidden_states = hidden_states.permute(0, 2, 1).reshape(batch_size, num_channels, height, width)
-            hidden_states = self.sr(hidden_states).reshape(batch_size, num_channels, -1).permute(0, 2, 1)
+            print("Hidden states before sr:", hidden_states.shape)
+            hidden_states = self.sr(hidden_states)
+            print("Hidden states after sr:", hidden_states.shape)
+            hidden_states = hidden_states.reshape(batch_size, num_channels, -1).permute(0, 2, 1)
+            print("Hidden states after reshape:", hidden_states.shape)
             hidden_states = self.layer_norm(hidden_states)
 
         key_layer = self.transpose_for_scores(self.key(hidden_states))
@@ -400,14 +405,19 @@ class SegFormerEncoder(nn.Module):
         batch_size = pixel_values.shape[0]
 
         hidden_states = pixel_values
+        print("Shape of pixel_values:", pixel_values.shape)
         for idx, x in enumerate(zip(self.patch_embeddings, self.block, self.layer_norm)):
+            print(f"Block: {idx}")
             embedding_layer, block_layer, norm_layer = x 
             # first, obtain patch embeddings
+            print("Shape of hidden states before patch embeddings:", hidden_states.shape)
             hidden_states, height, width = embedding_layer(hidden_states)
+            print("Shape of hidden states after patch embeddings:", hidden_states.shape)
             # second, send embeddings through blocks
             for i, blk in enumerate(block_layer):
                 layer_outputs = blk(hidden_states, height, width, head_mask, output_attentions)
                 hidden_states = layer_outputs[0]
+                print("Shape of hidden_states layer {i}:", hidden_states.shape)
                 if output_attentions:
                     all_self_attentions = all_self_attentions + (layer_outputs[1],)
             # third, apply layer norm and reshape back to (batch_size, num_channels, height, width)
@@ -483,7 +493,7 @@ SEGFORMER_INPUTS_DOCSTRING = r"""
             :class:`~transformers.SegFormerFeatureExtractor`. See
             :meth:`transformers.SegFormerFeatureExtractor.__call__` for details.
 
-        head_mask (:obj:`torch.FloatTensor` of shape :obj:`(num_heads,)` or :obj:`(num_layers, num_heads)`, `optional`):
+        head_mask (:obj:`torch.FloatTensor` of shape :obj:`(num_heads,)` or :obj:`(num_encoder_blocks, num_heads)`, `optional`):
             Mask to nullify selected heads of the self-attention modules. Mask values selected in ``[0, 1]``:
 
             - 1 indicates the head is **not masked**,
@@ -704,7 +714,7 @@ class SegFormerForImageSegmentation(SegFormerPreTrainedModel):
                 raise ValueError("The number of labels should be greater than one")
             else:
                 # upsample logits to the images' original size
-                logits = nn.functional.interpolate(logits, size=labels.shape[2:], mode="bilinear", align_corners=False)
+                logits = nn.functional.interpolate(logits, size=labels.shape[1:], mode="bilinear", align_corners=False)
                 loss_fct = CrossEntropyLoss()
                 loss = loss_fct(logits, labels.squeeze(1))
 
