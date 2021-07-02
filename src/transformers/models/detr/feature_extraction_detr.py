@@ -24,7 +24,13 @@ from PIL import Image
 
 from ...feature_extraction_utils import BatchFeature, FeatureExtractionMixin
 from ...file_utils import TensorType, is_torch_available
-from ...image_utils import ImageFeatureExtractionMixin, is_torch_tensor
+from ...image_utils import (
+    IMAGENET_DEFAULT_MEAN,
+    IMAGENET_DEFAULT_STD,
+    ImageFeatureExtractionMixin,
+    ImageInput,
+    is_torch_tensor,
+)
 from ...utils import logging
 
 
@@ -33,9 +39,6 @@ if is_torch_available():
     from torch import nn
 
 logger = logging.get_logger(__name__)
-
-
-ImageInput = Union[Image.Image, np.ndarray, "torch.Tensor", List[Image.Image], List[np.ndarray], List["torch.Tensor"]]
 
 
 # 2 functions below inspired by https://github.com/facebookresearch/detr/blob/master/util/box_ops.py
@@ -169,8 +172,8 @@ class DetrFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMixin):
         self.size = size
         self.max_size = max_size
         self.do_normalize = do_normalize
-        self.image_mean = image_mean if image_mean is not None else [0.485, 0.456, 0.406]  # ImageNet mean
-        self.image_std = image_std if image_std is not None else [0.229, 0.224, 0.225]  # ImageNet std
+        self.image_mean = image_mean if image_mean is not None else IMAGENET_DEFAULT_MEAN
+        self.image_std = image_std if image_std is not None else IMAGENET_DEFAULT_STD
 
     def _is_valid_format(self, format):
         if format not in ["coco_detection", "coco_panoptic"]:

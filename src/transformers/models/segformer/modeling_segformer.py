@@ -153,7 +153,7 @@ class SegFormerEfficientSelfAttention(nn.Module):
         output_attentions=False,
     ):
         query_layer = self.transpose_for_scores(self.query(hidden_states))
-        
+
         if self.sr_ratio > 1:
             batch_size, seq_len, num_channels = hidden_states.shape
             hidden_states = hidden_states.permute(0, 2, 1).reshape(batch_size, num_channels, height, width)
@@ -309,10 +309,10 @@ class SegFormerLayer(nn.Module):
             width,
             output_attentions=output_attentions,
         )
-        
+
         attention_output = self_attention_outputs[0]
         outputs = self_attention_outputs[1:]  # add self attentions if we output attention weights
-        
+
         # first residual connection (with stochastic depth)
         attention_output = self.drop_path(attention_output)
         hidden_states = attention_output + hidden_states
@@ -392,7 +392,7 @@ class SegFormerEncoder(nn.Module):
 
         hidden_states = pixel_values
         for idx, x in enumerate(zip(self.patch_embeddings, self.block, self.layer_norm)):
-            embedding_layer, block_layer, norm_layer = x 
+            embedding_layer, block_layer, norm_layer = x
             # first, obtain patch embeddings
             hidden_states, height, width = embedding_layer(hidden_states)
             # second, send embeddings through blocks
@@ -455,9 +455,6 @@ SEGFORMER_START_DOCSTRING = r"""
     This model is a PyTorch `torch.nn.Module <https://pytorch.org/docs/stable/nn.html#torch.nn.Module>`_ sub-class. Use
     it as a regular PyTorch Module and refer to the PyTorch documentation for all matter related to general usage and
     behavior.
-
-
-
 
     Parameters:
         config (:class:`~transformers.SegFormerConfig`): Model configuration class with all the parameters of the model.
@@ -524,18 +521,18 @@ class SegFormerModel(SegFormerPreTrainedModel):
             >>> from transformers import SegFormerFeatureExtractor, SegFormerModel
             >>> from PIL import Image
             >>> import requests
-            
+
             >>> feature_extractor = SegFormerFeatureExtractor.from_pretrained("nvidia/segformer-b0")
             >>> model = SegFormerModel("nvidia/segformer-b0")
-            
+
             >>> url = 'http://images.cocodataset.org/val2017/000000039769.jpg'
             >>> image = Image.open(requests.get(url, stream=True).raw)
-            
+
             >>> inputs = feature_extractor(images=image, return_tensors="pt")
             >>> outputs = model(**inputs)
-            >>> sequence_output = outputs.last_hidden_state 
+            >>> sequence_output = outputs.last_hidden_state
         """
-        
+
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
@@ -601,7 +598,7 @@ class SegFormerForImageSegmentation(SegFormerPreTrainedModel):
         )
         self.batch_norm = nn.BatchNorm2d(config.decoder_hidden_size)
         self.activation = nn.ReLU()
-        
+
         self.dropout = nn.Dropout(config.classifier_dropout_prob)
         self.classifier = nn.Conv2d(config.decoder_hidden_size, config.num_labels, kernel_size=1)
 
@@ -618,10 +615,10 @@ class SegFormerForImageSegmentation(SegFormerPreTrainedModel):
         return_dict=None,
     ):
         r"""
-        labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size, height, width)`, `optional`): Ground truth
-        semantic segmentation maps for computing the image segmentation loss. Indices should be in :obj:`[0, ..., config.num_labels - 1]`. 
-        If :obj:`config.num_labels > 1` a classification loss is computed (Cross-Entropy).
-        
+        labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size, height, width)`, `optional`): Ground truth semantic
+        segmentation maps for computing the image segmentation loss. Indices should be in :obj:`[0, ...,
+        config.num_labels - 1]`. If :obj:`config.num_labels > 1` a classification loss is computed (Cross-Entropy).
+
         Returns:
 
         Examples::
@@ -629,13 +626,13 @@ class SegFormerForImageSegmentation(SegFormerPreTrainedModel):
             >>> from transformers import SegFormerFeatureExtractor, SegFormerForImageSegmentation
             >>> from PIL import Image
             >>> import requests
-            
+
             >>> feature_extractor = SegFormerFeatureExtractor.from_pretrained("nvidia/segformer-b0-fine-tuned-ade-512-512")
             >>> model = SegFormerForImageSegmentation("nvidia/segformer-b0-fine-tuned-ade-512-512")
-            
+
             >>> url = 'http://images.cocodataset.org/val2017/000000039769.jpg'
             >>> image = Image.open(requests.get(url, stream=True).raw)
-            
+
             >>> inputs = feature_extractor(images=image, return_tensors="pt")
             >>> outputs = model(**inputs)
             >>> logits = outputs.logits # shape (batch_size, num_labels, height/4, width/4)
@@ -651,7 +648,7 @@ class SegFormerForImageSegmentation(SegFormerPreTrainedModel):
 
         if return_dict:
             encoder_hidden_states = outputs.hidden_states
-        else: 
+        else:
             encoder_hidden_states = outputs[1]
         batch_size, _, _, _ = encoder_hidden_states[-1].shape
         all_hidden_states = ()
@@ -667,15 +664,15 @@ class SegFormerForImageSegmentation(SegFormerPreTrainedModel):
                 encoder_hidden_state, size=encoder_hidden_states[0].size()[2:], mode="bilinear", align_corners=False
             )
             all_hidden_states += (encoder_hidden_state,)
-        
+
         hidden_states = self.linear_fuse(torch.cat(all_hidden_states[::-1], dim=1))
         hidden_states = self.batch_norm(hidden_states)
         hidden_states = self.activation(hidden_states)
         hidden_states = self.dropout(hidden_states)
-        
+
         # logits are of shape (batch_size, num_labels, height/4, width/4)
         logits = self.classifier(hidden_states)
-        
+
         loss = None
         if labels is not None:
             if self.config.num_labels == 1:

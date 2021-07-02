@@ -43,11 +43,11 @@ class SegFormerFeatureExtractionTester(unittest.TestCase):
         max_resolution=400,
         do_resize=True,
         keep_ratio=True,
-        image_scale=(100,20),
+        image_scale=(100, 20),
         align=True,
         size_divisor=10,
         do_random_crop=True,
-        crop_size=(20,20),
+        crop_size=(20, 20),
         do_normalize=True,
         image_mean=[0.5, 0.5, 0.5],
         image_std=[0.5, 0.5, 0.5],
@@ -108,7 +108,6 @@ class SegFormerFeatureExtractionTest(FeatureExtractionSavingTestMixin, unittest.
         self.assertTrue(hasattr(feature_extractor, "do_normalize"))
         self.assertTrue(hasattr(feature_extractor, "image_mean"))
         self.assertTrue(hasattr(feature_extractor, "image_std"))
-        
 
     def test_batch_feature(self):
         pass
@@ -217,7 +216,9 @@ class SegFormerFeatureExtractionTest(FeatureExtractionSavingTestMixin, unittest.
         self.assertEqual(encoded_images.shape, expected_shape)
 
         # Initialize feature_extractor: version 2 (keep_ratio=False)
-        feature_extractor = SegFormerFeatureExtractor(image_scale=(1280, 800), align=False, keep_ratio=False, do_random_crop=False)
+        feature_extractor = SegFormerFeatureExtractor(
+            image_scale=(1280, 800), align=False, keep_ratio=False, do_random_crop=False
+        )
 
         # Verify shape
         encoded_images = feature_extractor(image, return_tensors="pt").pixel_values
@@ -253,7 +254,7 @@ class SegFormerFeatureExtractionTest(FeatureExtractionSavingTestMixin, unittest.
         image = torch.randn((3, h, w))
 
         # Initialize feature_extractor
-        feature_extractor = SegFormerFeatureExtractor(crop_size= (w - 20, h - 20))
+        feature_extractor = SegFormerFeatureExtractor(crop_size=[w - 20, h - 20])
 
         # Verify shape
         encoded_images = feature_extractor(image, return_tensors="pt").pixel_values

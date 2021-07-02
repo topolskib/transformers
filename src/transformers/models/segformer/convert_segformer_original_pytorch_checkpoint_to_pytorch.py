@@ -21,7 +21,6 @@ from pathlib import Path
 
 import torch
 from PIL import Image
-import requests
 
 import requests
 from transformers import SegFormerConfig, SegFormerFeatureExtractor, SegFormerForImageSegmentation
@@ -128,8 +127,8 @@ def convert_segformer_checkpoint(model_name, checkpoint_path, pytorch_dump_folde
         # TODO id2label
         # config.id2label = id2label
         # config.label2id = {v: k for k, v in id2label.items()}
-    
-    size = model_name[len("segformer."):len("segformer.")+2]
+
+    size = model_name[len("segformer.") : len("segformer.") + 2]
     if size == "b0":
         pass
     elif size == "b1":
@@ -155,7 +154,9 @@ def convert_segformer_checkpoint(model_name, checkpoint_path, pytorch_dump_folde
         raise ValueError(f"Size {size} not supported")
 
     # load feature extractor (only resize + normalize)
-    feature_extractor = SegFormerFeatureExtractor(image_scale=(512,512), keep_ratio=False, align=False, do_random_crop=False)
+    feature_extractor = SegFormerFeatureExtractor(
+        image_scale=(512, 512), keep_ratio=False, align=False, do_random_crop=False
+    )
 
     # prepare image
     image = prepare_img()
@@ -168,12 +169,12 @@ def convert_segformer_checkpoint(model_name, checkpoint_path, pytorch_dump_folde
 
     # rename keys
     state_dict = rename_keys(state_dict)
-    del state_dict['conv_seg.weight']
-    del state_dict['conv_seg.bias']
+    del state_dict["conv_seg.weight"]
+    del state_dict["conv_seg.bias"]
 
     # key and value matrices need special treatment
     read_in_k_v(state_dict, config)
-    
+
     # create HuggingFace model and load state dict
     model = SegFormerForImageSegmentation(config)
     model.load_state_dict(state_dict)
@@ -185,18 +186,14 @@ def convert_segformer_checkpoint(model_name, checkpoint_path, pytorch_dump_folde
     # verify logits
     logits = outputs.logits
     assert logits.shape == (1, 150, 128, 128)
-    expected_slice = torch.tensor([[[ -4.6310,  -5.5232,  -6.2356],
-         [ -5.1921,  -6.1444,  -6.5996],
-         [ -5.4424,  -6.2790,  -6.7574]],
-
-        [[-12.1391, -13.3122, -13.9554],
-         [-12.8732, -13.9352, -14.3563],
-         [-12.9438, -13.8226, -14.2513]],
-
-        [[-12.5134, -13.4686, -14.4915],
-         [-12.8669, -14.4343, -14.7758],
-         [-13.2523, -14.5819, -15.0694]]])
-    assert torch.allclose(outputs.logits[0,:3,:3,:3], expected_slice, atol=1e-4)
+    expected_slice = torch.tensor(
+        [
+            [[-4.6310, -5.5232, -6.2356], [-5.1921, -6.1444, -6.5996], [-5.4424, -6.2790, -6.7574]],
+            [[-12.1391, -13.3122, -13.9554], [-12.8732, -13.9352, -14.3563], [-12.9438, -13.8226, -14.2513]],
+            [[-12.5134, -13.4686, -14.4915], [-12.8669, -14.4343, -14.7758], [-13.2523, -14.5819, -15.0694]],
+        ]
+    )
+    assert torch.allclose(outputs.logits[0, :3, :3, :3], expected_slice, atol=1e-4)
 
     # finally, save model and feature extractor
     logger.info(f"Saving PyTorch model and feature extractor to {pytorch_dump_folder_path}...")

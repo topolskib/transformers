@@ -15,11 +15,11 @@
 """ Testing suite for the PyTorch SegFormer model. """
 
 
-import unittest
 import inspect
+import unittest
 
 from transformers import is_torch_available, is_vision_available
-from transformers.testing_utils import require_torch, slow, torch_device, require_vision
+from transformers.testing_utils import require_torch, slow, torch_device
 
 from .test_configuration_common import ConfigTester
 from .test_modeling_common import ModelTesterMixin, floats_tensor, ids_tensor
@@ -28,11 +28,7 @@ from .test_modeling_common import ModelTesterMixin, floats_tensor, ids_tensor
 if is_torch_available():
     import torch
 
-    from transformers import (
-        SegFormerConfig,
-        SegFormerForImageSegmentation,
-        SegFormerModel,
-    )
+    from transformers import SegFormerConfig, SegFormerForImageSegmentation, SegFormerModel
     from transformers.models.segformer.modeling_segformer import SEGFORMER_PRETRAINED_MODEL_ARCHIVE_LIST
 
 
@@ -48,6 +44,7 @@ class SegFormerConfigTester(ConfigTester):
         self.parent.assertTrue(hasattr(config, "hidden_sizes"))
         self.parent.assertTrue(hasattr(config, "num_attention_heads"))
         self.parent.assertTrue(hasattr(config, "num_encoder_blocks"))
+
 
 class SegFormerModelTester:
     def __init__(
@@ -112,27 +109,29 @@ class SegFormerModelTester:
 
         return config, pixel_values, labels
 
-    def create_and_check_model(
-        self, config, pixel_values, labels
-    ):
+    def create_and_check_model(self, config, pixel_values, labels):
         model = SegFormerModel(config=config)
         model.to(torch_device)
         model.eval()
         result = model(pixel_values)
         expected_height = expected_width = self.image_size // (self.downsampling_rates[-1] * 2)
-        self.parent.assertEqual(result.last_hidden_state.shape, (self.batch_size, self.hidden_sizes[-1], expected_height, expected_width))
+        self.parent.assertEqual(
+            result.last_hidden_state.shape, (self.batch_size, self.hidden_sizes[-1], expected_height, expected_width)
+        )
 
-    def create_and_check_for_image_segmentation(
-        self, config, pixel_values, labels
-    ):
+    def create_and_check_for_image_segmentation(self, config, pixel_values, labels):
         config.num_labels = self.num_labels
         model = SegFormerForImageSegmentation(config)
         model.to(torch_device)
         model.eval()
         result = model(pixel_values)
-        self.parent.assertEqual(result.logits.shape, (self.batch_size, self.num_labels, self.image_size // 4, self.image_size // 4))
+        self.parent.assertEqual(
+            result.logits.shape, (self.batch_size, self.num_labels, self.image_size // 4, self.image_size // 4)
+        )
         result = model(pixel_values, labels=labels)
-        self.parent.assertEqual(result.logits.shape, (self.batch_size, self.num_labels, self.image_size, self.image_size))
+        self.parent.assertEqual(
+            result.logits.shape, (self.batch_size, self.num_labels, self.image_size, self.image_size)
+        )
 
     def prepare_config_and_inputs_for_common(self):
         config_and_inputs = self.prepare_config_and_inputs()
@@ -176,7 +175,7 @@ class SegFormerModelTest(ModelTesterMixin, unittest.TestCase):
     def test_for_image_segmentation(self):
         config_and_inputs = self.model_tester.prepare_config_and_inputs()
         self.model_tester.create_and_check_for_image_segmentation(*config_and_inputs)
-    
+
     @unittest.skip("SegFormer does not use inputs_embeds")
     def test_inputs_embeds(self):
         pass
@@ -184,7 +183,7 @@ class SegFormerModelTest(ModelTesterMixin, unittest.TestCase):
     @unittest.skip("SegFormer does not have get_input_embeddings method and get_output_embeddings methods")
     def test_model_common_attributes(self):
         pass
-    
+
     def test_forward_signature(self):
         config, _ = self.model_tester.prepare_config_and_inputs_for_common()
 
@@ -211,8 +210,8 @@ class SegFormerModelTest(ModelTesterMixin, unittest.TestCase):
             with torch.no_grad():
                 outputs = model(**self._prepare_for_class(inputs_dict, model_class))
             attentions = outputs.attentions
-            
-            expected_num_attentions = sum(self.model_tester.depths)       
+
+            expected_num_attentions = sum(self.model_tester.depths)
             self.assertEqual(len(attentions), expected_num_attentions)
 
             # check that output_attentions also work using config
@@ -228,21 +227,21 @@ class SegFormerModelTest(ModelTesterMixin, unittest.TestCase):
             self.assertEqual(len(attentions), expected_num_attentions)
 
             # verify the first attentions (first block, first layer)
-            expected_seq_len = (self.model_tester.image_size // 4)**2
-            expected_reduced_seq_len = (self.model_tester.image_size // (4 * self.model_tester.sr_ratios[0]))**2
+            expected_seq_len = (self.model_tester.image_size // 4) ** 2
+            expected_reduced_seq_len = (self.model_tester.image_size // (4 * self.model_tester.sr_ratios[0])) ** 2
             self.assertListEqual(
-                    list(attentions[0].shape[-3:]),
-                    [self.model_tester.num_attention_heads[0], expected_seq_len, expected_reduced_seq_len],
+                list(attentions[0].shape[-3:]),
+                [self.model_tester.num_attention_heads[0], expected_seq_len, expected_reduced_seq_len],
             )
-            
+
             # verify the last attentions (last block, last layer)
-            expected_seq_len = (self.model_tester.image_size // 32)**2
-            expected_reduced_seq_len = (self.model_tester.image_size // (32 * self.model_tester.sr_ratios[-1]))**2
+            expected_seq_len = (self.model_tester.image_size // 32) ** 2
+            expected_reduced_seq_len = (self.model_tester.image_size // (32 * self.model_tester.sr_ratios[-1])) ** 2
             self.assertListEqual(
-                    list(attentions[-1].shape[-3:]),
-                    [self.model_tester.num_attention_heads[-1], expected_seq_len, expected_reduced_seq_len],
+                list(attentions[-1].shape[-3:]),
+                [self.model_tester.num_attention_heads[-1], expected_seq_len, expected_reduced_seq_len],
             )
-            
+
             # Check attention is always last and order is fine
             inputs_dict["output_attentions"] = True
             inputs_dict["output_hidden_states"] = True
@@ -258,13 +257,13 @@ class SegFormerModelTest(ModelTesterMixin, unittest.TestCase):
 
             self.assertEqual(len(self_attentions), expected_num_attentions)
             # verify the first attentions (first block, first layer)
-            expected_seq_len = (self.model_tester.image_size // 4)**2
-            expected_reduced_seq_len = (self.model_tester.image_size // (4 * self.model_tester.sr_ratios[0]))**2
+            expected_seq_len = (self.model_tester.image_size // 4) ** 2
+            expected_reduced_seq_len = (self.model_tester.image_size // (4 * self.model_tester.sr_ratios[0])) ** 2
             self.assertListEqual(
-                    list(self_attentions[0].shape[-3:]),
-                    [self.model_tester.num_attention_heads[0], expected_seq_len, expected_reduced_seq_len],
+                list(self_attentions[0].shape[-3:]),
+                [self.model_tester.num_attention_heads[0], expected_seq_len, expected_reduced_seq_len],
             )
-    
+
     def test_hidden_states_output(self):
         def check_hidden_states_output(inputs_dict, config, model_class):
             model = model_class(config)
@@ -282,7 +281,11 @@ class SegFormerModelTest(ModelTesterMixin, unittest.TestCase):
             # verify the first hidden states (first block)
             self.assertListEqual(
                 list(hidden_states[0].shape[-3:]),
-                [self.model_tester.image_size // 4, self.model_tester.image_size // 4, self.model_tester.hidden_sizes[0]],
+                [
+                    self.model_tester.image_size // 4,
+                    self.model_tester.image_size // 4,
+                    self.model_tester.hidden_sizes[0],
+                ],
             )
 
         config, inputs_dict = self.model_tester.prepare_config_and_inputs_for_common()
@@ -296,7 +299,7 @@ class SegFormerModelTest(ModelTesterMixin, unittest.TestCase):
             config.output_hidden_states = True
 
             check_hidden_states_output(inputs_dict, config, model_class)
-    
+
     @slow
     def test_model_from_pretrained(self):
         for model_name in SEGFORMER_PRETRAINED_MODEL_ARCHIVE_LIST[:1]:
@@ -304,21 +307,32 @@ class SegFormerModelTest(ModelTesterMixin, unittest.TestCase):
             self.assertIsNotNone(model)
 
 
+# We will verify our results on an image of cute cats
+def prepare_img():
+    image = Image.open("./tests/fixtures/tests_samples/COCO/000000039769.png")
+    return image
+
+
 @require_torch
 class SegFormerModelIntegrationTest(unittest.TestCase):
     @slow
     def test_inference_image_segmentation(self):
         # TODO replace nielsr by nvidia
-        model = SegFormerForImageSegmentation.from_pretrained("nielsr/segformer-b0-finetuned-ade-512-512")
-        pixel_values = torch.randn((2, 3, 224, 224))
+        feature_extractor = SegFormerFeatureExtractor(image_scale=(512, 512), keep_ratio=False, align=False, do_random_crop=False)
+        model = SegFormerForImageSegmentation.from_pretrained("nielsr/segformer-b0-finetuned-ade-512-512").to(torch_device)
+        
+        image = prepare_img()
+        encoded_inputs = feature_extractor(images=image, return_tensors="pt")
+        pixel_values = encoded_inputs.pixel_values.to(torch_device)
+        
         outputs = model(pixel_values)
 
-        expected_shape = torch.Size((2, model.config.num_labels, 224 // 4, 224 // 4))
+        expected_shape = torch.Size((1, 150, 128, 128))
         self.assertEqual(outputs.logits.shape, expected_shape)
 
-        # TODO Replace values below with what was printed above.
-        # expected_slice = torch.tensor(
-        #     [[[-0.0483, 0.1188, -0.0313], [-0.0606, 0.1435, 0.0199], [-0.0235, 0.1519, 0.0175]]]
-        # )
-
-        # self.assertTrue(torch.allclose(outputs.last_hidden_state[:, :3, :3], expected_slice, atol=1e-4))
+        expected_slice = torch.tensor([
+            [[-4.6310, -5.5232, -6.2356], [-5.1921, -6.1444, -6.5996], [-5.4424, -6.2790, -6.7574]],
+            [[-12.1391, -13.3122, -13.9554], [-12.8732, -13.9352, -14.3563], [-12.9438, -13.8226, -14.2513]],
+            [[-12.5134, -13.4686, -14.4915], [-12.8669, -14.4343, -14.7758], [-13.2523, -14.5819, -15.0694]],
+        ]).to(torch_device)
+        self.assertTrue(torch.allclose(outputs.logits[0, :3, :3, :3], expected_slice, atol=1e-4))

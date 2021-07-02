@@ -1,6 +1,6 @@
 import torch
 
-from transformers import SegFormerConfig, SegFormerForImageSegmentation, SegFormerModel
+from transformers import SegFormerConfig, SegFormerForImageSegmentation
 
 
 config = SegFormerConfig()
