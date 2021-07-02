@@ -249,20 +249,24 @@ class SegFormerFeatureExtractionTest(FeatureExtractionSavingTestMixin, unittest.
 
     @require_torch
     def test_random_crop(self):
-        # Create random PyTorch tensor
-        h, w = 256, 304
-        image = torch.randn((3, h, w))
+        image = Image.open("./tests/fixtures/tests_samples/ADE_20k/ADE_val_00002000.jpg")
+        segmentation_map = Image.open("./tests/fixtures/tests_samples/ADE_20k/ADE_val_00002000.png")
+
+        w, h = image.size
 
         # Initialize feature_extractor
         feature_extractor = SegFormerFeatureExtractor(crop_size=[w - 20, h - 20])
 
-        # Verify shape
-        encoded_images = feature_extractor(image, return_tensors="pt").pixel_values
-        self.assertEqual(encoded_images.shape[-2:], (h - 20, w - 20))
+        # Encode image + segmentation map
+        encoded_images = feature_extractor(images=image, segmentation_maps=segmentation_map, return_tensors="pt")
+        
+        # Verify shape of pixel_values
+        self.assertEqual(encoded_images.pixel_values.shape[-2:], (h - 20, w - 20))
 
-        # TODO: verify corresponding segmentation mask
+        # Verify shape of labels
+        self.assertEqual(encoded_images.labels.shape[-2:], (h - 20, w - 20))
 
     @require_torch
     def test_pad(self):
-        # TODO
+        # TODO, based on test_pad of the original implementation
         pass

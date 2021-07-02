@@ -218,7 +218,7 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
             image = self.resize(image=image, size=(align_w, align_h), resample=resample)
         return image
 
-    def resize_image(self, image, size, resample):
+    def _resize(self, image, size, resample):
         """
         This class is based on PIL's ``resize`` method, the only difference is it is possible to ensure the long and
         short sides are divisible by ``self.size_divisor``.
@@ -231,12 +231,12 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
         if self.keep_ratio:
             w, h = image.size
             # calculate new size
-            new_size = rescale_size((w, h), scale=self.image_scale, return_scale=False)
+            new_size = rescale_size((w, h), scale=size, return_scale=False)
             image = self.resize(image=image, size=new_size, resample=resample)
             if self.align:
                 image = self._align(image, self.size_divisor)
         else:
-            image = self.resize(image=image, size=self.image_scale, resample=resample)
+            image = self.resize(image=image, size=size, resample=resample)
             w, h = image.size
             assert (
                 int(np.ceil(h / self.size_divisor)) * self.size_divisor == h
@@ -245,36 +245,9 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
 
         return image
 
-    def resize_segmentation_map(self, segmentation_map):
-        """
-        Resize semantic segmentation map.
-
-        This method is equal to _resize defined above, with the only difference that PIL.Image.NEAREST is used instead
-        of None.
-        """
-        if not isinstance(segmentation_map, Image.Image):
-            segmentation_map = self.to_pil_image(segmentation_map)
-
-        if self.keep_ratio:
-            w, h = segmentation_map.size
-            # calculate new size
-            new_size = rescale_size((w, h), scale=self.image_scale, return_scale=False)
-            gt_seg = self.resize(image=segmentation_map, size=new_size, resample=Image.NEAREST)
-            if self.align:
-                gt_seg = self._align(gt_seg, self.size_divisor, resample=Image.NEAREST)
-        else:
-            gt_seg = self.resize(image=segmentation_map, size=self.image_scale, resample=Image.NEAREST)
-            w, h = gt_seg.size
-            assert (
-                int(np.ceil(h / self.size_divisor)) * self.size_divisor == h
-                and int(np.ceil(w / self.size_divisor)) * self.size_divisor == w
-            ), "gt_seg size not align. h:{} w:{}".format(h, w)
-
-        return gt_seg
-
     def _get_crop_bbox(self, image):
         """Randomly get a crop bounding box."""
-        image = self.to_numpy_array(image)
+
         # self.crop_size is a tuple (width, height)
         # however image has shape (num_channels, height, width)
         margin_h = max(image.shape[1] - self.crop_size[1], 0)
@@ -287,19 +260,19 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
         return crop_y1, crop_y2, crop_x1, crop_x2
 
     def _crop(self, image, crop_bbox):
-        image = self.to_numpy_array(image)
-
         crop_y1, crop_y2, crop_x1, crop_x2 = crop_bbox
         image = image[..., crop_y1:crop_y2, crop_x1:crop_x2]
         return image
 
     def random_crop(self, image, segmentation_map=None):
         """Randomly crop an image and optionally its corresponding segmentation map."""
+        image = self.to_numpy_array(image)
         crop_bbox = self._get_crop_bbox(image)
 
         image = self._crop(image, crop_bbox)
 
         if segmentation_map is not None:
+            segmentation_map = self.to_numpy_array(segmentation_map, channel_first=False)
             segmentation_map = self._crop(segmentation_map, crop_bbox)
             return image, segmentation_map
 
@@ -321,7 +294,6 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
         self,
         images: ImageInput,
         segmentation_maps: Union[Image.Image, List[Image.Image]] = None,
-        align: bool = False,
         return_tensors: Optional[Union[str, TensorType]] = None,
         **kwargs
     ) -> BatchFeature:
@@ -358,6 +330,7 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
         """
         # Input type checking for clearer error
         valid_images = False
+        valid_segmentation_maps = False
 
         # Check that images has a valid type
         if isinstance(images, (Image.Image, np.ndarray)) or is_torch_tensor(images):
@@ -372,6 +345,20 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
                 "`List[PIL.Image.Image]`, `List[np.ndarray]` or `List[torch.Tensor]` (batch of examples)."
             )
 
+        # Check that segmentation maps has a valid type
+        if segmentation_maps is not None:
+            if isinstance(segmentation_maps, Image.Image):
+                valid_segmentation_maps = True
+            elif isinstance(segmentation_maps, (list, tuple)):
+                if len(segmentation_maps) == 0 or isinstance(segmentation_maps[0], Image.Image):
+                    valid_segmentation_maps = True
+
+            if not valid_segmentation_maps:
+                raise ValueError(
+                    "Segmentation maps must of type `PIL.Image.Image`, (single example),"
+                    "`List[PIL.Image.Image]` (batch of examples)."
+                )
+
         is_batched = bool(
             isinstance(images, (list, tuple))
             and (isinstance(images[0], (Image.Image, np.ndarray)) or is_torch_tensor(images[0]))
@@ -379,17 +366,23 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
 
         if not is_batched:
             images = [images]
+            if segmentation_maps is not None:
+                segmentation_maps = [segmentation_maps]
 
         # transformations (resizing, random cropping, normalization)
         if self.do_resize and self.image_scale is not None:
             images = [
-                self.resize_image(image=image, size=self.image_scale, resample=self.resample) for image in images
+                self._resize(image=image, size=self.image_scale, resample=self.resample) for image in images
             ]
             if segmentation_maps is not None:
-                segmentation_maps = [self.resize_segmentation_map(map) for map in segmentation_maps]
+                segmentation_maps = [self._resize(map, size=self.image_scale, resample=Image.NEAREST) for map in segmentation_maps]
         if self.do_random_crop:
             if segmentation_maps is not None:
-                segmentation_maps = [self.random_crop(image, map) for image, map in zip(images, segmentation_maps)]
+                for idx, example in enumerate(zip(images, segmentation_maps)):
+                    image, map = example
+                    image, map = self.random_crop(image, map)
+                    images[idx] = image
+                    segmentation_maps[idx] = map
             else:
                 images = [self.random_crop(image) for image in images]
         if self.do_normalize:
