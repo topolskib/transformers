@@ -679,9 +679,9 @@ class SegFormerForImageSegmentation(SegFormerPreTrainedModel):
                 raise ValueError("The number of labels should be greater than one")
             else:
                 # upsample logits to the images' original size
-                logits = nn.functional.interpolate(logits, size=labels.shape[1:], mode="bilinear", align_corners=False)
+                upsampled_logits = nn.functional.interpolate(logits, size=labels.shape[-2:], mode="bilinear", align_corners=False)
                 loss_fct = CrossEntropyLoss()
-                loss = loss_fct(logits, labels.squeeze(1))
+                loss = loss_fct(upsampled_logits, labels)
 
         if not return_dict:
             output = (logits,) + outputs[1:]

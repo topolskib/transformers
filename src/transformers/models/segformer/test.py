@@ -2,7 +2,6 @@ import torch
 
 from transformers import SegFormerConfig, SegFormerForImageSegmentation
 
-
 config = SegFormerConfig()
 
 model = SegFormerForImageSegmentation(config)
