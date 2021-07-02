@@ -20,7 +20,6 @@ from collections import OrderedDict
 from pathlib import Path
 
 import torch
-import torchvision.transforms as T
 from PIL import Image
 import requests
 
@@ -105,16 +104,9 @@ def read_in_k_v(state_dict, config):
 # We will verify our results on a COCO image
 def prepare_img():
     url = "http://images.cocodataset.org/val2017/000000039769.jpg"
-    im = Image.open(requests.get(url, stream=True).raw)
+    image = Image.open(requests.get(url, stream=True).raw)
 
-    transforms = T.Compose([T.Resize((512, 512)),
-            T.ToTensor(),
-            T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),]
-    )
-
-    im = transforms(im).unsqueeze(0) # batch size 1
-
-    return im
+    return image
 
 
 @torch.no_grad()
@@ -137,8 +129,10 @@ def convert_segformer_checkpoint(model_name, checkpoint_path, pytorch_dump_folde
         # config.id2label = id2label
         # config.label2id = {v: k for k, v in id2label.items()}
     
-    size = [len("segformer."):len("segformer.")+2]
-    if size == "b1":
+    size = model_name[len("segformer."):len("segformer.")+2]
+    if size == "b0":
+        pass
+    elif size == "b1":
         config.hidden_sizes = [64, 128, 320, 512]
         config.decoder_hidden_size = 256
     elif size == "b2":
@@ -160,13 +154,12 @@ def convert_segformer_checkpoint(model_name, checkpoint_path, pytorch_dump_folde
     else:
         raise ValueError(f"Size {size} not supported")
 
-    # load feature extractor
-    feature_extractor = SegFormerFeatureExtractor()
+    # load feature extractor (only resize + normalize)
+    feature_extractor = SegFormerFeatureExtractor(image_scale=(512,512), keep_ratio=False, align=False, do_random_crop=False)
 
     # prepare image
-    pixel_values = prepare_img()
-    #encoding = feature_extractor(images=img, return_tensors="pt")
-    #pixel_values = encoding["pixel_values"]
+    image = prepare_img()
+    pixel_values = feature_extractor(images=image, return_tensors="pt").pixel_values
 
     logger.info(f"Converting model {model_name}...")
 
@@ -188,6 +181,22 @@ def convert_segformer_checkpoint(model_name, checkpoint_path, pytorch_dump_folde
 
     # forward pass
     outputs = model(pixel_values)
+
+    # verify logits
+    logits = outputs.logits
+    assert logits.shape == (1, 150, 128, 128)
+    expected_slice = torch.tensor([[[ -4.6310,  -5.5232,  -6.2356],
+         [ -5.1921,  -6.1444,  -6.5996],
+         [ -5.4424,  -6.2790,  -6.7574]],
+
+        [[-12.1391, -13.3122, -13.9554],
+         [-12.8732, -13.9352, -14.3563],
+         [-12.9438, -13.8226, -14.2513]],
+
+        [[-12.5134, -13.4686, -14.4915],
+         [-12.8669, -14.4343, -14.7758],
+         [-13.2523, -14.5819, -15.0694]]])
+    assert torch.allclose(outputs.logits[0,:3,:3,:3], expected_slice, atol=1e-4)
 
     # finally, save model and feature extractor
     logger.info(f"Saving PyTorch model and feature extractor to {pytorch_dump_folder_path}...")
