@@ -390,6 +390,10 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
                     segmentation_maps[idx] = map
             else:
                 images = [self.random_crop(image) for image in images]
+        
+        for map in segmentation_maps:
+            print(np.array(map))
+        
         if self.do_normalize:
             images = [self.normalize(image=image, mean=self.image_mean, std=self.image_std) for image in images]
 
