@@ -23,19 +23,22 @@ import torch
 from PIL import Image
 
 import requests
-from transformers import SegFormerConfig, SegFormerFeatureExtractor, SegFormerForImageSegmentation
+from transformers import SegFormerConfig, SegFormerFeatureExtractor, SegFormerForImageClassification, SegFormerForImageSegmentation
 from transformers.utils import logging
+from transformers.utils.imagenet_classes import id2label
 
 
 logging.set_verbosity_info()
 logger = logging.get_logger(__name__)
 
 
-def rename_keys(state_dict):
+def rename_keys(state_dict, encoder_only=False):    
     new_state_dict = OrderedDict()
     for key, value in state_dict.items():
+        if encoder_only and not key.startswith("head"):
+            key = "segformer.encoder." + key
         if key.startswith("backbone"):
-            key = key.replace("backbone", "segformer.encoder")
+            key = key.replace("backbone", f"segformer.encoder") 
         if "patch_embed" in key:
             # replace for example patch_embed1 by patch_embeddings.0
             idx = key[key.find("patch_embed") + len("patch_embed")]
@@ -75,6 +78,8 @@ def rename_keys(state_dict):
             # replace for example linear_c4 by linear_c.3
             idx = key[key.find("linear_c") + len("linear_c")]
             key = key.replace(f"linear_c{idx}", f"linear_c.{int(idx)-1}")
+        if key.startswith("head"):
+            key = key.replace("head", "classifier")
         new_state_dict[key] = value
 
     return new_state_dict
@@ -114,21 +119,35 @@ def convert_segformer_checkpoint(model_name, checkpoint_path, pytorch_dump_folde
     Copy/paste/tweak model's weights to our SegFormer structure.
     """
 
-    # load default config
+    # load default SegFormer configuration
     config = SegFormerConfig()
-    # set config attributes based on name of the model
-    if "ade" in model_name:
-        config.num_labels = 150
-        # TODO id2label
-        # config.id2label = id2label
-        # config.label2id = {v: k for k, v in id2label.items()}
-    elif "city" in model_name:
-        config.num_labels = 19
-        # TODO id2label
-        # config.id2label = id2label
-        # config.label2id = {v: k for k, v in id2label.items()}
+    encoder_only = False
 
-    size = model_name[len("segformer.") : len("segformer.") + 2]
+    # set attributes based on model_name
+    if "segformer" in model_name:
+        size = model_name[len("segformer.") : len("segformer.") + 2]
+        if "ade" in model_name:
+            config.num_labels = 150
+            # TODO id2label
+            # config.id2label = id2label
+            # config.label2id = {v: k for k, v in id2label.items()}
+        elif "city" in model_name:
+            config.num_labels = 19
+            # TODO id2label
+            # config.id2label = id2label
+            # config.label2id = {v: k for k, v in id2label.items()}
+        else:
+            raise ValueError(f"Model {model_name} not supported")
+    elif "mit" in model_name:
+        encoder_only = True
+        size = model_name[4:6]
+        config.num_labels = 1000
+        config.id2label = id2label
+        config.label2id = {v: k for k, v in id2label.items()}
+    else:
+        raise ValueError(f"Model {model_name} not supported")
+    
+    # set config attributes based on size
     if size == "b0":
         pass
     elif size == "b1":
@@ -165,18 +184,25 @@ def convert_segformer_checkpoint(model_name, checkpoint_path, pytorch_dump_folde
     logger.info(f"Converting model {model_name}...")
 
     # load original state dict
-    state_dict = torch.load(checkpoint_path)["state_dict"]
+    if encoder_only:
+        state_dict = torch.load(checkpoint_path)
+    else:
+        state_dict = torch.load(checkpoint_path)["state_dict"]
 
     # rename keys
-    state_dict = rename_keys(state_dict)
-    del state_dict["conv_seg.weight"]
-    del state_dict["conv_seg.bias"]
+    state_dict = rename_keys(state_dict, encoder_only=encoder_only)
+    if not encoder_only:
+        del state_dict["conv_seg.weight"]
+        del state_dict["conv_seg.bias"]
 
     # key and value matrices need special treatment
     read_in_k_v(state_dict, config)
 
     # create HuggingFace model and load state dict
-    model = SegFormerForImageSegmentation(config)
+    if encoder_only:
+        model = SegFormerForImageClassification(config)
+    else:
+        model = SegFormerForImageSegmentation(config)
     model.load_state_dict(state_dict)
     model.eval()
 
@@ -184,16 +210,17 @@ def convert_segformer_checkpoint(model_name, checkpoint_path, pytorch_dump_folde
     outputs = model(pixel_values)
 
     # verify logits
-    logits = outputs.logits
-    assert logits.shape == (1, 150, 128, 128)
-    expected_slice = torch.tensor(
-        [
-            [[-4.6310, -5.5232, -6.2356], [-5.1921, -6.1444, -6.5996], [-5.4424, -6.2790, -6.7574]],
-            [[-12.1391, -13.3122, -13.9554], [-12.8732, -13.9352, -14.3563], [-12.9438, -13.8226, -14.2513]],
-            [[-12.5134, -13.4686, -14.4915], [-12.8669, -14.4343, -14.7758], [-13.2523, -14.5819, -15.0694]],
-        ]
-    )
-    assert torch.allclose(outputs.logits[0, :3, :3, :3], expected_slice, atol=1e-4)
+    if size == "b0" and not encoder_only:
+        logits = outputs.logits
+        assert logits.shape == (1, 150, 128, 128)
+        expected_slice = torch.tensor(
+            [
+                [[-4.6310, -5.5232, -6.2356], [-5.1921, -6.1444, -6.5996], [-5.4424, -6.2790, -6.7574]],
+                [[-12.1391, -13.3122, -13.9554], [-12.8732, -13.9352, -14.3563], [-12.9438, -13.8226, -14.2513]],
+                [[-12.5134, -13.4686, -14.4915], [-12.8669, -14.4343, -14.7758], [-13.2523, -14.5819, -15.0694]],
+            ]
+        )
+        assert torch.allclose(outputs.logits[0, :3, :3, :3], expected_slice, atol=1e-4)
 
     # finally, save model and feature extractor
     logger.info(f"Saving PyTorch model and feature extractor to {pytorch_dump_folder_path}...")

@@ -130,7 +130,7 @@ class SegFormerModelTester:
         )
         result = model(pixel_values, labels=labels)
         self.parent.assertEqual(
-            result.logits.shape, (self.batch_size, self.num_labels, self.image_size, self.image_size)
+            result.logits.shape, (self.batch_size, self.num_labels, self.image_size // 4, self.image_size // 4)
         )
 
     def prepare_config_and_inputs_for_common(self):
@@ -282,9 +282,9 @@ class SegFormerModelTest(ModelTesterMixin, unittest.TestCase):
             self.assertListEqual(
                 list(hidden_states[0].shape[-3:]),
                 [
-                    self.model_tester.image_size // 4,
-                    self.model_tester.image_size // 4,
                     self.model_tester.hidden_sizes[0],
+                    self.model_tester.image_size // 4,
+                    self.model_tester.image_size // 4,
                 ],
             )
 

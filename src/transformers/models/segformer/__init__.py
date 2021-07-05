@@ -30,6 +30,7 @@ if is_vision_available():
 if is_torch_available():
     _import_structure["modeling_segformer"] = [
         "SEGFORMER_PRETRAINED_MODEL_ARCHIVE_LIST",
+        "SegFormerForImageClassification",
         "SegFormerForImageSegmentation",
         "SegFormerLayer",
         "SegFormerModel",
@@ -46,6 +47,7 @@ if TYPE_CHECKING:
     if is_torch_available():
         from .modeling_segformer import (
             SEGFORMER_PRETRAINED_MODEL_ARCHIVE_LIST,
+            SegFormerForImageClassification,
             SegFormerForImageSegmentation,
             SegFormerLayer,
             SegFormerModel,
