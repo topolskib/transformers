@@ -273,7 +273,7 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
         image = self._crop(image, crop_bbox)
 
         if segmentation_map is not None:
-            segmentation_map = self.to_numpy_array(segmentation_map, channel_first=False)
+            segmentation_map = self.to_numpy_array(segmentation_map, rescale=False, channel_first=False)
             segmentation_map = self._crop(segmentation_map, crop_bbox)
             return image, segmentation_map
 
