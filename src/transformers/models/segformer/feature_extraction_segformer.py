@@ -392,11 +392,12 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
         data = {"pixel_values": images}
 
         if segmentation_maps is not None:
-            data["labels"] = segmentation_maps
+            data["labels"] = segmentation_maps.long()
 
         encoded_inputs = BatchFeature(data=data, tensor_type=return_tensors)
 
-        # # TODO make padding not dependent on PyTorch
+        # # TODO add padding
+        # and make it not dependent on PyTorch
         # if self.do_pad:
         #     encoded_inputs["pixel_values"] = self.pad_images(encoded_inputs["pixel_values"])
         #     if segmentation_maps is not None:
