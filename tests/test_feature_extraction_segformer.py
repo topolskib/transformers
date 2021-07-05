@@ -253,7 +253,7 @@ class SegFormerFeatureExtractionTest(FeatureExtractionSavingTestMixin, unittest.
         segmentation_map = Image.open("./tests/fixtures/tests_samples/ADE_20k/ADE_val_00002000.png")
 
         w, h = image.size
-
+        
         # Initialize feature_extractor
         feature_extractor = SegFormerFeatureExtractor(crop_size=[w - 20, h - 20])
 

@@ -392,7 +392,7 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
         data = {"pixel_values": images}
 
         if segmentation_maps is not None:
-            data["labels"] = segmentation_maps.long()
+            data["labels"] = segmentation_maps
 
         encoded_inputs = BatchFeature(data=data, tensor_type=return_tensors)
 
