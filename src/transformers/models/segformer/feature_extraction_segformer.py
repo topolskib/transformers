@@ -379,6 +379,7 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
                 segmentation_maps = [self._resize(map, size=self.image_scale, resample=Image.NEAREST) for map in segmentation_maps]
         
         for map in segmentation_maps:
+            print("Shape of segmentation map after rescaling:", np.array(map).shape)
             print(np.array(map))
         
         if self.do_random_crop:
@@ -392,6 +393,7 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
                 images = [self.random_crop(image) for image in images]
         
         for map in segmentation_maps:
+            print("Shape of segmentation map after randomly cropping:", np.array(map).shape)
             print(np.array(map))
         
         if self.do_normalize:

@@ -265,7 +265,7 @@ class SegFormerFeatureExtractionTest(FeatureExtractionSavingTestMixin, unittest.
 
         # Verify shape of labels
         self.assertEqual(encoded_images.labels.shape[-2:], (h - 20, w - 20))
-
+    
     @require_torch
     def test_pad(self):
         # TODO, based on test_pad of the original implementation
