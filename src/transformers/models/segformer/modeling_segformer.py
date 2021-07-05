@@ -622,11 +622,15 @@ class SegFormerForImageClassification(SegFormerPreTrainedModel):
         )
 
         sequence_output = outputs[0]
+        
+        # reshape last hidden states to (batch_size, height*width, hidden_size)
+        batch_size = sequence_output.shape[0]
+        sequence_output = sequence_output.reshape(batch_size, -1, self.config.hidden_sizes[-1])
+        
+        # global pooling
+        sequence_output = sequence_output.mean(dim=1)
 
-        # TODO fix this
-        # logits = self.classifier(sequence_output)
-
-        logits = None
+        logits = self.classifier(sequence_output)
 
         loss = None
         if labels is not None:

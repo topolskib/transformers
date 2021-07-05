@@ -26,6 +26,8 @@ import requests
 from transformers import SegFormerConfig, SegFormerFeatureExtractor, SegFormerForImageClassification, SegFormerForImageSegmentation
 from transformers.utils import logging
 from transformers.utils.imagenet_classes import id2label
+from transformers.utils.ade20k_classes import id2label as id2label_ade20k
+from transformers.utils.cityscapes_classes import id2label as id2label_cityscapes
 
 
 logging.set_verbosity_info()
@@ -128,14 +130,12 @@ def convert_segformer_checkpoint(model_name, checkpoint_path, pytorch_dump_folde
         size = model_name[len("segformer.") : len("segformer.") + 2]
         if "ade" in model_name:
             config.num_labels = 150
-            # TODO id2label
-            # config.id2label = id2label
-            # config.label2id = {v: k for k, v in id2label.items()}
+            config.id2label = id2label_ade20k
+            config.label2id = {v: k for k, v in id2label_ade20k.items()}
         elif "city" in model_name:
             config.num_labels = 19
-            # TODO id2label
-            # config.id2label = id2label
-            # config.label2id = {v: k for k, v in id2label.items()}
+            config.id2label = id2label_cityscapes
+            config.label2id = {v: k for k, v in id2label_cityscapes.items()}
         else:
             raise ValueError(f"Model {model_name} not supported")
     elif "mit" in model_name:
@@ -210,17 +210,21 @@ def convert_segformer_checkpoint(model_name, checkpoint_path, pytorch_dump_folde
     outputs = model(pixel_values)
 
     # verify logits
-    if size == "b0" and not encoder_only:
-        logits = outputs.logits
-        assert logits.shape == (1, 150, 128, 128)
-        expected_slice = torch.tensor(
-            [
-                [[-4.6310, -5.5232, -6.2356], [-5.1921, -6.1444, -6.5996], [-5.4424, -6.2790, -6.7574]],
-                [[-12.1391, -13.3122, -13.9554], [-12.8732, -13.9352, -14.3563], [-12.9438, -13.8226, -14.2513]],
-                [[-12.5134, -13.4686, -14.4915], [-12.8669, -14.4343, -14.7758], [-13.2523, -14.5819, -15.0694]],
-            ]
-        )
-        assert torch.allclose(outputs.logits[0, :3, :3, :3], expected_slice, atol=1e-4)
+    if not encoder_only:
+        if size == "b0":
+            logits = outputs.logits
+            assert logits.shape == (1, 150, 128, 128)
+            expected_slice = torch.tensor(
+                [
+                    [[-4.6310, -5.5232, -6.2356], [-5.1921, -6.1444, -6.5996], [-5.4424, -6.2790, -6.7574]],
+                    [[-12.1391, -13.3122, -13.9554], [-12.8732, -13.9352, -14.3563], [-12.9438, -13.8226, -14.2513]],
+                    [[-12.5134, -13.4686, -14.4915], [-12.8669, -14.4343, -14.7758], [-13.2523, -14.5819, -15.0694]],
+                ]
+            )
+            assert torch.allclose(outputs.logits[0, :3, :3, :3], expected_slice, atol=1e-4)
+
+    else:
+        assert outputs.logits.shape == (1, 1000)
 
     # finally, save model and feature extractor
     logger.info(f"Saving PyTorch model and feature extractor to {pytorch_dump_folder_path}...")
