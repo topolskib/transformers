@@ -31,6 +31,7 @@ from ...image_utils import (
 )
 from ...utils import logging
 
+from torch import nn 
 
 logger = logging.get_logger(__name__)
 
@@ -278,17 +279,17 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
 
         return image
 
-    # def pad_images(self, images):
-    #     """Pad images to ``self.crop_size``."""
-    #     padded_images = nn.functional.pad(images, pad=self.crop_size, value=self.padding_value)
+    def pad_images(self, images):
+        """Pad images to ``self.crop_size``."""
+        padded_images = nn.functional.pad(images, pad=self.crop_size, value=self.padding_value)
 
-    #     return padded_images
+        return padded_images
 
-    # def pad_segmentation_maps(self, segmentation_maps):
-    #     """Pad masks to ``self.crop_size``."""
-    #     padded_segmentation_map = nn.functional.pad(segmentation_maps, pad=self.crop_size, value=self.segmentation_padding_value)
+    def pad_segmentation_maps(self, segmentation_maps):
+        """Pad masks to ``self.crop_size``."""
+        padded_segmentation_map = nn.functional.pad(segmentation_maps, pad=self.crop_size, value=self.segmentation_padding_value)
 
-    #     return padded_segmentation_maps
+        return padded_segmentation_maps
 
     def __call__(
         self,
@@ -396,11 +397,10 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
 
         encoded_inputs = BatchFeature(data=data, tensor_type=return_tensors)
 
-        # # TODO add padding
-        # and make it not dependent on PyTorch
-        # if self.do_pad:
-        #     encoded_inputs["pixel_values"] = self.pad_images(encoded_inputs["pixel_values"])
-        #     if segmentation_maps is not None:
-        #          encoded_inputs["labels"] = self.pad_segmentation_maps(encoded_inputs["labels"])
+        # TODO make padding not dependent on PyTorch
+        if self.do_pad:
+            encoded_inputs["pixel_values"] = self.pad_images(encoded_inputs["pixel_values"])
+            if segmentation_maps is not None:
+                 encoded_inputs["labels"] = self.pad_segmentation_maps(encoded_inputs["labels"])
 
         return encoded_inputs
