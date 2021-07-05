@@ -287,7 +287,7 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
 
     def pad_segmentation_maps(self, segmentation_maps):
         """Pad masks to ``self.crop_size``."""
-        padded_segmentation_map = nn.functional.pad(segmentation_maps, pad=self.crop_size, value=self.segmentation_padding_value)
+        padded_segmentation_maps = nn.functional.pad(segmentation_maps, pad=self.crop_size, value=self.segmentation_padding_value)
 
         return padded_segmentation_maps
 
@@ -377,6 +377,10 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
             ]
             if segmentation_maps is not None:
                 segmentation_maps = [self._resize(map, size=self.image_scale, resample=Image.NEAREST) for map in segmentation_maps]
+        
+        for map in segmentation_maps:
+            print(np.array(map))
+        
         if self.do_random_crop:
             if segmentation_maps is not None:
                 for idx, example in enumerate(zip(images, segmentation_maps)):
