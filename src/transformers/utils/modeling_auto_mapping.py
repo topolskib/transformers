@@ -264,6 +264,7 @@ MODEL_MAPPING_NAMES = OrderedDict(
     [
         ("BeitConfig", "BeitModel"),
         ("RemBertConfig", "RemBertModel"),
+        ("LayoutLMv2Config", "LayoutLMv2Model"),
         ("VisualBertConfig", "VisualBertModel"),
         ("CanineConfig", "CanineModel"),
         ("RoFormerConfig", "RoFormerModel"),

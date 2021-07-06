@@ -19,6 +19,8 @@ import warnings
 from collections import OrderedDict
 
 from ...utils import logging
+
+# Add modeling imports here
 from ..albert.modeling_albert import (
     AlbertForMaskedLM,
     AlbertForMultipleChoice,
@@ -168,17 +170,7 @@ from ..layoutlm.modeling_layoutlm import (
     LayoutLMForTokenClassification,
     LayoutLMModel,
 )
-
-# Add modeling imports here
-from ..layoutlmv2.modeling_layoutlmv2 import (
-    LayoutLMv2ForCausalLM,
-    LayoutLMv2ForMaskedLM,
-    LayoutLMv2ForMultipleChoice,
-    LayoutLMv2ForQuestionAnswering,
-    LayoutLMv2ForSequenceClassification,
-    LayoutLMv2ForTokenClassification,
-    LayoutLMv2Model,
-)
+from ..layoutlmv2.modeling_layoutlmv2 import LayoutLMv2Model
 from ..led.modeling_led import (
     LEDForConditionalGeneration,
     LEDForQuestionAnswering,
