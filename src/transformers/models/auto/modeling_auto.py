@@ -21,6 +21,15 @@ from collections import OrderedDict
 from ...utils import logging
 
 # Add modeling imports here
+from ..layoutlmv2.modeling_layoutlmv2 import (
+    LayoutLMv2ForMaskedLM,
+    LayoutLMv2ForCausalLM,
+    LayoutLMv2ForMultipleChoice,
+    LayoutLMv2ForQuestionAnswering,
+    LayoutLMv2ForSequenceClassification,
+    LayoutLMv2ForTokenClassification,
+    LayoutLMv2Model,
+)
 from ..albert.modeling_albert import (
     AlbertForMaskedLM,
     AlbertForMultipleChoice,
@@ -320,6 +329,7 @@ from ..xlnet.modeling_xlnet import (
 )
 from .auto_factory import _BaseAutoModelClass, auto_class_update
 from .configuration_auto import (
+    LayoutLMv2Config,
     AlbertConfig,
     BartConfig,
     BeitConfig,
@@ -392,6 +402,7 @@ MODEL_MAPPING = OrderedDict(
         # Base model mapping
         (BeitConfig, BeitModel),
         (RemBertConfig, RemBertModel),
+        (LayoutLMv2Config, LayoutLMv2Model),
         (VisualBertConfig, VisualBertModel),
         (CanineConfig, CanineModel),
         (RoFormerConfig, RoFormerModel),
@@ -652,6 +663,7 @@ MODEL_FOR_SEQUENCE_CLASSIFICATION_MAPPING = OrderedDict(
     [
         # Model for Sequence Classification mapping
         (RemBertConfig, RemBertForSequenceClassification),
+        (LayoutLMv2Config, LayoutLMv2ForSequenceClassification),
         (CanineConfig, CanineForSequenceClassification),
         (RoFormerConfig, RoFormerForSequenceClassification),
         (BigBirdPegasusConfig, BigBirdPegasusForSequenceClassification),
@@ -694,6 +706,7 @@ MODEL_FOR_QUESTION_ANSWERING_MAPPING = OrderedDict(
     [
         # Model for Question Answering mapping
         (RemBertConfig, RemBertForQuestionAnswering),
+        (LayoutLMv2Config, LayoutLMv2ForQuestionAnswering),
         (CanineConfig, CanineForQuestionAnswering),
         (RoFormerConfig, RoFormerForQuestionAnswering),
         (BigBirdPegasusConfig, BigBirdPegasusForQuestionAnswering),
@@ -737,6 +750,7 @@ MODEL_FOR_TOKEN_CLASSIFICATION_MAPPING = OrderedDict(
     [
         # Model for Token Classification mapping
         (RemBertConfig, RemBertForTokenClassification),
+        (LayoutLMv2Config, LayoutLMv2ForTokenClassification),
         (CanineConfig, CanineForTokenClassification),
         (RoFormerConfig, RoFormerForTokenClassification),
         (BigBirdConfig, BigBirdForTokenClassification),

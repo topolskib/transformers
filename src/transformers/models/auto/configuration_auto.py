@@ -19,6 +19,7 @@ from collections import OrderedDict
 
 from ...configuration_utils import PretrainedConfig
 from ..albert.configuration_albert import ALBERT_PRETRAINED_CONFIG_ARCHIVE_MAP, AlbertConfig
+from ..layoutlmv2.configuration_layoutlmv2 import LayoutLMv2_PRETRAINED_CONFIG_ARCHIVE_MAP, LayoutLMv2Config
 from ..bart.configuration_bart import BART_PRETRAINED_CONFIG_ARCHIVE_MAP, BartConfig
 from ..beit.configuration_beit import BEIT_PRETRAINED_CONFIG_ARCHIVE_MAP, BeitConfig
 from ..bert.configuration_bert import BERT_PRETRAINED_CONFIG_ARCHIVE_MAP, BertConfig
@@ -100,6 +101,7 @@ ALL_PRETRAINED_CONFIG_ARCHIVE_MAP = dict(
         # Add archive maps here
         BEIT_PRETRAINED_CONFIG_ARCHIVE_MAP,
         REMBERT_PRETRAINED_CONFIG_ARCHIVE_MAP,
+        LayoutLMv2_PRETRAINED_CONFIG_ARCHIVE_MAP,
         VISUAL_BERT_PRETRAINED_CONFIG_ARCHIVE_MAP,
         CANINE_PRETRAINED_CONFIG_ARCHIVE_MAP,
         ROFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP,
@@ -162,6 +164,7 @@ CONFIG_MAPPING = OrderedDict(
         # Add configs here
         ("beit", BeitConfig),
         ("rembert", RemBertConfig),
+        ("layoutlmv2", LayoutLMv2Config),
         ("visual_bert", VisualBertConfig),
         ("canine", CanineConfig),
         ("roformer", RoFormerConfig),
@@ -230,6 +233,7 @@ MODEL_NAMES_MAPPING = OrderedDict(
         # Add full (and cased) model names here
         ("beit", "BeiT"),
         ("rembert", "RemBERT"),
+        ("layoutlmv2", "LayoutLMv2"),
         ("visual_bert", "VisualBert"),
         ("canine", "Canine"),
         ("roformer", "RoFormer"),
