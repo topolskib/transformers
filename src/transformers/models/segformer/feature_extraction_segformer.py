@@ -172,6 +172,8 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
             Fill value for padding images.
         segmentation_padding_value (:obj:`int`, `optional`, defaults to 255):
             Fill value for padding segmentation maps.
+        reduce_zero_label (:obj:`bool`, `optional`, defaults to :obj:`False`):
+            Whether or not to reduce all label values by 1. Usually used for datasets where 0 is the background label.
     """
 
     model_input_names = ["pixel_values"]
@@ -192,6 +194,7 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
         do_pad=True,
         padding_value=0,
         segmentation_padding_value=255,
+        reduce_zero_label=False,
         **kwargs
     ):
         super().__init__(**kwargs)
@@ -209,6 +212,7 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
         self.do_pad = do_pad
         self.padding_value = padding_value
         self.segmentation_padding_value = segmentation_padding_value
+        self.reduce_zero_label = reduce_zero_label
 
     def _align(self, image, size_divisor, resample=None):
         align_w = int(np.ceil(image.size[0] / self.size_divisor)) * self.size_divisor
@@ -293,7 +297,7 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
     def __call__(
         self,
         images: ImageInput,
-        segmentation_maps: Union[Image.Image, List[Image.Image]] = None,
+        segmentation_maps: Union[Image.Image, np.ndarray, List[Image.Image], List[np.ndarray]] = None,
         return_tensors: Optional[Union[str, TensorType]] = None,
         **kwargs
     ) -> BatchFeature:
@@ -311,7 +315,7 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
                 tensor. In case of a NumPy array/PyTorch tensor, each image should be of shape (C, H, W), where C is
                 the number of channels, H and W are image height and width.
 
-            segmentation_maps (:obj:`PIL.Image.Image`, :obj:`List[PIL.Image.Image]`, `optional`):
+            segmentation_maps (:obj:`PIL.Image.Image`, :obj:`np.ndarray`, :obj:`List[PIL.Image.Image]`, :obj:`List[np.ndarray]`, `optional`):
                 Optionally, the corresponding semantic segmentation maps with the pixel-wise annotations.
 
             return_tensors (:obj:`str` or :class:`~transformers.file_utils.TensorType`, `optional`, defaults to :obj:`'np'`):
@@ -327,6 +331,7 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
 
             - **pixel_values** -- Pixel values to be fed to a model, of shape (batch_size, num_channels, height,
               width).
+            - **labels** -- Optional labels to be fed to a model (when :obj:`segmentation_maps` are provided)
         """
         # Input type checking for clearer error
         valid_images = False
@@ -347,16 +352,16 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
 
         # Check that segmentation maps has a valid type
         if segmentation_maps is not None:
-            if isinstance(segmentation_maps, Image.Image):
+            if isinstance(segmentation_maps, (Image.Image, np.ndarray)):
                 valid_segmentation_maps = True
             elif isinstance(segmentation_maps, (list, tuple)):
-                if len(segmentation_maps) == 0 or isinstance(segmentation_maps[0], Image.Image):
+                if len(segmentation_maps) == 0 or isinstance(segmentation_maps[0], (Image.Image, np.ndarray)):
                     valid_segmentation_maps = True
 
             if not valid_segmentation_maps:
                 raise ValueError(
-                    "Segmentation maps must of type `PIL.Image.Image`, (single example),"
-                    "`List[PIL.Image.Image]` (batch of examples)."
+                    "Segmentation maps must of type `PIL.Image.Image` or `np.ndarray` (single example),"
+                    "`List[PIL.Image.Image]` or `List[np.ndarray]` (batch of examples)."
                 )
 
         is_batched = bool(
@@ -369,6 +374,18 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
             if segmentation_maps is not None:
                 segmentation_maps = [segmentation_maps]
 
+        # reduce zero label if needed
+        if self.reduce_zero_label:
+            if segmentation_maps is not None:
+                for idx, map in enumerate(segmentation_maps):
+                    if not isinstance(map, np.ndarray):
+                        map = np.array(map)
+                    # avoid using underflow conversion
+                    map[map == 0] = 255
+                    map = map - 1
+                    map[map == 254] = 255
+                    segmentation_maps[idx] = Image.fromarray(map.astype(np.uint8))
+        
         # transformations (resizing, random cropping, normalization)
         if self.do_resize and self.image_scale is not None:
             images = [
