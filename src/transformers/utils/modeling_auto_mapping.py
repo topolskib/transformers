@@ -255,6 +255,7 @@ MODEL_FOR_TOKEN_CLASSIFICATION_MAPPING_NAMES = OrderedDict(
 
 MODEL_MAPPING_NAMES = OrderedDict(
     [
+        ("LayoutLMv2Config", "LayoutLMv2Model"),
         ("VisualBertConfig", "VisualBertModel"),
         ("CanineConfig", "CanineModel"),
         ("RoFormerConfig", "RoFormerModel"),
