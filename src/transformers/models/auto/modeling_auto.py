@@ -19,17 +19,6 @@ import warnings
 from collections import OrderedDict
 
 from ...utils import logging
-
-# Add modeling imports here
-from ..layoutlmv2.modeling_layoutlmv2 import (
-    LayoutLMv2ForMaskedLM,
-    LayoutLMv2ForCausalLM,
-    LayoutLMv2ForMultipleChoice,
-    LayoutLMv2ForQuestionAnswering,
-    LayoutLMv2ForSequenceClassification,
-    LayoutLMv2ForTokenClassification,
-    LayoutLMv2Model,
-)
 from ..albert.modeling_albert import (
     AlbertForMaskedLM,
     AlbertForMultipleChoice,
@@ -178,6 +167,17 @@ from ..layoutlm.modeling_layoutlm import (
     LayoutLMForSequenceClassification,
     LayoutLMForTokenClassification,
     LayoutLMModel,
+)
+
+# Add modeling imports here
+from ..layoutlmv2.modeling_layoutlmv2 import (
+    LayoutLMv2ForCausalLM,
+    LayoutLMv2ForMaskedLM,
+    LayoutLMv2ForMultipleChoice,
+    LayoutLMv2ForQuestionAnswering,
+    LayoutLMv2ForSequenceClassification,
+    LayoutLMv2ForTokenClassification,
+    LayoutLMv2Model,
 )
 from ..led.modeling_led import (
     LEDForConditionalGeneration,
@@ -329,7 +329,6 @@ from ..xlnet.modeling_xlnet import (
 )
 from .auto_factory import _BaseAutoModelClass, auto_class_update
 from .configuration_auto import (
-    LayoutLMv2Config,
     AlbertConfig,
     BartConfig,
     BeitConfig,
@@ -360,6 +359,7 @@ from .configuration_auto import (
     HubertConfig,
     IBertConfig,
     LayoutLMConfig,
+    LayoutLMv2Config,
     LEDConfig,
     LongformerConfig,
     LukeConfig,
