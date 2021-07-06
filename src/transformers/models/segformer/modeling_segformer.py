@@ -777,7 +777,7 @@ class SegFormerForImageSegmentation(SegFormerPreTrainedModel):
             else:
                 # upsample logits to the images' original size
                 upsampled_logits = nn.functional.interpolate(logits, size=labels.shape[-2:], mode="bilinear", align_corners=False)
-                loss_fct = CrossEntropyLoss()
+                loss_fct = CrossEntropyLoss(ignore_index=255)
                 loss = loss_fct(upsampled_logits, labels)
 
         if not return_dict:

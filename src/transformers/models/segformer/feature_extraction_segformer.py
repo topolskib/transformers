@@ -170,8 +170,9 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
             Whether or not to pad the input to :obj:`crop_size`.
         padding_value (:obj:`int`, `optional`, defaults to 0):
             Fill value for padding images.
-        segmentation_padding_value (:obj:`int`, `optional`, defaults to 255):
-            Fill value for padding segmentation maps.
+        segmentation_padding_value (:obj:`int`, `optional`, defaults to -100):
+            Fill value for padding segmentation maps. One must make sure the :obj:`ignore_index` of the :obj:`CrossEntropyLoss` is set equal 
+            to this value.
         reduce_zero_label (:obj:`bool`, `optional`, defaults to :obj:`False`):
             Whether or not to reduce all label values by 1. Usually used for datasets where 0 is the background label.
     """
@@ -193,7 +194,7 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
         image_std=None,
         do_pad=True,
         padding_value=0,
-        segmentation_padding_value=255,
+        segmentation_padding_value=-100,
         reduce_zero_label=False,
         **kwargs
     ):
