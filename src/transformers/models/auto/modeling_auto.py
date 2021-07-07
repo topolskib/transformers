@@ -169,7 +169,7 @@ from ..layoutlm.modeling_layoutlm import (
     LayoutLMForTokenClassification,
     LayoutLMModel,
 )
-from ..layoutlmv2.modeling_layoutlmv2 import LayoutLMv2ForTokenClassification, LayoutLMv2Model
+from ..layoutlmv2.modeling_layoutlmv2 import LayoutLMv2ForTokenClassification, LayoutLMv2ForSequenceClassification, LayoutLMv2Model
 from ..led.modeling_led import (
     LEDForConditionalGeneration,
     LEDForQuestionAnswering,
@@ -636,6 +636,7 @@ MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING = OrderedDict(
 MODEL_FOR_SEQUENCE_CLASSIFICATION_MAPPING = OrderedDict(
     [
         # Model for Sequence Classification mapping
+        (LayoutLMv2Config, LayoutLMv2ForSequenceClassification),
         (CanineConfig, CanineForSequenceClassification),
         (RoFormerConfig, RoFormerForSequenceClassification),
         (BigBirdPegasusConfig, BigBirdPegasusForSequenceClassification),
