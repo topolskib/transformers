@@ -225,6 +225,7 @@ MODEL_FOR_TABLE_QUESTION_ANSWERING_MAPPING_NAMES = OrderedDict(
 
 MODEL_FOR_TOKEN_CLASSIFICATION_MAPPING_NAMES = OrderedDict(
     [
+        ("LayoutLMv2Config", "LayoutLMv2ForTokenClassification"),
         ("CanineConfig", "CanineForTokenClassification"),
         ("RoFormerConfig", "RoFormerForTokenClassification"),
         ("BigBirdConfig", "BigBirdForTokenClassification"),
