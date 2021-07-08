@@ -170,6 +170,7 @@ from ..layoutlm.modeling_layoutlm import (
     LayoutLMModel,
 )
 from ..layoutlmv2.modeling_layoutlmv2 import (
+    LayoutLMv2ForQuestionAnswering,
     LayoutLMv2ForSequenceClassification,
     LayoutLMv2ForTokenClassification,
     LayoutLMv2Model,
@@ -682,6 +683,7 @@ MODEL_FOR_SEQUENCE_CLASSIFICATION_MAPPING = OrderedDict(
 MODEL_FOR_QUESTION_ANSWERING_MAPPING = OrderedDict(
     [
         # Model for Question Answering mapping
+        (LayoutLMv2Config, LayoutLMv2ForQuestionAnswering),
         (CanineConfig, CanineForQuestionAnswering),
         (RoFormerConfig, RoFormerForQuestionAnswering),
         (BigBirdPegasusConfig, BigBirdPegasusForQuestionAnswering),
