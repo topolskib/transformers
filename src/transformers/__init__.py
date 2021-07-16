@@ -44,6 +44,7 @@ from . import dependency_versions_check
 from .file_utils import (
     _LazyModule,
     is_flax_available,
+    is_pytesseract_available,
     is_sentencepiece_available,
     is_speech_available,
     is_tf_available,
@@ -386,6 +387,11 @@ else:
     _import_structure["utils.dummy_sentencepiece_and_tokenizers_objects"] = [
         name for name in dir(dummy_sentencepiece_and_tokenizers_objects) if not name.startswith("_")
     ]
+
+# PyTesseract-specific objects
+if is_pytesseract_available():
+    _import_structure["models.layoutlmv2"].append("LayoutLMv2FeatureExtractor")
+    _import_structure["models.layoutlmv2"].append("LayoutLMv2Processor")
 
 # Speech-specific objects
 if is_speech_available():
@@ -1743,6 +1749,7 @@ if TYPE_CHECKING:
         is_flax_available,
         is_psutil_available,
         is_py3nvml_available,
+        is_pytesseract_available,
         is_scipy_available,
         is_sentencepiece_available,
         is_sklearn_available,
@@ -2016,6 +2023,10 @@ if TYPE_CHECKING:
 
     else:
         from .utils.dummy_speech_objects import *
+
+    if is_pytesseract_available():
+        from .models.layoutlmv2 import LayoutLMv2FeatureExtractor
+        from .models.layoutlmv2 import LayoutLMv2Processor
 
     if is_speech_available() and is_sentencepiece_available():
         from .models.speech_to_text import Speech2TextProcessor
