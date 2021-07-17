@@ -44,7 +44,6 @@ from . import dependency_versions_check
 from .file_utils import (
     _LazyModule,
     is_flax_available,
-    is_pytesseract_available,
     is_sentencepiece_available,
     is_speech_available,
     is_tf_available,
@@ -207,7 +206,13 @@ _import_structure = {
     "models.hubert": ["HUBERT_PRETRAINED_CONFIG_ARCHIVE_MAP", "HubertConfig"],
     "models.ibert": ["IBERT_PRETRAINED_CONFIG_ARCHIVE_MAP", "IBertConfig"],
     "models.layoutlm": ["LAYOUTLM_PRETRAINED_CONFIG_ARCHIVE_MAP", "LayoutLMConfig", "LayoutLMTokenizer"],
-    "models.layoutlmv2": ["LAYOUTLMV2_PRETRAINED_CONFIG_ARCHIVE_MAP", "LayoutLMv2Config", "LayoutLMv2Tokenizer"],
+    "models.layoutlmv2": [
+        "LAYOUTLMV2_PRETRAINED_CONFIG_ARCHIVE_MAP",
+        "LayoutLMv2Config",
+        "LayoutLMv2FeatureExtractor",
+        "LayoutLMv2Processor",
+        "LayoutLMv2Tokenizer",
+    ],
     "models.led": ["LED_PRETRAINED_CONFIG_ARCHIVE_MAP", "LEDConfig", "LEDTokenizer"],
     "models.longformer": ["LONGFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP", "LongformerConfig", "LongformerTokenizer"],
     "models.luke": ["LUKE_PRETRAINED_CONFIG_ARCHIVE_MAP", "LukeConfig", "LukeTokenizer"],
@@ -394,15 +399,9 @@ else:
         name for name in dir(dummy_sentencepiece_and_tokenizers_objects) if not name.startswith("_")
     ]
 
-# PyTesseract-specific objects
-if is_pytesseract_available():
-    _import_structure["models.layoutlmv2"].append("LayoutLMv2FeatureExtractor")
-    _import_structure["models.layoutlmv2"].append("LayoutLMv2Processor")
-
 # Speech-specific objects
 if is_speech_available():
     _import_structure["models.speech_to_text"].append("Speech2TextFeatureExtractor")
-
 else:
     from .utils import dummy_speech_objects
 
@@ -427,6 +426,8 @@ if is_vision_available():
     _import_structure["models.clip"].append("CLIPProcessor")
     _import_structure["models.deit"].append("DeiTFeatureExtractor")
     _import_structure["models.detr"].append("DetrFeatureExtractor")
+    _import_structure["models.layoutlmv2"].append("LayoutLMv2FeatureExtractor")
+    _import_structure["models.layoutlmv2"].append("LayoutLMv2Processor")
     _import_structure["models.vit"].append("ViTFeatureExtractor")
 else:
     from .utils import dummy_vision_objects
@@ -1805,7 +1806,6 @@ if TYPE_CHECKING:
         is_flax_available,
         is_psutil_available,
         is_py3nvml_available,
-        is_pytesseract_available,
         is_scipy_available,
         is_sentencepiece_available,
         is_sklearn_available,
@@ -1910,7 +1910,13 @@ if TYPE_CHECKING:
     from .models.hubert import HUBERT_PRETRAINED_CONFIG_ARCHIVE_MAP, HubertConfig
     from .models.ibert import IBERT_PRETRAINED_CONFIG_ARCHIVE_MAP, IBertConfig
     from .models.layoutlm import LAYOUTLM_PRETRAINED_CONFIG_ARCHIVE_MAP, LayoutLMConfig, LayoutLMTokenizer
-    from .models.layoutlmv2 import LAYOUTLMV2_PRETRAINED_CONFIG_ARCHIVE_MAP, LayoutLMv2Config, LayoutLMv2Tokenizer
+    from .models.layoutlmv2 import (
+        LAYOUTLMV2_PRETRAINED_CONFIG_ARCHIVE_MAP,
+        LayoutLMv2Config,
+        LayoutLMv2FeatureExtractor,
+        LayoutLMv2Processor,
+        LayoutLMv2Tokenizer,
+    )
     from .models.led import LED_PRETRAINED_CONFIG_ARCHIVE_MAP, LEDConfig, LEDTokenizer
     from .models.longformer import LONGFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP, LongformerConfig, LongformerTokenizer
     from .models.luke import LUKE_PRETRAINED_CONFIG_ARCHIVE_MAP, LukeConfig, LukeTokenizer
@@ -2082,13 +2088,8 @@ if TYPE_CHECKING:
 
     if is_speech_available():
         from .models.speech_to_text import Speech2TextFeatureExtractor
-
     else:
         from .utils.dummy_speech_objects import *
-
-    if is_pytesseract_available():
-        from .models.layoutlmv2 import LayoutLMv2FeatureExtractor
-        from .models.layoutlmv2 import LayoutLMv2Processor
 
     if is_speech_available() and is_sentencepiece_available():
         from .models.speech_to_text import Speech2TextProcessor
@@ -2101,6 +2102,7 @@ if TYPE_CHECKING:
         from .models.clip import CLIPFeatureExtractor, CLIPProcessor
         from .models.deit import DeiTFeatureExtractor
         from .models.detr import DetrFeatureExtractor
+        from .models.layoutlmv2 import LayoutLMv2FeatureExtractor, LayoutLMv2Processor
         from .models.vit import ViTFeatureExtractor
     else:
         from .utils.dummy_vision_objects import *
