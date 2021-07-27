@@ -188,7 +188,6 @@ if is_tokenizers_available():
     from ..gpt2.tokenization_gpt2_fast import GPT2TokenizerFast
     from ..herbert.tokenization_herbert_fast import HerbertTokenizerFast
     from ..layoutlm.tokenization_layoutlm_fast import LayoutLMTokenizerFast
-    from ..layoutlmv2.tokenization_layoutlmv2_fast import LayoutLMv2TokenizerFast
     from ..led.tokenization_led_fast import LEDTokenizerFast
     from ..longformer.tokenization_longformer_fast import LongformerTokenizerFast
     from ..lxmert.tokenization_lxmert_fast import LxmertTokenizerFast
@@ -225,7 +224,6 @@ else:
     GPT2TokenizerFast = None
     HerbertTokenizerFast = None
     LayoutLMTokenizerFast = None
-    LayoutLMv2TokenizerFast = None
     LEDTokenizerFast = None
     LongformerTokenizerFast = None
     LxmertTokenizerFast = None
@@ -274,7 +272,7 @@ TOKENIZER_MAPPING = OrderedDict(
         (FunnelConfig, (FunnelTokenizer, FunnelTokenizerFast)),
         (LxmertConfig, (LxmertTokenizer, LxmertTokenizerFast)),
         (LayoutLMConfig, (LayoutLMTokenizer, LayoutLMTokenizerFast)),
-        (LayoutLMv2Config, (LayoutLMv2Tokenizer, LayoutLMv2TokenizerFast)),
+        (LayoutLMv2Config, (LayoutLMv2Tokenizer, None)),
         (DPRConfig, (DPRQuestionEncoderTokenizer, DPRQuestionEncoderTokenizerFast)),
         (SqueezeBertConfig, (SqueezeBertTokenizer, SqueezeBertTokenizerFast)),
         (BertConfig, (BertTokenizer, BertTokenizerFast)),
