@@ -559,8 +559,8 @@ class SegFormerModel(SegFormerPreTrainedModel):
 
 @add_start_docstrings(
     """
-    SegFormer Model transformer with an image classification head on top (a linear layer on top of the final hidden states)
-    e.g. for ImageNet.
+    SegFormer Model transformer with an image classification head on top (a linear layer on top of the final hidden
+    states) e.g. for ImageNet.
     """,
     SEGFORMER_START_DOCSTRING,
 )
@@ -572,7 +572,9 @@ class SegFormerForImageClassification(SegFormerPreTrainedModel):
         self.segformer = SegFormerModel(config)
 
         # Classifier head
-        self.classifier = nn.Linear(config.hidden_sizes[-1], config.num_labels) if config.num_labels > 0 else nn.Identity()
+        self.classifier = (
+            nn.Linear(config.hidden_sizes[-1], config.num_labels) if config.num_labels > 0 else nn.Identity()
+        )
 
         self.init_weights()
 
@@ -591,20 +593,20 @@ class SegFormerForImageClassification(SegFormerPreTrainedModel):
             Labels for computing the image classification/regression loss. Indices should be in :obj:`[0, ...,
             config.num_labels - 1]`. If :obj:`config.num_labels == 1` a regression loss is computed (Mean-Square loss),
             If :obj:`config.num_labels > 1` a classification loss is computed (Cross-Entropy).
-        
+
         Returns:
-        
+
         Examples::
             >>> from transformers import SegFormerFeatureExtractor, SegFormerForImageClassification
             >>> from PIL import Image
             >>> import requests
-            
+
             >>> url = 'http://images.cocodataset.org/val2017/000000039769.jpg'
             >>> image = Image.open(requests.get(url, stream=True).raw)
-            
+
             >>> feature_extractor = SegFormerFeatureExtractor.from_pretrained('nvidia/mit-b0')
             >>> model = SegFormerForImageClassification.from_pretrained('nvidia/mit-b0')
-            
+
             >>> inputs = feature_extractor(images=image, return_tensors="pt")
             >>> outputs = model(**inputs)
             >>> logits = outputs.logits
@@ -622,11 +624,11 @@ class SegFormerForImageClassification(SegFormerPreTrainedModel):
         )
 
         sequence_output = outputs[0]
-        
+
         # reshape last hidden states to (batch_size, height*width, hidden_size)
         batch_size = sequence_output.shape[0]
         sequence_output = sequence_output.reshape(batch_size, -1, self.config.hidden_sizes[-1])
-        
+
         # global pooling
         sequence_output = sequence_output.mean(dim=1)
 
@@ -715,7 +717,7 @@ class SegFormerDecodeHead(SegFormerPreTrainedModel):
 
         # logits are of shape (batch_size, num_labels, height/4, width/4)
         logits = self.classifier(hidden_states)
-        
+
         return logits
 
 
@@ -777,7 +779,7 @@ class SegFormerForImageSegmentation(SegFormerPreTrainedModel):
             encoder_hidden_states = outputs.hidden_states
         else:
             encoder_hidden_states = outputs[1]
-        
+
         logits = self.decode_head(encoder_hidden_states)
 
         loss = None
@@ -786,7 +788,9 @@ class SegFormerForImageSegmentation(SegFormerPreTrainedModel):
                 raise ValueError("The number of labels should be greater than one")
             else:
                 # upsample logits to the images' original size
-                upsampled_logits = nn.functional.interpolate(logits, size=labels.shape[-2:], mode="bilinear", align_corners=False)
+                upsampled_logits = nn.functional.interpolate(
+                    logits, size=labels.shape[-2:], mode="bilinear", align_corners=False
+                )
                 loss_fct = CrossEntropyLoss(ignore_index=255)
                 loss = loss_fct(upsampled_logits, labels)
 

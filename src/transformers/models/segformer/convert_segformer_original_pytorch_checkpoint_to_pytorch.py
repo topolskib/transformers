@@ -23,24 +23,29 @@ import torch
 from PIL import Image
 
 import requests
-from transformers import SegFormerConfig, SegFormerFeatureExtractor, SegFormerForImageClassification, SegFormerForImageSegmentation
+from transformers import (
+    SegFormerConfig,
+    SegFormerFeatureExtractor,
+    SegFormerForImageClassification,
+    SegFormerForImageSegmentation,
+)
 from transformers.utils import logging
-from transformers.utils.imagenet_classes import id2label
 from transformers.utils.ade20k_classes import id2label as id2label_ade20k
 from transformers.utils.cityscapes_classes import id2label as id2label_cityscapes
+from transformers.utils.imagenet_classes import id2label
 
 
 logging.set_verbosity_info()
 logger = logging.get_logger(__name__)
 
 
-def rename_keys(state_dict, encoder_only=False):    
+def rename_keys(state_dict, encoder_only=False):
     new_state_dict = OrderedDict()
     for key, value in state_dict.items():
         if encoder_only and not key.startswith("head"):
             key = "segformer.encoder." + key
         if key.startswith("backbone"):
-            key = key.replace("backbone", f"segformer.encoder") 
+            key = key.replace("backbone", f"segformer.encoder")
         if "patch_embed" in key:
             # replace for example patch_embed1 by patch_embeddings.0
             idx = key[key.find("patch_embed") + len("patch_embed")]
@@ -144,7 +149,7 @@ def convert_segformer_checkpoint(model_name, checkpoint_path, pytorch_dump_folde
         config.label2id = {v: k for k, v in id2label.items()}
     else:
         raise ValueError(f"Model {model_name} not supported")
-    
+
     # set config attributes based on size
     if size == "b0":
         pass
@@ -183,9 +188,9 @@ def convert_segformer_checkpoint(model_name, checkpoint_path, pytorch_dump_folde
 
     # load original state dict
     if encoder_only:
-        state_dict = torch.load(checkpoint_path, map_location=torch.device('cpu'))
+        state_dict = torch.load(checkpoint_path, map_location=torch.device("cpu"))
     else:
-        state_dict = torch.load(checkpoint_path, map_location=torch.device('cpu'))["state_dict"]
+        state_dict = torch.load(checkpoint_path, map_location=torch.device("cpu"))["state_dict"]
 
     # rename keys
     state_dict = rename_keys(state_dict, encoder_only=encoder_only)

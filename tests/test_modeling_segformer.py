@@ -318,21 +318,27 @@ class SegFormerModelIntegrationTest(unittest.TestCase):
     @slow
     def test_inference_image_segmentation(self):
         # TODO replace nielsr by nvidia
-        feature_extractor = SegFormerFeatureExtractor(image_scale=(512, 512), keep_ratio=False, align=False, do_random_crop=False)
-        model = SegFormerForImageSegmentation.from_pretrained("nielsr/segformer-b0-finetuned-ade-512-512").to(torch_device)
-        
+        feature_extractor = SegFormerFeatureExtractor(
+            image_scale=(512, 512), keep_ratio=False, align=False, do_random_crop=False
+        )
+        model = SegFormerForImageSegmentation.from_pretrained("nielsr/segformer-b0-finetuned-ade-512-512").to(
+            torch_device
+        )
+
         image = prepare_img()
         encoded_inputs = feature_extractor(images=image, return_tensors="pt")
         pixel_values = encoded_inputs.pixel_values.to(torch_device)
-        
+
         outputs = model(pixel_values)
 
         expected_shape = torch.Size((1, 150, 128, 128))
         self.assertEqual(outputs.logits.shape, expected_shape)
 
-        expected_slice = torch.tensor([
-            [[-4.6310, -5.5232, -6.2356], [-5.1921, -6.1444, -6.5996], [-5.4424, -6.2790, -6.7574]],
-            [[-12.1391, -13.3122, -13.9554], [-12.8732, -13.9352, -14.3563], [-12.9438, -13.8226, -14.2513]],
-            [[-12.5134, -13.4686, -14.4915], [-12.8669, -14.4343, -14.7758], [-13.2523, -14.5819, -15.0694]],
-        ]).to(torch_device)
+        expected_slice = torch.tensor(
+            [
+                [[-4.6310, -5.5232, -6.2356], [-5.1921, -6.1444, -6.5996], [-5.4424, -6.2790, -6.7574]],
+                [[-12.1391, -13.3122, -13.9554], [-12.8732, -13.9352, -14.3563], [-12.9438, -13.8226, -14.2513]],
+                [[-12.5134, -13.4686, -14.4915], [-12.8669, -14.4343, -14.7758], [-13.2523, -14.5819, -15.0694]],
+            ]
+        ).to(torch_device)
         self.assertTrue(torch.allclose(outputs.logits[0, :3, :3, :3], expected_slice, atol=1e-4))

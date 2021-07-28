@@ -253,19 +253,19 @@ class SegFormerFeatureExtractionTest(FeatureExtractionSavingTestMixin, unittest.
         segmentation_map = Image.open("./tests/fixtures/tests_samples/ADE_20k/ADE_val_00002000.png")
 
         w, h = image.size
-        
+
         # Initialize feature_extractor
         feature_extractor = SegFormerFeatureExtractor(crop_size=[w - 20, h - 20])
 
         # Encode image + segmentation map
         encoded_images = feature_extractor(images=image, segmentation_maps=segmentation_map, return_tensors="pt")
-        
+
         # Verify shape of pixel_values
         self.assertEqual(encoded_images.pixel_values.shape[-2:], (h - 20, w - 20))
 
         # Verify shape of labels
         self.assertEqual(encoded_images.labels.shape[-2:], (h - 20, w - 20))
-    
+
     @require_torch
     def test_pad(self):
         # TODO, based on test_pad of the original implementation

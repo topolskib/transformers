@@ -19,6 +19,7 @@ from typing import List, Optional, Union
 
 import numpy as np
 from PIL import Image
+from torch import nn
 
 from ...feature_extraction_utils import BatchFeature, FeatureExtractionMixin
 from ...file_utils import TensorType
@@ -31,7 +32,6 @@ from ...image_utils import (
 )
 from ...utils import logging
 
-from torch import nn 
 
 logger = logging.get_logger(__name__)
 
@@ -171,8 +171,8 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
         padding_value (:obj:`int`, `optional`, defaults to 0):
             Fill value for padding images.
         segmentation_padding_value (:obj:`int`, `optional`, defaults to -100):
-            Fill value for padding segmentation maps. One must make sure the :obj:`ignore_index` of the :obj:`CrossEntropyLoss` is set equal 
-            to this value.
+            Fill value for padding segmentation maps. One must make sure the :obj:`ignore_index` of the
+            :obj:`CrossEntropyLoss` is set equal to this value.
         reduce_zero_label (:obj:`bool`, `optional`, defaults to :obj:`False`):
             Whether or not to reduce all label values by 1. Usually used for datasets where 0 is the background label.
     """
@@ -386,15 +386,15 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
                     map = map - 1
                     map[map == 254] = 255
                     segmentation_maps[idx] = Image.fromarray(map.astype(np.uint8))
-        
+
         # transformations (resizing, random cropping, normalization)
         if self.do_resize and self.image_scale is not None:
-            images = [
-                self._resize(image=image, size=self.image_scale, resample=self.resample) for image in images
-            ]
+            images = [self._resize(image=image, size=self.image_scale, resample=self.resample) for image in images]
             if segmentation_maps is not None:
-                segmentation_maps = [self._resize(map, size=self.image_scale, resample=Image.NEAREST) for map in segmentation_maps]
-        
+                segmentation_maps = [
+                    self._resize(map, size=self.image_scale, resample=Image.NEAREST) for map in segmentation_maps
+                ]
+
         if self.do_random_crop:
             if segmentation_maps is not None:
                 for idx, example in enumerate(zip(images, segmentation_maps)):
@@ -404,7 +404,7 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
                     segmentation_maps[idx] = map
             else:
                 images = [self.random_crop(image) for image in images]
-        
+
         if self.do_normalize:
             images = [self.normalize(image=image, mean=self.image_mean, std=self.image_std) for image in images]
 
@@ -430,7 +430,7 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
         # forward pass
         logits = model(pixel_values=pixel_values)
         # resize logits to given size
-        logits = nn.functional.interpolate(logits, size=size, mode=mode, align_corners=align_corners, warning=False)
+        logits = nn.functional.interpolate(logits, size=size, mode=mode, align_corners=align_corners)
         # apply softmax on class dimension to get probabilities
         probs = nn.functional.softmax(logits, dim=1)
 
@@ -470,7 +470,7 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
 
         logits = logits / count_mat
         # resize logits to given size
-        logits = nn.functional.interpolate(logits, size=size, mode=mode, align_corners=align_corners, warning=False)
+        logits = nn.functional.interpolate(logits, size=size, mode=mode, align_corners=align_corners)
         # apply softmax on class dimension to get probabilities
         probs = nn.functional.softmax(logits, dim=1)
 
