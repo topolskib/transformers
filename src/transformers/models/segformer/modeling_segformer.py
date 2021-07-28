@@ -669,16 +669,9 @@ class SegFormerMLP(nn.Module):
         return hidden_states
 
 
-@add_start_docstrings(
-    """SegFormer Model transformer with an all-MLP decoder head on top e.g. for ADE20k, CityScapes. """,
-    SEGFORMER_START_DOCSTRING,
-)
-class SegFormerForImageSegmentation(SegFormerPreTrainedModel):
+class SegFormerDecodeHead(SegFormerPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
-        self.num_labels = config.num_labels
-        self.segformer = SegFormerModel(config)
-
         # linear layers which will unify the channel dimension of each of the encoder blocks to the same config.decoder_hidden_size
         mlps = []
         for i in range(config.num_encoder_blocks):
@@ -698,6 +691,43 @@ class SegFormerForImageSegmentation(SegFormerPreTrainedModel):
 
         self.dropout = nn.Dropout(config.classifier_dropout_prob)
         self.classifier = nn.Conv2d(config.decoder_hidden_size, config.num_labels, kernel_size=1)
+
+    def forward(self, encoder_hidden_states):
+        batch_size, _, _, _ = encoder_hidden_states[-1].shape
+        all_hidden_states = ()
+        for encoder_hidden_state, mlp in zip(encoder_hidden_states, self.linear_c):
+            # unify channel dimension
+            encoder_hidden_state = (
+                mlp(encoder_hidden_state)
+                .permute(0, 2, 1)
+                .reshape(batch_size, -1, encoder_hidden_state.shape[2], encoder_hidden_state.shape[3])
+            )
+            # upsample
+            encoder_hidden_state = nn.functional.interpolate(
+                encoder_hidden_state, size=encoder_hidden_states[0].size()[2:], mode="bilinear", align_corners=False
+            )
+            all_hidden_states += (encoder_hidden_state,)
+
+        hidden_states = self.linear_fuse(torch.cat(all_hidden_states[::-1], dim=1))
+        hidden_states = self.batch_norm(hidden_states)
+        hidden_states = self.activation(hidden_states)
+        hidden_states = self.dropout(hidden_states)
+
+        # logits are of shape (batch_size, num_labels, height/4, width/4)
+        logits = self.classifier(hidden_states)
+        
+        return logits
+
+
+@add_start_docstrings(
+    """SegFormer Model transformer with an all-MLP decoder head on top e.g. for ADE20k, CityScapes. """,
+    SEGFORMER_START_DOCSTRING,
+)
+class SegFormerForImageSegmentation(SegFormerPreTrainedModel):
+    def __init__(self, config):
+        super().__init__(config)
+        self.segformer = SegFormerModel(config)
+        self.decode_head = SegFormerDecodeHead(config)
 
         self.init_weights()
 
@@ -747,28 +777,8 @@ class SegFormerForImageSegmentation(SegFormerPreTrainedModel):
             encoder_hidden_states = outputs.hidden_states
         else:
             encoder_hidden_states = outputs[1]
-        batch_size, _, _, _ = encoder_hidden_states[-1].shape
-        all_hidden_states = ()
-        for encoder_hidden_state, mlp in zip(encoder_hidden_states, self.linear_c):
-            # unify channel dimension
-            encoder_hidden_state = (
-                mlp(encoder_hidden_state)
-                .permute(0, 2, 1)
-                .reshape(batch_size, -1, encoder_hidden_state.shape[2], encoder_hidden_state.shape[3])
-            )
-            # upsample
-            encoder_hidden_state = nn.functional.interpolate(
-                encoder_hidden_state, size=encoder_hidden_states[0].size()[2:], mode="bilinear", align_corners=False
-            )
-            all_hidden_states += (encoder_hidden_state,)
-
-        hidden_states = self.linear_fuse(torch.cat(all_hidden_states[::-1], dim=1))
-        hidden_states = self.batch_norm(hidden_states)
-        hidden_states = self.activation(hidden_states)
-        hidden_states = self.dropout(hidden_states)
-
-        # logits are of shape (batch_size, num_labels, height/4, width/4)
-        logits = self.classifier(hidden_states)
+        
+        logits = self.decode_head(encoder_hidden_states)
 
         loss = None
         if labels is not None:

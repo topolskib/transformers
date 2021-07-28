@@ -69,8 +69,6 @@ def rename_keys(state_dict, encoder_only=False):
             key = key.replace("fc1", "dense1")
         if "fc2" in key:
             key = key.replace("fc2", "dense2")
-        if key.startswith("decode_head."):
-            key = key[len("decode_head.") :]
         if "linear_pred" in key:
             key = key.replace("linear_pred", "classifier")
         if "linear_fuse" in key:
@@ -185,15 +183,15 @@ def convert_segformer_checkpoint(model_name, checkpoint_path, pytorch_dump_folde
 
     # load original state dict
     if encoder_only:
-        state_dict = torch.load(checkpoint_path)
+        state_dict = torch.load(checkpoint_path, map_location=torch.device('cpu'))
     else:
-        state_dict = torch.load(checkpoint_path)["state_dict"]
+        state_dict = torch.load(checkpoint_path, map_location=torch.device('cpu'))["state_dict"]
 
     # rename keys
     state_dict = rename_keys(state_dict, encoder_only=encoder_only)
     if not encoder_only:
-        del state_dict["conv_seg.weight"]
-        del state_dict["conv_seg.bias"]
+        del state_dict["decode_head.conv_seg.weight"]
+        del state_dict["decode_head.conv_seg.bias"]
 
     # key and value matrices need special treatment
     read_in_k_v(state_dict, config)
