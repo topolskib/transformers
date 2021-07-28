@@ -428,7 +428,8 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
         """Inference with a full image."""
 
         # forward pass
-        logits = model(pixel_values=pixel_values)
+        outputs = model(pixel_values=pixel_values)
+        logits = outputs.logits
         # resize logits to given size
         logits = nn.functional.interpolate(logits, size=size, mode=mode, align_corners=align_corners)
         # apply softmax on class dimension to get probabilities
@@ -460,7 +461,8 @@ class SegFormerFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
                 x1 = max(x2 - w_crop, 0)
                 cropped_pixel_values = pixel_values[:, :, y1:y2, x1:x2]
                 # forward pass to get the logits
-                cropped_logits = model(pixel_values=cropped_pixel_values)
+                outputs = model(pixel_values=cropped_pixel_values)
+                cropped_logits = outputs.logits
                 logits += nn.functional.pad(
                     cropped_logits, (int(x1), int(logits.shape[3] - x2), int(y1), int(logits.shape[2] - y2))
                 )
