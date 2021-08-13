@@ -15,6 +15,7 @@
 """ LayoutLMv2 model configuration """
 
 from ...configuration_utils import PretrainedConfig
+from ...file_utils import is_detectron2_available
 from ...utils import logging
 
 
@@ -26,6 +27,10 @@ LAYOUTLMV2_PRETRAINED_CONFIG_ARCHIVE_MAP = {
     # See all LayoutLMv2 models at https://huggingface.co/models?filter=layoutlmv2
 }
 
+# soft dependency
+if is_detectron2_available():
+    import detectron2
+    from detectron2.modeling import META_ARCH_REGISTRY
 
 class LayoutLMv2Config(PretrainedConfig):
     r"""
@@ -139,31 +144,31 @@ class LayoutLMv2Config(PretrainedConfig):
         has_spatial_attention_bias=True,
         has_visual_segment_embedding=False,
         detectron2_config_args={"MODEL.MASK_ON":True, 
-                                "PIXEL_STD":[57.375, 57.120, 58.395], 
-                                "BACKBONE.NAME":"build_resnet_fpn_backbone",
-                                "FPN.IN_FEATURES":["res2", "res3", "res4", "res5"],
-                                "ANCHOR_GENERATOR.SIZES":[[32], [64], [128], [256], [512]],
-                                "RPN.IN_FEATURES":["p2", "p3", "p4", "p5", "p6"],
-                                "RPN.PRE_NMS_TOPK_TRAIN":2000,
-                                "RPN.PRE_NMS_TOPK_TEST":1000,
-                                "RPN.POST_NMS_TOPK_TRAIN":1000,
-                                "POST_NMS_TOPK_TEST":1000,
-                                "ROI_HEADS.NAME":"StandardROIHeads",
-                                "ROI_HEADS.NUM_CLASSES":5,
-                                "ROI_HEADS.IN_FEATURES":["p2", "p3", "p4", "p5"],
-                                "ROI_BOX_HEAD.NAME":"FastRCNNConvFCHead",
-                                "ROI_BOX_HEAD.NUM_FC":2,
-                                "ROI_BOX_HEAD.POOLER_RESOLUTION":14,
-                                "ROI_MASK_HEAD.NAME":"MaskRCNNConvUpsampleHead",
-                                "ROI_MASK_HEAD.NUM_CONV":4,
-                                "ROI_MASK_HEAD.POOLER_RESOLUTION":7,
-                                "RESNETS.DEPTH":101,
-                                "RESNETS.SIZES":[[32], [64], [128], [256], [512]],
-                                "RESNETS.ASPECT_RATIOS":[[0.5, 1.0, 2.0]],
-                                "RESNETS.OUT_FEATURES":["res2", "res3", "res4", "res5"],
-                                "RESNETS.NUM_GROUPS":32,
-                                "RESNETS.WIDTH_PER_GROUP":8,
-                                "RESNETS.STRIDE_IN_1X1":False,
+                                "MODEL.PIXEL_STD":[57.375, 57.120, 58.395],
+                                "MODEL.BACKBONE.NAME":"build_resnet_fpn_backbone",
+                                "MODEL.FPN.IN_FEATURES":["res2", "res3", "res4", "res5"],
+                                "MODEL.ANCHOR_GENERATOR.SIZES":[[32], [64], [128], [256], [512]],
+                                "MODEL.RPN.IN_FEATURES":["p2", "p3", "p4", "p5", "p6"],
+                                "MODEL.RPN.PRE_NMS_TOPK_TRAIN":2000,
+                                "MODEL.RPN.PRE_NMS_TOPK_TEST":1000,
+                                "MODEL.RPN.POST_NMS_TOPK_TRAIN":1000,
+                                "MODEL.POST_NMS_TOPK_TEST":1000,
+                                "MODEL.ROI_HEADS.NAME":"StandardROIHeads",
+                                "MODEL.ROI_HEADS.NUM_CLASSES":5,
+                                "MODEL.ROI_HEADS.IN_FEATURES":["p2", "p3", "p4", "p5"],
+                                "MODEL.ROI_BOX_HEAD.NAME":"FastRCNNConvFCHead",
+                                "MODEL.ROI_BOX_HEAD.NUM_FC":2,
+                                "MODEL.ROI_BOX_HEAD.POOLER_RESOLUTION":14,
+                                "MODEL.ROI_MASK_HEAD.NAME":"MaskRCNNConvUpsampleHead",
+                                "MODEL.ROI_MASK_HEAD.NUM_CONV":4,
+                                "MODEL.ROI_MASK_HEAD.POOLER_RESOLUTION":7,
+                                "MODEL.RESNETS.DEPTH":101,
+                                "MODEL.RESNETS.SIZES":[[32], [64], [128], [256], [512]],
+                                "MODEL.RESNETS.ASPECT_RATIOS":[[0.5, 1.0, 2.0]],
+                                "MODEL.RESNETS.OUT_FEATURES":["res2", "res3", "res4", "res5"],
+                                "MODEL.RESNETS.NUM_GROUPS":32,
+                                "MODEL.RESNETS.WIDTH_PER_GROUP":8,
+                                "MODEL.RESNETS.STRIDE_IN_1X1":False,
                                 },
         **kwargs
     ):
@@ -197,3 +202,14 @@ class LayoutLMv2Config(PretrainedConfig):
         self.has_spatial_attention_bias = has_spatial_attention_bias
         self.has_visual_segment_embedding = has_visual_segment_embedding
         self.detectron2_config_args = detectron2_config_args
+
+    def get_detectron2_config(self):
+        detectron2_config = detectron2.config.get_cfg()
+        for k, v in self.detectron2_config_args.items():
+            attributes = k.split(".")
+            to_set = detectron2_config
+            for attribute in attributes[:-1]:
+                to_set = getattr(to_set, attribute)
+            setattr(to_set, attributes[-1], v)
+
+        return detectron2_config
