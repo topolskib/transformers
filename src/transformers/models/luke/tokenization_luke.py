@@ -527,7 +527,7 @@ class LukeTokenizer(RobertaTokenizer):
 
         if is_split_into_words:
             raise NotImplementedError("is_split_into_words is not supported in this tokenizer.")
-         
+
         start = time.time()
         
         (
@@ -723,6 +723,7 @@ class LukeTokenizer(RobertaTokenizer):
                     else:
                         entity_spans, entity_spans_pair = entity_spans_or_entity_spans_pairs
 
+            start = time.time()
             (
                 first_ids,
                 second_ids,
@@ -739,6 +740,8 @@ class LukeTokenizer(RobertaTokenizer):
                 entity_spans_pair=entity_spans_pair,
                 **kwargs,
             )
+            end = time.time()
+            print("Total time for _create_input_sequence:", end-start)
             input_ids.append((first_ids, second_ids))
             entity_ids.append((first_entity_ids, second_entity_ids))
             entity_token_spans.append((first_entity_token_spans, second_entity_token_spans))
@@ -783,8 +786,6 @@ class LukeTokenizer(RobertaTokenizer):
             if entity_spans is None:
                 return get_input_ids(text), None
 
-            start = time.time()
-
             cur = 0
             input_ids = []
             entity_token_spans = [None] * len(entity_spans)
@@ -808,9 +809,6 @@ class LukeTokenizer(RobertaTokenizer):
             entity_token_spans = [
                 (char_pos2token_pos[char_start], char_pos2token_pos[char_end]) for char_start, char_end in entity_spans
             ]
-
-            end = time.time()
-            print("Total time for get_input_ids_and_entity_token_spans:", end-start)
             
             return input_ids, entity_token_spans
 
