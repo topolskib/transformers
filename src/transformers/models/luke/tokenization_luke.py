@@ -18,6 +18,7 @@ import itertools
 import json
 import os
 from typing import Dict, List, Optional, Tuple, Union
+import time
 
 import numpy as np
 
@@ -777,6 +778,8 @@ class LukeTokenizer(RobertaTokenizer):
             if entity_spans is None:
                 return get_input_ids(text), None
 
+            start = time.time()
+
             cur = 0
             input_ids = []
             entity_token_spans = [None] * len(entity_spans)
@@ -801,6 +804,9 @@ class LukeTokenizer(RobertaTokenizer):
                 (char_pos2token_pos[char_start], char_pos2token_pos[char_end]) for char_start, char_end in entity_spans
             ]
 
+            end = time.time()
+            print("Total time for get_input_ids_and_entity_token_spans:", end-start)
+            
             return input_ids, entity_token_spans
 
         first_ids, second_ids = None, None
