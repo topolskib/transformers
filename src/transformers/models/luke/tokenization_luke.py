@@ -527,7 +527,9 @@ class LukeTokenizer(RobertaTokenizer):
 
         if is_split_into_words:
             raise NotImplementedError("is_split_into_words is not supported in this tokenizer.")
-
+         
+        start = time.time()
+        
         (
             first_ids,
             second_ids,
@@ -544,6 +546,9 @@ class LukeTokenizer(RobertaTokenizer):
             entity_spans_pair=entity_spans_pair,
             **kwargs,
         )
+
+        end = time.time()
+        print("Total time for _create_input_sequence:", end-start)
 
         # prepare_for_model will create the attention_mask and token_type_ids
         return self.prepare_for_model(
