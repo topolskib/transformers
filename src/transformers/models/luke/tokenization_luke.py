@@ -968,6 +968,7 @@ class LukeTokenizer(RobertaTokenizer):
         """
 
         batch_outputs = {}
+        start = time.time()
         for input_ids, entity_ids, entity_token_span_pairs in zip(
             batch_ids_pairs, batch_entity_ids_pairs, batch_entity_token_spans_pairs
         ):
@@ -1002,7 +1003,10 @@ class LukeTokenizer(RobertaTokenizer):
                 if key not in batch_outputs:
                     batch_outputs[key] = []
                 batch_outputs[key].append(value)
-
+        end = time.time()
+        print("Total time for encoding:", end-start)
+        
+        start = time.time()
         batch_outputs = self.pad(
             batch_outputs,
             padding=padding_strategy.value,
@@ -1010,6 +1014,8 @@ class LukeTokenizer(RobertaTokenizer):
             pad_to_multiple_of=pad_to_multiple_of,
             return_attention_mask=return_attention_mask,
         )
+        end = time.time()
+        print("Total time for padding:", end-start)
 
         batch_outputs = BatchEncoding(batch_outputs, tensor_type=return_tensors)
 
