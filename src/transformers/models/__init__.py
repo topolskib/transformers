@@ -17,7 +17,6 @@
 # limitations under the License.
 
 from . import (
-    perceiver,
     albert,
     auto,
     bart,
@@ -77,6 +76,7 @@ from . import (
     mt5,
     openai,
     pegasus,
+    perceiver,
     phobert,
     prophetnet,
     rag,
