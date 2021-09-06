@@ -65,7 +65,10 @@ class CvtConfig(PretrainedConfig):
             The size (resolution) of each patch.
         num_channels (:obj:`int`, `optional`, defaults to :obj:`3`):
             The number of input channels.
-
+        stride (:obj:`int`, `optional`, defaults to :obj:`4`):
+            ...
+        padding (:obj:`int`, `optional`, defaults to :obj:`2`):
+            ...
 
     Example::
 
@@ -94,32 +97,11 @@ class CvtConfig(PretrainedConfig):
         initializer_range=0.02,
         layer_norm_eps=1e-12,
         is_encoder_decoder=False,
-        # additional properties
-        in_chans=3,
-        init="trunc_norm",
-        num_classes=1000,
-        num_stages=3,
-        patch_size=[7, 3, 3],
-        patch_stride=[4, 2, 2],
-        patch_padding=[2, 1, 1],
-        dim_embed=[64, 192, 384],
-        num_heads=[1, 3, 6],
-        depth=[1, 4, 16],
-        mlp_ratio=[4.0, 4.0, 4.0],
-        attn_drop_rate=[0.0, 0.0, 0.0],
-        drop_rate=[0.0, 0.0, 0.0],
-        drop_path_rate=[0.0, 0.0, 0.1],
-        qkv_bias=[True, True, True],
-        cls_token=[False, False, True],
-        pos_embed=[False, False, False],
-        qkv_proj_method=["dw_bn", "dw_bn", "dw_bn"],
-        kernel_qkv=[3, 3, 3],
-        padding_kv=[1, 1, 1],
-        stride_kv=[2, 2, 2],
-        padding_q=[1, 1, 1],
-        stride_q=[1, 1, 1],
-        act_layer="gelu",
-        norm_layer="layer_norm",
+        image_size=224,
+        patch_size=16,
+        num_channels=3,
+        stride=4,
+        padding=2,
         **kwargs
     ):
         super().__init__(**kwargs)
@@ -133,30 +115,8 @@ class CvtConfig(PretrainedConfig):
         self.attention_probs_dropout_prob = attention_probs_dropout_prob
         self.initializer_range = initializer_range
         self.layer_norm_eps = layer_norm_eps
-
-        # additional properties
-        self.in_chans = in_chans
-        self.num_stages = num_stages
-        self.num_classes = num_classes
-        self.init = init
+        self.image_size = image_size
         self.patch_size = patch_size
-        self.patch_stride = patch_stride
-        self.patch_padding = patch_padding
-        self.dim_embed = dim_embed
-        self.num_heads = num_heads
-        self.depth = depth
-        self.mlp_ratio = mlp_ratio
-        self.attn_drop_rate = attn_drop_rate
-        self.drop_rate = drop_rate
-        self.drop_path_rate = drop_path_rate
-        self.qkv_bias = qkv_bias
-        self.cls_token = cls_token
-        self.pos_embed = pos_embed
-        self.qkv_proj_method = qkv_proj_method
-        self.kernel_qkv = kernel_qkv
-        self.padding_kv = padding_kv
-        self.stride_kv = stride_kv
-        self.padding_q = padding_q
-        self.stride_q = stride_q
-        self.act_layer = act_layer
-        self.norm_layer = norm_layer
+        self.num_channels = num_channels
+        self.stride = stride
+        self.padding = padding

@@ -137,6 +137,14 @@ except importlib_metadata.PackageNotFoundError:
     _datasets_available = False
 
 
+_einops_available = importlib.util.find_spec("einops") is not None
+try:
+    _einops_version = importlib_metadata.version("einops")
+    logger.debug(f"Successfully imported einops version {_einops_version}")
+except importlib_metadata.PackageNotFoundError:
+    _einops_available = False
+
+
 _faiss_available = importlib.util.find_spec("faiss") is not None
 try:
     _faiss_version = importlib_metadata.version("faiss")
@@ -350,6 +358,10 @@ def is_torch_tpu_available():
 
 def is_datasets_available():
     return _datasets_available
+
+
+def is_einops_available():
+    return _einops_available
 
 
 def is_rjieba_available():
@@ -622,10 +634,17 @@ VISION_IMPORT_ERROR = """
 `pip install pillow`
 """
 
+# docstyle-ignore
+EINOPS_IMPORT_ERROR = """
+{0} requires the einops library but it was not found in your environment. You can install it with pip as
+explained here: https://github.com/arogozhnikov/einops.
+"""
+
 
 BACKENDS_MAPPING = OrderedDict(
     [
         ("datasets", (is_datasets_available, DATASETS_IMPORT_ERROR)),
+        ("einops", (is_einops_available, EINOPS_IMPORT_ERROR)),
         ("faiss", (is_faiss_available, FAISS_IMPORT_ERROR)),
         ("flax", (is_flax_available, FLAX_IMPORT_ERROR)),
         ("pandas", (is_pandas_available, PANDAS_IMPORT_ERROR)),

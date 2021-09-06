@@ -420,10 +420,10 @@ if is_vision_available():
     _import_structure["models.beit"].append("BeitFeatureExtractor")
     _import_structure["models.clip"].append("CLIPFeatureExtractor")
     _import_structure["models.clip"].append("CLIPProcessor")
+    _import_structure["models.cvt"].append("CvtFeatureExtractor")
     _import_structure["models.deit"].append("DeiTFeatureExtractor")
     _import_structure["models.detr"].append("DetrFeatureExtractor")
     _import_structure["models.vit"].append("ViTFeatureExtractor")
-    _import_structure["models.cvt"].append("CvtFeatureExtractor")
 else:
     from .utils import dummy_vision_objects
 
@@ -2101,10 +2101,10 @@ if TYPE_CHECKING:
         from .image_utils import ImageFeatureExtractionMixin
         from .models.beit import BeitFeatureExtractor
         from .models.clip import CLIPFeatureExtractor, CLIPProcessor
+        from .models.cvt import CvtFeatureExtractor
         from .models.deit import DeiTFeatureExtractor
         from .models.detr import DetrFeatureExtractor
         from .models.vit import ViTFeatureExtractor
-        from .models.cvt import CvtFeatureExtractor
     else:
         from .utils.dummy_vision_objects import *
 

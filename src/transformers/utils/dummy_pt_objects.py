@@ -1249,6 +1249,37 @@ class CTRLPreTrainedModel:
         requires_backends(cls, ["torch"])
 
 
+CVT_PRETRAINED_MODEL_ARCHIVE_LIST = None
+
+
+class CvtForImageClassification:
+    def __init__(self, *args, **kwargs):
+        requires_backends(self, ["torch"])
+
+
+class CvtLayer:
+    def __init__(self, *args, **kwargs):
+        requires_backends(self, ["torch"])
+
+
+class CvtModel:
+    def __init__(self, *args, **kwargs):
+        requires_backends(self, ["torch"])
+
+    @classmethod
+    def from_pretrained(cls, *args, **kwargs):
+        requires_backends(cls, ["torch"])
+
+
+class CvtPreTrainedModel:
+    def __init__(self, *args, **kwargs):
+        requires_backends(self, ["torch"])
+
+    @classmethod
+    def from_pretrained(cls, *args, **kwargs):
+        requires_backends(cls, ["torch"])
+
+
 DEBERTA_PRETRAINED_MODEL_ARCHIVE_LIST = None
 
 

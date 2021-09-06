@@ -39,3 +39,8 @@ class DetrFeatureExtractor:
 class ViTFeatureExtractor:
     def __init__(self, *args, **kwargs):
         requires_backends(self, ["vision"])
+
+
+class CvtFeatureExtractor:
+    def __init__(self, *args, **kwargs):
+        requires_backends(self, ["vision"])
