@@ -1089,11 +1089,7 @@ if is_torch_available():
     _import_structure["models.perceiver"].extend(
         [
             "PERCEIVER_PRETRAINED_MODEL_ARCHIVE_LIST",
-            "PerceiverForMaskedLM",
-            "PerceiverForMultipleChoice",
-            "PerceiverForQuestionAnswering",
-            "PerceiverForSequenceClassification",
-            "PerceiverForTokenClassification",
+            "PerceiverBasicDecoder",
             "PerceiverLayer",
             "PerceiverModel",
             "PerceiverPreTrainedModel",
@@ -2882,11 +2878,7 @@ if TYPE_CHECKING:
         )
         from .models.perceiver import (
             PERCEIVER_PRETRAINED_MODEL_ARCHIVE_LIST,
-            PerceiverForMaskedLM,
-            PerceiverForMultipleChoice,
-            PerceiverForQuestionAnswering,
-            PerceiverForSequenceClassification,
-            PerceiverForTokenClassification,
+            PerceiverBasicDecoder,
             PerceiverLayer,
             PerceiverModel,
             PerceiverPreTrainedModel,
