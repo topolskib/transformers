@@ -399,8 +399,13 @@ class TrOCRDecoderLayer(nn.Module):
             output_attentions=output_attentions,
         )
 
+        print("Output after self-attention:", hidden_states[0,:3,:3])
+
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
         hidden_states = residual + hidden_states
+
+        print("Output after first residual connection:", hidden_states[0,:3,:3])
+
         hidden_states = self.self_attn_layer_norm(hidden_states)
 
         # Cross-Attention Block
@@ -410,6 +415,9 @@ class TrOCRDecoderLayer(nn.Module):
         if encoder_hidden_states is not None:
             residual = hidden_states
 
+            print("Hidden states before cross-attention:", hidden_states[0,:3,:3])
+            print("First elements of encoder hidden states:", encoder_hidden_states[0,:3,:3])
+            
             # cross_attn cached key/values tuple is at positions 3,4 of present_key_value tuple
             cross_attn_past_key_value = past_key_value[-2:] if past_key_value is not None else None
             hidden_states, cross_attn_weights, cross_attn_present_key_value = self.encoder_attn(
@@ -420,6 +428,8 @@ class TrOCRDecoderLayer(nn.Module):
                 past_key_value=cross_attn_past_key_value,
                 output_attentions=output_attentions,
             )
+
+            print("Hidden states after cross-attention:", hidden_states[0,:3,:3])
 
             hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
             hidden_states = residual + hidden_states
