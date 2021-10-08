@@ -701,6 +701,8 @@ class TrOCRDecoder(TrOCRPreTrainedModel):
                         f"The `{mask_name}` should be specified for {len(self.layers)} layers, but it is for {head_mask.size()[0]}."
                     )
         for idx, decoder_layer in enumerate(self.layers):
+            print(f"Hidden states before layer {idx}", hidden_states[0,:3,:3])
+            
             # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
             if output_hidden_states:
                 all_hidden_states += (hidden_states,)
