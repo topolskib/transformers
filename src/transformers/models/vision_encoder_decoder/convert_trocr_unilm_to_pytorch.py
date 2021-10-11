@@ -121,7 +121,7 @@ def prepare_img(checkpoint_url):
 
 
 @torch.no_grad()
-def convert_tr_ocr_checkpoint(checkpoint_url, pytorch_dump_folder_path):
+def convert_tr_ocr_checkpoint(checkpoint_url, state_dict_path, pytorch_dump_folder_path):
     """
     Copy/paste/tweak model's weights to our VisionEncoderDecoderModel structure.
     """
@@ -158,7 +158,8 @@ def convert_tr_ocr_checkpoint(checkpoint_url, pytorch_dump_folder_path):
     model.eval()
 
     # load state_dict of original model, rename some keys
-    state_dict = torch.hub.load_state_dict_from_url(checkpoint_url, map_location="cpu", check_hash=True)["model"]
+    # state_dict = torch.hub.load_state_dict_from_url(checkpoint_url, map_location="cpu", check_hash=True)["model"]
+    state_dict = torch.load(state_dict_path)["model"]
 
     rename_keys = create_rename_keys(encoder_config, decoder_config)
     for src, dest in rename_keys:
@@ -231,8 +232,9 @@ if __name__ == "__main__":
         type=str,
         help="URL to the original PyTorch checkpoint (.pth file).",
     )
+    parser.add_argument("--state_dict_path", default=None, required=True, type=str, help="Path to the state dict.")
     parser.add_argument(
         "--pytorch_dump_folder_path", default=None, type=str, help="Path to the folder to output PyTorch model."
     )
     args = parser.parse_args()
-    convert_tr_ocr_checkpoint(args.checkpoint_url, args.pytorch_dump_folder_path)
+    convert_tr_ocr_checkpoint(args.checkpoint_url, args.state_dict_path, args.pytorch_dump_folder_path)
