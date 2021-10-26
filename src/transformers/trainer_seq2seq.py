@@ -166,6 +166,8 @@ class Seq2SeqTrainer(Trainer):
 
         if self.tokenizer is not None:
             generation_inputs = {k: v for k, v in inputs.items() if k in self.tokenizer.model_input_names}
+            # very ugly hack to make it work
+            generation_inputs["input_ids"] = generation_inputs.pop(self.tokenizer.model_input_names[0])
         else:
             generation_inputs = inputs["input_ids"]
 

@@ -884,9 +884,6 @@ class GenerationMixin:
         model_kwargs["output_attentions"] = output_attentions
         model_kwargs["output_hidden_states"] = output_hidden_states
         
-        print("Input_ids:", input_ids)
-        print("Model kwargs keys:", model_kwargs.keys())
-        
         if input_ids is None and "inputs_embeds" not in model_kwargs:
             # init `input_ids` with bos_token_id
             input_ids = self._prepare_input_ids_for_generation(bos_token_id, model_kwargs.get("encoder_outputs"))
@@ -908,8 +905,6 @@ class GenerationMixin:
         if self.config.is_encoder_decoder:
             # add encoder_outputs to model_kwargs
             model_kwargs = self._prepare_encoder_decoder_kwargs_for_generation(input_ids, model_kwargs)
-
-            print("Model kwargs:", model_kwargs.keys())
             
             # set input_ids as decoder_input_ids
             if "decoder_input_ids" in model_kwargs:
