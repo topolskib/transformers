@@ -203,15 +203,7 @@ class Seq2SeqTrainer(Trainer):
         return (loss, generated_tokens, labels)
 
     def _pad_tensors_to_max_len(self, tensor, max_length):
-        if self.tokenizer is None:
-            raise ValueError(
-                f"Tensor need to be padded to `max_length={max_length}` but no tokenizer was passed when creating "
-                "this `Trainer`. Make sure to create your `Trainer` with the appropriate tokenizer."
-            )
-        # If PAD token is not defined at least EOS token has to be defined
-        pad_token_id = (
-            self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else self.tokenizer.eos_token_id
-        )
+        pad_token_id = self.model.config.pad_token_id
 
         padded_tensor = pad_token_id * torch.ones(
             (tensor.shape[0], max_length), dtype=tensor.dtype, device=tensor.device
