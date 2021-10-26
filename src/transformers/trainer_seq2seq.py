@@ -172,7 +172,7 @@ class Seq2SeqTrainer(Trainer):
             generation_inputs = inputs["input_ids"]
 
         generated_tokens = self.model.generate(
-            **inputs,
+            inputs,
             **generation_inputs,
             **gen_kwargs,
         )
