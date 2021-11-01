@@ -2112,6 +2112,11 @@ class ImageGPTForCausalLM:
         requires_backends(cls, ["torch"])
 
 
+class ImageGPTForImageClassification:
+    def __init__(self, *args, **kwargs):
+        requires_backends(self, ["torch"])
+
+
 class ImageGPTLayer:
     def __init__(self, *args, **kwargs):
         requires_backends(self, ["torch"])

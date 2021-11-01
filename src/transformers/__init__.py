@@ -943,6 +943,7 @@ if is_torch_available():
         [
             "IMAGEGPT_PRETRAINED_MODEL_ARCHIVE_LIST",
             "ImageGPTForCausalLM",
+            "ImageGPTForImageClassification",
             "ImageGPTLayer",
             "ImageGPTModel",
             "ImageGPTPreTrainedModel",
@@ -2749,6 +2750,7 @@ if TYPE_CHECKING:
         from .models.imagegpt import (
             IMAGEGPT_PRETRAINED_MODEL_ARCHIVE_LIST,
             ImageGPTForCausalLM,
+            ImageGPTForImageClassification,
             ImageGPTLayer,
             ImageGPTModel,
             ImageGPTPreTrainedModel,
