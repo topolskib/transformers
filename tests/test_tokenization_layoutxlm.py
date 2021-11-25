@@ -25,7 +25,6 @@ from transformers.models.layoutxlm.tokenization_layoutxlm import LayoutXLMTokeni
 from transformers.testing_utils import (
     is_pt_tf_cross_test,
     require_pandas,
-    require_scatter,
     require_sentencepiece,
     require_tokenizers,
     require_torch,
@@ -1083,7 +1082,6 @@ class LayoutXLMTokenizationTest(TokenizerTesterMixin, unittest.TestCase):
 
     @require_torch
     @slow
-    @require_scatter
     def test_torch_encode_plus_sent_to_model(self):
         import torch
 
@@ -1091,17 +1089,21 @@ class LayoutXLMTokenizationTest(TokenizerTesterMixin, unittest.TestCase):
 
         MODEL_TOKENIZER_MAPPING = merge_model_tokenizer_mappings(MODEL_MAPPING, TOKENIZER_MAPPING)
 
+        print(MODEL_TOKENIZER_MAPPING)
+
         tokenizers = self.get_tokenizers(do_lower_case=False)
         for tokenizer in tokenizers:
             with self.subTest(f"{tokenizer.__class__.__name__}"):
 
                 if tokenizer.__class__ not in MODEL_TOKENIZER_MAPPING:
+                    print("we're here")
                     return
 
                 config_class, model_class = MODEL_TOKENIZER_MAPPING[tokenizer.__class__]
                 config = config_class()
 
                 if config.is_encoder_decoder or config.pad_token_id is None:
+                    print("hello world")
                     return
 
                 model = model_class(config)
@@ -1121,6 +1123,8 @@ class LayoutXLMTokenizationTest(TokenizerTesterMixin, unittest.TestCase):
                     [words, words], [boxes, boxes], return_tensors="pt"
                 )
                 # This should not fail
+
+                assert False
 
                 with torch.no_grad():  # saves some time
                     model(**encoded_sequence)

@@ -103,7 +103,7 @@ def merge_model_tokenizer_mappings(
             model_tokenizer_mapping.update({tokenizer: (configuration, model)})
             if tokenizer_fast is not None:
                 model_tokenizer_mapping.update({tokenizer_fast: (configuration, model)})
-
+    
     return model_tokenizer_mapping
 
 

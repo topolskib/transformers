@@ -31,14 +31,7 @@ from transformers.models.layoutlmv2.tokenization_layoutlmv2 import (
     _is_punctuation,
     _is_whitespace,
 )
-from transformers.testing_utils import (
-    is_pt_tf_cross_test,
-    require_pandas,
-    require_scatter,
-    require_tokenizers,
-    require_torch,
-    slow,
-)
+from transformers.testing_utils import is_pt_tf_cross_test, require_pandas, require_tokenizers, require_torch, slow
 
 from .test_tokenization_common import (
     SMALL_TRAINING_CORPUS,
@@ -1215,7 +1208,6 @@ class LayoutLMv2TokenizationTest(TokenizerTesterMixin, unittest.TestCase):
 
     @require_torch
     @slow
-    @require_scatter
     def test_torch_encode_plus_sent_to_model(self):
         import torch
 
@@ -1249,6 +1241,7 @@ class LayoutLMv2TokenizationTest(TokenizerTesterMixin, unittest.TestCase):
                 # Build sequence
                 words, boxes = self.get_words_and_boxes()
                 encoded_sequence = tokenizer.encode_plus(words, boxes=boxes, return_tensors="pt")
+                print("Tokenizer class:", tokenizer.__class__)
                 batch_encoded_sequence = tokenizer.batch_encode_plus(
                     [words, words], [boxes, boxes], return_tensors="pt"
                 )
