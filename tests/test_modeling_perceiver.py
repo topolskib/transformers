@@ -159,10 +159,13 @@ class PerceiverModelTester:
         elif model_class.__name__ == "PerceiverForMultimodalAutoencoding":
             config.d_model = 409
             images = torch.randn(
-                (self.batch_size, self.num_frames, self.num_channels, self.image_size, self.image_size)
+                (self.batch_size, self.num_frames, self.num_channels, self.image_size, self.image_size),
+                device=torch_device,
             )
-            audio = torch.randn((self.batch_size, self.num_frames * self.audio_samples_per_frame, 1))
-            inputs = dict(image=images, audio=audio, label=torch.zeros((self.batch_size, self.num_labels)))
+            audio = torch.randn((self.batch_size, self.num_frames * self.audio_samples_per_frame, 1), device=torch_device)
+            inputs = dict(
+                image=images, audio=audio, label=torch.zeros((self.batch_size, self.num_labels), device=torch_device)
+            )
         else:
             raise ValueError(f"Model class {model_class} not supported")
 

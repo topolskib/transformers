@@ -2749,7 +2749,7 @@ class PerceiverMultimodalPreprocessor(AbstractPreprocessor):
             pos_enc = self.padding[modality].expand(batch_size, -1, -1)
 
             print("Device of pos_enc:", pos_enc.device)
-            
+
             padding = torch.broadcast_to(
                 pos_enc,
                 [batch_size, num_samples, self.num_channels - num_channels],
