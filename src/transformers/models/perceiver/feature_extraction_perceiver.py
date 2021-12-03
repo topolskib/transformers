@@ -90,34 +90,34 @@ class PerceiverFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
         self.image_mean = image_mean if image_mean is not None else IMAGENET_DEFAULT_MEAN
         self.image_std = image_std if image_std is not None else IMAGENET_DEFAULT_STD
 
-    # def center_crop(self, image):
-    #     """
-    #     Crops :obj:`image` to `self.crop_size` using a center crop. Note that if the image is too small to be cropped
-    #     to the size given, it will be padded (so the returned result has the size asked).
+    def center_crop(self, image):
+        """
+        Crops :obj:`image` to `self.crop_size` using a center crop. Note that if the image is too small to be cropped
+        to the size given, it will be padded (so the returned result has the size asked).
 
-    #     Args:
-    #         image (:obj:`PIL.Image.Image` or :obj:`np.ndarray` or :obj:`torch.Tensor`):
-    #             The image to resize.
-    #     """
-    #     image = self.to_numpy_array(image, rescale=False, channel_first=False)
-    #     shape = image.shape
+        Args:
+            image (:obj:`PIL.Image.Image` or :obj:`np.ndarray` or :obj:`torch.Tensor`):
+                The image to resize.
+        """
 
-    #     image_height = shape[0]
-    #     image_width = shape[1]
+        if isinstance(image, Image.Image):
+            image = self.to_numpy_array(image)
 
-    #     padded_center_crop_size = (
-    #         (self.size / (self.crop_size)) * np.minimum(image_height, image_width).astype(np.float32)
-    #     ).astype(np.int32)
+        image_height, image_width = image.shape[-2:]
 
-    #     offset_height = ((image_height - padded_center_crop_size) + 1) // 2
-    #     offset_width = ((image_width - padded_center_crop_size) + 1) // 2
-    #     crop_window = [offset_height, offset_width, padded_center_crop_size, padded_center_crop_size]
+        padded_center_crop_size = (
+            (self.size / (self.crop_size)) * np.minimum(image_height, image_width).astype(np.float32)
+        ).astype(np.int32)
 
-    #     image = image[
-    #         crop_window[0] : crop_window[0] + crop_window[2], crop_window[1] : crop_window[1] + crop_window[3]
-    #     ]
+        offset_height = ((image_height - padded_center_crop_size) + 1) // 2
+        offset_width = ((image_width - padded_center_crop_size) + 1) // 2
+        crop_window = [offset_height, offset_width, padded_center_crop_size, padded_center_crop_size]
 
-    #     return image
+        image = image[
+            :, crop_window[0] : crop_window[0] + crop_window[2], crop_window[1] : crop_window[1] + crop_window[3]
+        ]
+
+        return image
 
     def __call__(
         self, images: ImageInput, return_tensors: Optional[Union[str, TensorType]] = None, **kwargs
