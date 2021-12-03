@@ -177,6 +177,10 @@ class PerceiverFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMi
         # transformations (center cropping + resizing + normalization)
         if self.do_center_crop and self.crop_size is not None:
             images = [self.center_crop(image) for image in images]
+        for image in images:
+            print(type(image))
+            print(image.shape)
+            print(image)
         if self.do_resize and self.size is not None and self.resample is not None:
             images = [self.resize(image=image, size=self.size, resample=self.resample) for image in images]
         if self.do_normalize:
