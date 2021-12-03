@@ -104,8 +104,10 @@ class ImageFeatureExtractionMixin:
 
         if isinstance(image, np.ndarray):
             if rescale is None:
+                print("we are here")
                 # rescale default to the array being of floating type.
                 rescale = isinstance(image.flat[0], np.floating)
+                print("Rescale:", rescale)
             # If the channel as been moved to first dim, we put it back at the end.
             if image.ndim == 3 and image.shape[0] in [1, 3]:
                 image = image.transpose(1, 2, 0)
