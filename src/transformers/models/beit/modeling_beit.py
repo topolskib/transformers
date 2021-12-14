@@ -718,7 +718,7 @@ class BeitForMaskedImageModeling(BeitPreTrainedModel):
                 nn.PixelShuffle(self.encoder_stride),
             )
         else:
-            raise ValueError(f"Unknown decoder type {config.decoder_type} " "Only 'beit' and 'simmim' are supported. ")
+            raise ValueError(f"Unknown decoder type {config.decoder_type}. Only 'beit' and 'simmim' are supported.")
 
         # Initialize weights and apply final processing
         self.post_init()
@@ -739,15 +739,10 @@ class BeitForMaskedImageModeling(BeitPreTrainedModel):
         bool_masked_pos (`torch.BoolTensor` of shape `(batch_size, num_patches)`):
             Boolean masked positions. Indicates which patches are masked (1) and which aren't (0).
 
-<<<<<<< HEAD
-        labels (`torch.LongTensor` of shape `(batch_size,)`, *optional*):
-            Labels for computing the image classification/regression loss. Indices should be in `[0, ..., config.num_labels - 1]`. If `config.num_labels == 1` a regression loss is computed (Mean-Square loss),
-            If `config.num_labels > 1` a classification loss is computed (Cross-Entropy).
-=======
-        labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size,)`, `optional`):
+        labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size, num_patches)`, `optional`):
             Labels for computing the masked image modeling loss. Only required in case config.decoder_type == "beit".
-            Indices should be in :obj:`[0, ..., config.num_labels - 1]`, containing the target visual token indices.
->>>>>>> Add SimMIM to BEiT
+            Indices should be in :obj:`[0, ..., config.num_labels - 1]`, containing the target visual token indices
+            of the masked patches.
 
         Returns:
 
