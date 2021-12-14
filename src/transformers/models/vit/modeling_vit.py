@@ -116,7 +116,7 @@ class ViTEmbeddings(nn.Module):
         if bool_masked_pos is not None:
             mask_tokens = self.mask_token.expand(batch_size, seq_len, -1)
             # replace the masked visual tokens by mask_tokens
-            w = bool_masked_pos.flatten(1).unsqueeze(-1).type_as(mask_tokens)
+            w = bool_masked_pos.unsqueeze(-1).type_as(mask_tokens)
             embeddings = embeddings * (1.0 - w) + mask_tokens * w
 
         # add the [CLS] token to the embedded patch tokens
@@ -678,6 +678,7 @@ class ViTForMaskedImageModeling(ViTPreTrainedModel):
 
         masked_im_loss = None
         if bool_masked_pos is not None:
+            bool_masked_pos = bool_masked_pos.reshape(-1, H, W)
             mask = (
                 bool_masked_pos.repeat_interleave(self.config.patch_size, 1)
                 .repeat_interleave(self.config.patch_size, 2)

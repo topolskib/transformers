@@ -73,7 +73,9 @@ class BeitConfig(PretrainedConfig):
             Scale to use in the self-attention layers. 0.1 for base, 1e-5 for large. Set 0 to disable layer scale.
         drop_path_rate (`float`, *optional*, defaults to 0.1):
             Stochastic depth rate per sample (when applied in the main path of residual layers).
-        use_mean_pooling (`bool`, *optional*, defaults to `True`):
+        decoder_type (:obj:`str`, `optional`, defaults to :obj:`"beit"`):
+            Decoder type to use for masked image modeling. Either "beit" or "simmim".
+        use_mean_pooling (:obj:`bool`, `optional`, defaults to :obj:`True`):
             Whether to mean pool the final hidden states of the patches instead of using the final hidden state of the
             CLS token, before applying the classification head.
         out_indices (`List[int]`, *optional*, defaults to `[3, 5, 7, 11]`):
@@ -130,6 +132,7 @@ class BeitConfig(PretrainedConfig):
         use_shared_relative_position_bias=False,
         layer_scale_init_value=0.1,
         drop_path_rate=0.1,
+        decoder_type="beit",
         use_mean_pooling=True,
         out_indices=[3, 5, 7, 11],
         pool_scales=[1, 2, 3, 6],
@@ -162,6 +165,7 @@ class BeitConfig(PretrainedConfig):
         self.use_shared_relative_position_bias = use_shared_relative_position_bias
         self.layer_scale_init_value = layer_scale_init_value
         self.drop_path_rate = drop_path_rate
+        self.decoder_type = decoder_type
         self.use_mean_pooling = use_mean_pooling
         # decode head attributes (semantic segmentation)
         self.out_indices = out_indices

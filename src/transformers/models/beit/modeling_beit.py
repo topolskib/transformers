@@ -709,9 +709,16 @@ class BeitForMaskedImageModeling(BeitPreTrainedModel):
 
         self.beit = BeitModel(config, add_pooling_layer=False, use_mask_token=True)
 
-        # Classifier head
-        self.layernorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
-        self.lm_head = nn.Linear(config.hidden_size, config.vocab_size)
+        if config.decoder_type == "beit":
+            self.layernorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+            self.lm_head = nn.Linear(config.hidden_size, config.vocab_size)
+        elif config.decoder_type == "simmim":
+            self.decoder = nn.Sequential(
+                nn.Conv2d(in_channels=config.hidden_size, out_channels=config.encoder_stride ** 2 * 3, kernel_size=1),
+                nn.PixelShuffle(self.encoder_stride),
+            )
+        else:
+            raise ValueError(f"Unknown decoder type {config.decoder_type} " "Only 'beit' and 'simmim' are supported. ")
 
         # Initialize weights and apply final processing
         self.post_init()
@@ -732,9 +739,15 @@ class BeitForMaskedImageModeling(BeitPreTrainedModel):
         bool_masked_pos (`torch.BoolTensor` of shape `(batch_size, num_patches)`):
             Boolean masked positions. Indicates which patches are masked (1) and which aren't (0).
 
+<<<<<<< HEAD
         labels (`torch.LongTensor` of shape `(batch_size,)`, *optional*):
             Labels for computing the image classification/regression loss. Indices should be in `[0, ..., config.num_labels - 1]`. If `config.num_labels == 1` a regression loss is computed (Mean-Square loss),
             If `config.num_labels > 1` a classification loss is computed (Cross-Entropy).
+=======
+        labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size,)`, `optional`):
+            Labels for computing the masked image modeling loss. Only required in case config.decoder_type == "beit".
+            Indices should be in :obj:`[0, ..., config.num_labels - 1]`, containing the target visual token indices.
+>>>>>>> Add SimMIM to BEiT
 
         Returns:
 
@@ -767,20 +780,40 @@ class BeitForMaskedImageModeling(BeitPreTrainedModel):
         )
 
         sequence_output = outputs[0]
-        sequence_output = self.layernorm(sequence_output)
-        prediction_scores = self.lm_head(sequence_output[:, 1:])
 
-        masked_lm_loss = None
-        if labels is not None:
-            loss_fct = CrossEntropyLoss()  # -100 index = padding token
-            masked_lm_loss = loss_fct(prediction_scores[bool_masked_pos], labels)
+        masked_im_loss = None
+        if self.config.decoder_type == "beit":
+            sequence_output = self.layernorm(sequence_output)
+            prediction_scores = self.lm_head(sequence_output[:, 1:])
+
+            if labels is not None:
+                loss_fct = CrossEntropyLoss()  # -100 index = padding token
+                masked_im_loss = loss_fct(prediction_scores[bool_masked_pos], labels)
+        elif self.config.decoder_type == "simmim":
+            # Reshape to (batch_size, num_channels, height, width)
+            sequence_output = sequence_output[:, 1:]
+            B, L, C = sequence_output.shape
+            H = W = int(L ** 0.5)
+            sequence_output = sequence_output.permute(0, 2, 1).reshape(B, C, H, W)
+            # Reconstruct pixel values
+            prediction_scores = self.decoder(sequence_output)
+
+            if bool_masked_pos is not None:
+                mask = (
+                    bool_masked_pos.repeat_interleave(self.config.patch_size, 1)
+                    .repeat_interleave(self.config.patch_size, 2)
+                    .unsqueeze(1)
+                    .contiguous()
+                )
+                reconstruction_loss = nn.functional.l1_loss(pixel_values, prediction_scores, reduction="none")
+                masked_im_loss = (reconstruction_loss * mask).sum() / (mask.sum() + 1e-5) / self.config.num_channels
 
         if not return_dict:
             output = (prediction_scores,) + outputs[2:]
-            return ((masked_lm_loss,) + output) if masked_lm_loss is not None else output
+            return ((masked_im_loss,) + output) if masked_im_loss is not None else output
 
         return MaskedLMOutput(
-            loss=masked_lm_loss,
+            loss=masked_im_loss,
             logits=prediction_scores,
             hidden_states=outputs.hidden_states,
             attentions=outputs.attentions,
