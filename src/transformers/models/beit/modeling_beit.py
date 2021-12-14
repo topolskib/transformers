@@ -120,14 +120,11 @@ class BeitEmbeddings(nn.Module):
 
     """
 
-    def __init__(self, config):
+    def __init__(self, config, use_mask_token=False):
         super().__init__()
 
         self.cls_token = nn.Parameter(torch.zeros(1, 1, config.hidden_size))
-        if config.use_mask_token:
-            self.mask_token = nn.Parameter(torch.zeros(1, 1, config.hidden_size))
-        else:
-            self.mask_token = None
+        self.mask_token = nn.Parameter(torch.zeros(1, 1, config.hidden_size)) if use_mask_token else None
         self.patch_embeddings = PatchEmbeddings(
             image_size=config.image_size,
             patch_size=config.patch_size,
@@ -586,11 +583,11 @@ BEIT_INPUTS_DOCSTRING = r"""
     BEIT_START_DOCSTRING,
 )
 class BeitModel(BeitPreTrainedModel):
-    def __init__(self, config, add_pooling_layer=True):
+    def __init__(self, config, add_pooling_layer=True, use_mask_token=False):
         super().__init__(config)
         self.config = config
 
-        self.embeddings = BeitEmbeddings(config)
+        self.embeddings = BeitEmbeddings(config, use_mask_token=use_mask_token)
         self.encoder = BeitEncoder(config, window_size=self.embeddings.patch_embeddings.patch_shape)
 
         self.layernorm = (
@@ -710,8 +707,7 @@ class BeitForMaskedImageModeling(BeitPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
 
-        self.num_labels = config.num_labels
-        self.beit = BeitModel(config, add_pooling_layer=False)
+        self.beit = BeitModel(config, add_pooling_layer=False, use_mask_token=True)
 
         # Classifier head
         self.layernorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)

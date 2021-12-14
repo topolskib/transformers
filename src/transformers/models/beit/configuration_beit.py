@@ -63,9 +63,7 @@ class BeitConfig(PretrainedConfig):
             The size (resolution) of each patch.
         num_channels (`int`, *optional*, defaults to `3`):
             The number of input channels.
-        use_mask_token (`bool`, *optional*, defaults to `False`):
-            Whether to use a mask token for masked image modeling.
-        use_absolute_position_embeddings (`bool`, *optional*, defaults to `False`):
+        use_absolute_position_embeddings (:obj:`bool`, `optional`, defaults to :obj:`False`):
             Whether to use BERT-style absolute position embeddings.
         use_relative_position_bias (`bool`, *optional*, defaults to `False`):
             Whether to use T5-style relative position embeddings in the self-attention layers.
@@ -127,7 +125,6 @@ class BeitConfig(PretrainedConfig):
         image_size=224,
         patch_size=16,
         num_channels=3,
-        use_mask_token=False,
         use_absolute_position_embeddings=False,
         use_relative_position_bias=False,
         use_shared_relative_position_bias=False,
@@ -160,7 +157,6 @@ class BeitConfig(PretrainedConfig):
         self.image_size = image_size
         self.patch_size = patch_size
         self.num_channels = num_channels
-        self.use_mask_token = use_mask_token
         self.use_absolute_position_embeddings = use_absolute_position_embeddings
         self.use_relative_position_bias = use_relative_position_bias
         self.use_shared_relative_position_bias = use_shared_relative_position_bias
