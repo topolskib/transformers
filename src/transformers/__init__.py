@@ -1361,6 +1361,7 @@ if is_torch_available():
         [
             "VIT_PRETRAINED_MODEL_ARCHIVE_LIST",
             "ViTForImageClassification",
+            "ViTForMaskedImageModeling",
             "ViTModel",
             "ViTPreTrainedModel",
         ]
@@ -3225,6 +3226,7 @@ if TYPE_CHECKING:
         from .models.vit import (
             VIT_PRETRAINED_MODEL_ARCHIVE_LIST,
             ViTForImageClassification,
+            ViTForMaskedImageModeling,
             ViTModel,
             ViTPreTrainedModel,
         )
