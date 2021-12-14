@@ -61,11 +61,11 @@ class ViTEmbeddings(nn.Module):
 
     """
 
-    def __init__(self, config):
+    def __init__(self, config, use_mask_token=False):
         super().__init__()
 
         self.cls_token = nn.Parameter(torch.zeros(1, 1, config.hidden_size))
-        if config.use_mask_token:
+        if use_mask_token:
             self.mask_token = nn.Parameter(torch.zeros(1, 1, config.hidden_size))
         else:
             self.mask_token = None
@@ -119,8 +119,11 @@ class ViTEmbeddings(nn.Module):
         if bool_masked_pos is not None:
             mask_tokens = self.mask_token.expand(batch_size, seq_len, -1)
             # replace the masked visual tokens by mask_tokens
-            w = bool_masked_pos.unsqueeze(-1).type_as(mask_tokens)
-            embeddings = embeddings * (1 - w) + mask_tokens * w
+            w = bool_masked_pos.flatten(1).unsqueeze(-1).type_as(mask_tokens)
+            print("W:", w.shape)
+            print("Shape of embeddings:", embeddings.shape)
+            print("Shape of mask_tokens:", mask_tokens.shape)
+            embeddings = embeddings * (1.0 - w) + mask_tokens * w
 
         # add the [CLS] token to the embedded patch tokens
         cls_tokens = self.cls_token.expand(batch_size, -1, -1)
@@ -489,11 +492,11 @@ VIT_INPUTS_DOCSTRING = r"""
     VIT_START_DOCSTRING,
 )
 class ViTModel(ViTPreTrainedModel):
-    def __init__(self, config, add_pooling_layer=True):
+    def __init__(self, config, add_pooling_layer=True, use_mask_token=False):
         super().__init__(config)
         self.config = config
 
-        self.embeddings = ViTEmbeddings(config)
+        self.embeddings = ViTEmbeddings(config, use_mask_token=use_mask_token)
         self.encoder = ViTEncoder(config)
 
         self.layernorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
@@ -612,7 +615,7 @@ class ViTForMaskedImageModeling(ViTPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
 
-        self.vit = ViTModel(config, add_pooling_layer=False)
+        self.vit = ViTModel(config, add_pooling_layer=False, use_mask_token=True)
 
         self.decoder = nn.Sequential(
             nn.Conv2d(in_channels=config.hidden_size, out_channels=config.encoder_stride ** 2 * 3, kernel_size=1),
@@ -673,11 +676,16 @@ class ViTForMaskedImageModeling(ViTPreTrainedModel):
         # Reshape to (batch_size, num_channels, height, width)
         sequence_output = sequence_output[:, 1:]
         B, L, C = sequence_output.shape
+        print("Sequence length:", L)
         H = W = int(L ** 0.5)
         sequence_output = sequence_output.permute(0, 2, 1).reshape(B, C, H, W)
 
+        print("Shape of sequence output:", sequence_output.shape)
+
         # Reconstruct pixel values
         reconstructed_pixel_values = self.decoder(sequence_output)
+
+        print("Shape of reconstructed pixel values:", reconstructed_pixel_values.shape)
 
         masked_im_loss = None
         if bool_masked_pos is not None:

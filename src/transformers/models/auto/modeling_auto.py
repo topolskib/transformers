@@ -310,6 +310,13 @@ MODEL_FOR_MASKED_LM_MAPPING_NAMES = OrderedDict(
     ]
 )
 
+MODEL_FOR_MASKED_IMAGE_MODELING_MAPPING_NAMES = OrderedDict(
+    [
+        # Model for Masked Image Modeling mapping
+        ("vit", "ViTForMaskedImageModeling"),
+    ]
+)
+
 MODEL_FOR_OBJECT_DETECTION_MAPPING_NAMES = OrderedDict(
     [
         # Model for Object Detection mapping
@@ -574,6 +581,9 @@ MODEL_FOR_IMAGE_SEGMENTATION_MAPPING = _LazyAutoMapping(
 )
 MODEL_FOR_VISION_2_SEQ_MAPPING = _LazyAutoMapping(CONFIG_MAPPING_NAMES, MODEL_FOR_VISION_2_SEQ_MAPPING_NAMES)
 MODEL_FOR_MASKED_LM_MAPPING = _LazyAutoMapping(CONFIG_MAPPING_NAMES, MODEL_FOR_MASKED_LM_MAPPING_NAMES)
+MODEL_FOR_MASKED_IMAGE_MODELING_MAPPING = _LazyAutoMapping(
+    CONFIG_MAPPING_NAMES, MODEL_FOR_MASKED_IMAGE_MODELING_MAPPING_NAMES
+)
 MODEL_FOR_OBJECT_DETECTION_MAPPING = _LazyAutoMapping(CONFIG_MAPPING_NAMES, MODEL_FOR_OBJECT_DETECTION_MAPPING_NAMES)
 MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING = _LazyAutoMapping(
     CONFIG_MAPPING_NAMES, MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING_NAMES
@@ -639,6 +649,13 @@ class AutoModelForMaskedLM(_BaseAutoModelClass):
 
 
 AutoModelForMaskedLM = auto_class_update(AutoModelForMaskedLM, head_doc="masked language modeling")
+
+
+class AutoModelForMaskedImageModeling(_BaseAutoModelClass):
+    _model_mapping = MODEL_FOR_MASKED_IMAGE_MODELING_MAPPING
+
+
+AutoModelForMaskedImageModeling = auto_class_update(AutoModelForMaskedImageModeling, head_doc="masked image modeling")
 
 
 class AutoModelForSeq2SeqLM(_BaseAutoModelClass):

@@ -356,6 +356,9 @@ MODEL_FOR_IMAGE_CLASSIFICATION_MAPPING = None
 MODEL_FOR_IMAGE_SEGMENTATION_MAPPING = None
 
 
+MODEL_FOR_MASKED_IMAGE_MODELING_MAPPING = None
+
+
 MODEL_FOR_MASKED_LM_MAPPING = None
 
 
@@ -483,6 +486,18 @@ class AutoModelForImageClassification:
 
 
 class AutoModelForImageSegmentation:
+    def __init__(self, *args, **kwargs):
+        requires_backends(self, ["torch"])
+
+    @classmethod
+    def from_pretrained(cls, *args, **kwargs):
+        requires_backends(cls, ["torch"])
+
+    def forward(self, *args, **kwargs):
+        requires_backends(self, ["torch"])
+
+
+class AutoModelForMaskedImageModeling:
     def __init__(self, *args, **kwargs):
         requires_backends(self, ["torch"])
 
