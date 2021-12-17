@@ -139,10 +139,9 @@ class BeitEmbeddings(nn.Module):
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
     def forward(self, pixel_values, bool_masked_pos=None):
-
         embeddings = self.patch_embeddings(pixel_values)
-        batch_size, seq_len, _ = embeddings.size()
 
+        batch_size, seq_len, _ = embeddings.size()
         if bool_masked_pos is not None:
             mask_tokens = self.mask_token.expand(batch_size, seq_len, -1)
             # replace the masked visual tokens by mask_tokens
@@ -739,10 +738,11 @@ class BeitForMaskedImageModeling(BeitPreTrainedModel):
         bool_masked_pos (`torch.BoolTensor` of shape `(batch_size, num_patches)`):
             Boolean masked positions. Indicates which patches are masked (1) and which aren't (0).
 
-        labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size, num_patches)`, `optional`):
+        labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size, num_masked_patches)`, `optional`):
             Labels for computing the masked image modeling loss. Only required in case config.decoder_type == "beit".
             Indices should be in :obj:`[0, ..., config.num_labels - 1]`, containing the target visual token indices of
-            the masked patches.
+            the masked patches. They should be created as :obj:input_ids[bool_masked_pos]`, where the :obj:`input_ids`
+            are the visual token indices of a dVAE of choice.
 
         Returns:
 

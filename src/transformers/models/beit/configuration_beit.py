@@ -79,7 +79,7 @@ class BeitConfig(PretrainedConfig):
             Whether to mean pool the final hidden states of the patches instead of using the final hidden state of the
             CLS token, before applying the classification head.
         encoder_stride (:obj:`int`, `optional`, defaults to 16):
-            The stride of the encoder for masked image modeling.
+            The stride of the encoder for masked image modeling, in case :obj:`"decoder_type"` is set to `simmim`.
         out_indices (:obj:`List[int]`, `optional`, defaults to :obj:`[3, 5, 7, 11]`):
             Indices of the feature maps to use for semantic segmentation.
         pool_scales (`Tuple[int]`, *optional*, defaults to `[1, 2, 3, 6]`):

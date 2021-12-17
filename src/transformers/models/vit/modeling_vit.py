@@ -602,7 +602,7 @@ class ViTPooler(nn.Module):
 
 
 @add_start_docstrings(
-    "ViT Model with a decoder on top for masked image modeling, as proposed in [SimMIM](https://arxiv.org/abs/2111.09886).",
+    "ViT Model with a decoder on top for masked image modeling, as proposed in `SimMIM <https://arxiv.org/abs/2111.09886>`__.",
     VIT_START_DOCSTRING,
 )
 class ViTForMaskedImageModeling(ViTPreTrainedModel):
