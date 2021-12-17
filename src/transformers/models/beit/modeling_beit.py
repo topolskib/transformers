@@ -741,8 +741,8 @@ class BeitForMaskedImageModeling(BeitPreTrainedModel):
 
         labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size, num_patches)`, `optional`):
             Labels for computing the masked image modeling loss. Only required in case config.decoder_type == "beit".
-            Indices should be in :obj:`[0, ..., config.num_labels - 1]`, containing the target visual token indices
-            of the masked patches.
+            Indices should be in :obj:`[0, ..., config.num_labels - 1]`, containing the target visual token indices of
+            the masked patches.
 
         Returns:
 
