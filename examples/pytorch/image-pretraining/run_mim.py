@@ -19,20 +19,10 @@ import sys
 from dataclasses import dataclass, field
 from typing import Optional
 
-import datasets
 import numpy as np
 import torch
 from datasets import load_dataset
-from PIL import Image
-
-from torchvision.transforms import (
-    Compose,
-    RandomResizedCrop,
-    RandomHorizontalFlip,
-    Normalize,
-    ToTensor,
-    Lambda,
-)
+from torchvision.transforms import Compose, Lambda, Normalize, RandomHorizontalFlip, RandomResizedCrop, ToTensor
 
 import transformers
 from transformers import (
@@ -84,9 +74,7 @@ class DataTrainingArguments:
     train_val_split: Optional[float] = field(
         default=0.15, metadata={"help": "Percent to split off of train for validation."}
     )
-    mask_patch_size: int = field(
-        default=32, metadata={"help": "The size of the square patches to use for masking."}
-    )
+    mask_patch_size: int = field(default=32, metadata={"help": "The size of the square patches to use for masking."})
     mask_ratio: float = field(
         default=0.6,
         metadata={"help": "Percentage of patches to mask."},
@@ -153,32 +141,33 @@ class MaskGenerator:
     """
     A class to generate boolean masks for the pretraining task.
 
-    A mask is a tensor of shape (num_patches, model_patch_size**2) where the value is either 0 or 1,
+    A mask is a 1D tensor of shape (model_patch_size**2,) where the value is either 0 or 1,
     where 1 indicates "masked".
     """
+
     def __init__(self, input_size=192, mask_patch_size=32, model_patch_size=4, mask_ratio=0.6):
         self.input_size = input_size
         self.mask_patch_size = mask_patch_size
         self.model_patch_size = model_patch_size
         self.mask_ratio = mask_ratio
-        
+
         assert self.input_size % self.mask_patch_size == 0
         assert self.mask_patch_size % self.model_patch_size == 0
-        
+
         self.rand_size = self.input_size // self.mask_patch_size
         self.scale = self.mask_patch_size // self.model_patch_size
-        
+
         self.token_count = self.rand_size ** 2
         self.mask_count = int(np.ceil(self.token_count * self.mask_ratio))
-        
+
     def __call__(self):
-        mask_idx = np.random.permutation(self.token_count)[:self.mask_count]
+        mask_idx = np.random.permutation(self.token_count)[: self.mask_count]
         mask = np.zeros(self.token_count, dtype=int)
         mask[mask_idx] = 1
-        
+
         mask = mask.reshape((self.rand_size, self.rand_size))
         mask = mask.repeat(self.scale, axis=0).repeat(self.scale, axis=1)
-        
+
         return torch.tensor(mask.flatten())
 
 
@@ -257,6 +246,9 @@ def main():
         revision=model_args.model_revision,
         use_auth_token=True if model_args.use_auth_token else None,
     )
+    # make sure the decoder_type is "simmim"
+    if hasattr(config, "decoder_type"):
+        config.decoder_type = "simmim"
     model = AutoModelForMaskedImageModeling.from_pretrained(
         model_args.model_name_or_path,
         from_tf=bool(".ckpt" in model_args.model_name_or_path),
@@ -274,29 +266,33 @@ def main():
 
     # transformations as done in original SimMIM paper
     # source: https://github.com/microsoft/SimMIM/blob/main/data/data_simmim.py
-    transforms = Compose([
-                Lambda(lambda img: img.convert('RGB') if img.mode != 'RGB' else img),
-                RandomResizedCrop(feature_extractor.size, scale=(0.67, 1.), ratio=(3. / 4., 4. / 3.)),
-                RandomHorizontalFlip(),
-                ToTensor(),
-                Normalize(mean=feature_extractor.image_mean, std=feature_extractor.image_std),
-            ])
+    transforms = Compose(
+        [
+            Lambda(lambda img: img.convert("RGB") if img.mode != "RGB" else img),
+            RandomResizedCrop(feature_extractor.size, scale=(0.67, 1.0), ratio=(3.0 / 4.0, 4.0 / 3.0)),
+            RandomHorizontalFlip(),
+            ToTensor(),
+            Normalize(mean=feature_extractor.image_mean, std=feature_extractor.image_std),
+        ]
+    )
 
     # create mask generator
-    mask_generator = MaskGenerator(input_size=model.config.image_size,
-                               mask_patch_size=data_args.mask_patch_size,
-                               model_patch_size=model.config.patch_size,
-                               mask_ratio=data_args.mask_ratio)
-    
+    mask_generator = MaskGenerator(
+        input_size=model.config.image_size,
+        mask_patch_size=data_args.mask_patch_size,
+        model_patch_size=model.config.patch_size,
+        mask_ratio=data_args.mask_ratio,
+    )
+
     def preprocess_images(examples):
-        """Preprocess a batch of images by applying transforms + creating a corresponding mask, indicating 
+        """Preprocess a batch of images by applying transforms + creating a corresponding mask, indicating
         which patches to mask."""
-        
-        examples['pixel_values'] = [transforms(image) for image in examples['img']]
-        examples['mask'] = [mask_generator() for i in range(len(examples['img']))]
-        
+
+        examples["pixel_values"] = [transforms(image) for image in examples["img"]]
+        examples["mask"] = [mask_generator() for i in range(len(examples["img"]))]
+
         return examples
-    
+
     if training_args.do_train:
         if "train" not in ds:
             raise ValueError("--do_train requires a train dataset")
