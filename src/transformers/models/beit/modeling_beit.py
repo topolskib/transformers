@@ -794,6 +794,7 @@ class BeitForMaskedImageModeling(BeitPreTrainedModel):
             prediction_scores = self.decoder(sequence_output)
 
             if bool_masked_pos is not None:
+                bool_masked_pos = bool_masked_pos.reshape(-1, H, W)
                 mask = (
                     bool_masked_pos.repeat_interleave(self.config.patch_size, 1)
                     .repeat_interleave(self.config.patch_size, 2)
