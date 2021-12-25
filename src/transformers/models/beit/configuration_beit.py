@@ -57,13 +57,13 @@ class BeitConfig(PretrainedConfig):
             The standard deviation of the truncated_normal_initializer for initializing all weight matrices.
         layer_norm_eps (`float`, *optional*, defaults to 1e-12):
             The epsilon used by the layer normalization layers.
-        image_size (`int`, *optional*, defaults to `224`):
+        image_size (`int`, *optional*, defaults to 224):
             The size (resolution) of each image.
-        patch_size (`int`, *optional*, defaults to `16`):
+        patch_size (`int`, *optional*, defaults to 16):
             The size (resolution) of each patch.
-        num_channels (`int`, *optional*, defaults to `3`):
+        num_channels (`int`, *optional*, defaults to 3):
             The number of input channels.
-        use_absolute_position_embeddings (:obj:`bool`, `optional`, defaults to :obj:`False`):
+        use_absolute_position_embeddings (`bool`, *optional*, defaults to `False`):
             Whether to use BERT-style absolute position embeddings.
         use_relative_position_bias (`bool`, *optional*, defaults to `False`):
             Whether to use T5-style relative position embeddings in the self-attention layers.
@@ -73,14 +73,14 @@ class BeitConfig(PretrainedConfig):
             Scale to use in the self-attention layers. 0.1 for base, 1e-5 for large. Set 0 to disable layer scale.
         drop_path_rate (`float`, *optional*, defaults to 0.1):
             Stochastic depth rate per sample (when applied in the main path of residual layers).
-        decoder_type (:obj:`str`, `optional`, defaults to :obj:`"beit"`):
+        decoder_type (`str`, *optional*, defaults to `"beit"`):
             Decoder type to use for masked image modeling. Either "beit" or "simmim".
-        use_mean_pooling (:obj:`bool`, `optional`, defaults to :obj:`True`):
+        use_mean_pooling (`bool`, *optional*, defaults to `True`):
             Whether to mean pool the final hidden states of the patches instead of using the final hidden state of the
             CLS token, before applying the classification head.
-        encoder_stride (:obj:`int`, `optional`, defaults to 16):
-            The stride of the encoder for masked image modeling, in case :obj:`"decoder_type"` is set to `simmim`.
-        out_indices (:obj:`List[int]`, `optional`, defaults to :obj:`[3, 5, 7, 11]`):
+        encoder_stride (`int`, *optional*, defaults to 16):
+            The stride of the encoder for masked image modeling, in case `"decoder_type"` is set to `simmim`.
+        out_indices (`List[int]`, *optional*, defaults to :obj:`[3, 5, 7, 11]`):
             Indices of the feature maps to use for semantic segmentation.
         pool_scales (`Tuple[int]`, *optional*, defaults to `[1, 2, 3, 6]`):
             Pooling scales used in Pooling Pyramid Module applied on the last feature map.

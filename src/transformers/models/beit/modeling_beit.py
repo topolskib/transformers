@@ -738,11 +738,11 @@ class BeitForMaskedImageModeling(BeitPreTrainedModel):
         bool_masked_pos (`torch.BoolTensor` of shape `(batch_size, num_patches)`):
             Boolean masked positions. Indicates which patches are masked (1) and which aren't (0).
 
-        labels (:obj:`torch.LongTensor` of shape :obj:`(num_masked_patches,)`, `optional`):
+        labels (`torch.LongTensor` of shape `(num_masked_patches,)`, `optional`):
             Labels for computing the masked image modeling loss. Only required in case config.decoder_type == "beit".
-            Indices should be in :obj:`[0, ..., config.vocab_size]`, containing the target visual token indices of the
-            masked patches in the batch. They should be created as :obj:input_ids[bool_masked_pos]`, where the
-            :obj:`input_ids` are the visual token indices of a dVAE of choice.
+            Indices should be in `[0, ..., config.vocab_size]`, containing the target visual token indices of the
+            masked patches in the batch. They should be created as input_ids[bool_masked_pos]`, where the
+            `input_ids` are the visual token indices of a dVAE of choice.
 
         Returns:
 
