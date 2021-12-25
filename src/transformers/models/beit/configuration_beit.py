@@ -80,7 +80,7 @@ class BeitConfig(PretrainedConfig):
             CLS token, before applying the classification head.
         encoder_stride (`int`, *optional*, defaults to 16):
             The stride of the encoder for masked image modeling, in case `"decoder_type"` is set to `simmim`.
-        out_indices (`List[int]`, *optional*, defaults to :obj:`[3, 5, 7, 11]`):
+        out_indices (`List[int]`, *optional*, defaults to `[3, 5, 7, 11]`):
             Indices of the feature maps to use for semantic segmentation.
         pool_scales (`Tuple[int]`, *optional*, defaults to `[1, 2, 3, 6]`):
             Pooling scales used in Pooling Pyramid Module applied on the last feature map.

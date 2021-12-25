@@ -714,7 +714,7 @@ class BeitForMaskedImageModeling(BeitPreTrainedModel):
         elif config.decoder_type == "simmim":
             self.decoder = nn.Sequential(
                 nn.Conv2d(in_channels=config.hidden_size, out_channels=config.encoder_stride ** 2 * 3, kernel_size=1),
-                nn.PixelShuffle(self.encoder_stride),
+                nn.PixelShuffle(config.encoder_stride),
             )
         else:
             raise ValueError(f"Unknown decoder type {config.decoder_type}. Only 'beit' and 'simmim' are supported.")

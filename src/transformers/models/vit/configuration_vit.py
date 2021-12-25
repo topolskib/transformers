@@ -64,7 +64,7 @@ class ViTConfig(PretrainedConfig):
             The number of input channels.
         qkv_bias (`bool`, *optional*, defaults to `True`):
             Whether to add a bias to the queries, keys and values.
-        encoder_stride (:obj:`int`, `optional`, defaults to 16):
+        encoder_stride (`int`, `optional`, defaults to 16):
             The stride of the encoder for masked image modeling.
 
     Example:
