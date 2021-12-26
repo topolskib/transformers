@@ -93,10 +93,6 @@ class DataTrainingArguments:
             "value if set."
         },
     )
-    label_names: Optional[str] = field(
-        default="bool_masked_pos",
-        metadata={"help": "Name of the labels to use in order for the Trainer's prediction_step to work."},
-    )
 
     def __post_init__(self):
         data_files = dict()
