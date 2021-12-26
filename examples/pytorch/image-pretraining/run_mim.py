@@ -287,7 +287,7 @@ def main():
             conf.model_type: feature_extractor_class
             for conf, feature_extractor_class in FEATURE_EXTRACTOR_MAPPING.items()
         }
-        feature_extractor = FEATURE_EXTRACTOR_TYPES[model_args.model_type]
+        feature_extractor = FEATURE_EXTRACTOR_TYPES[model_args.model_type]()
 
     if model_args.model_name_or_path:
         model = AutoModelForMaskedImageModeling.from_pretrained(
