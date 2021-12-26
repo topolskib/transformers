@@ -110,8 +110,11 @@ class ModelArguments:
     """
 
     model_name_or_path: str = field(
-        default="google/vit-base-patch16-224-in21k",
-        metadata={"help": "Path to pretrained model or model identifier from huggingface.co/models"},
+        default=None,
+        metadata={
+            "help": "The model checkpoint for weights initialization."
+            "Don't set if you want to train a model from scratch."
+        },
     )
     model_type: Optional[str] = field(
         default=None,
