@@ -27,7 +27,7 @@ from torchvision.transforms import Compose, Lambda, Normalize, RandomHorizontalF
 import transformers
 from transformers import (
     CONFIG_MAPPING,
-    FEATURE_EXTRACTOR_MAPPING_NAMES,
+    FEATURE_EXTRACTOR_MAPPING,
     MODEL_FOR_MASKED_IMAGE_MODELING_MAPPING,
     AutoConfig,
     AutoFeatureExtractor,
@@ -276,7 +276,11 @@ def main():
     elif model_args.model_name_or_path:
         feature_extractor = AutoFeatureExtractor.from_pretrained(model_args.model_name_or_path, **config_kwargs)
     else:
-        feature_extractor = FEATURE_EXTRACTOR_MAPPING_NAMES[model_args.model_type]()
+        FEATURE_EXTRACTOR_TYPES = {
+            conf.model_type: feature_extractor_class
+            for conf, feature_extractor_class in FEATURE_EXTRACTOR_MAPPING.items()
+        }
+        feature_extractor = FEATURE_EXTRACTOR_TYPES[model_args.model_type]
 
     if model_args.model_name_or_path:
         model = AutoModelForMaskedImageModeling.from_pretrained(
