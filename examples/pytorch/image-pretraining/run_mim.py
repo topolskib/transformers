@@ -26,6 +26,8 @@ from torchvision.transforms import Compose, Lambda, Normalize, RandomHorizontalF
 
 import transformers
 from transformers import (
+    CONFIG_MAPPING,
+    FEATURE_EXTRACTOR_MAPPING_NAMES,
     MODEL_FOR_MASKED_IMAGE_MODELING_MAPPING,
     AutoConfig,
     AutoFeatureExtractor,
@@ -106,7 +108,7 @@ class DataTrainingArguments:
 @dataclass
 class ModelArguments:
     """
-    Arguments pertaining to which model/config/tokenizer we are going to pre-train.
+    Arguments pertaining to which model/config/feature extractor we are going to pre-train.
     """
 
     model_name_or_path: str = field(
@@ -243,29 +245,51 @@ def main():
         ds["train"] = split["train"]
         ds["validation"] = split["test"]
 
-    config = AutoConfig.from_pretrained(
-        model_args.config_name or model_args.model_name_or_path,
-        cache_dir=model_args.cache_dir,
-        revision=model_args.model_revision,
-        use_auth_token=True if model_args.use_auth_token else None,
-    )
+    # Load pretrained model and feature extractor
+    #
+    # Distributed training:
+    # The .from_pretrained methods guarantee that only one local process can concurrently
+    # download model & vocab.
+    config_kwargs = {
+        "cache_dir": model_args.cache_dir,
+        "revision": model_args.model_revision,
+        "use_auth_token": True if model_args.use_auth_token else None,
+    }
+    if model_args.config_name:
+        config = AutoConfig.from_pretrained(model_args.config_name, **config_kwargs)
+    elif model_args.model_name_or_path:
+        config = AutoConfig.from_pretrained(model_args.model_name_or_path, **config_kwargs)
+    else:
+        config = CONFIG_MAPPING[model_args.model_type]()
+        logger.warning("You are instantiating a new config instance from scratch.")
+        if model_args.config_overrides is not None:
+            logger.info(f"Overriding config: {model_args.config_overrides}")
+            config.update_from_string(model_args.config_overrides)
+            logger.info(f"New config: {config}")
+
     # make sure the decoder_type is "simmim"
     if hasattr(config, "decoder_type"):
         config.decoder_type = "simmim"
-    model = AutoModelForMaskedImageModeling.from_pretrained(
-        model_args.model_name_or_path,
-        from_tf=bool(".ckpt" in model_args.model_name_or_path),
-        config=config,
-        cache_dir=model_args.cache_dir,
-        revision=model_args.model_revision,
-        use_auth_token=True if model_args.use_auth_token else None,
-    )
-    feature_extractor = AutoFeatureExtractor.from_pretrained(
-        model_args.feature_extractor_name or model_args.model_name_or_path,
-        cache_dir=model_args.cache_dir,
-        revision=model_args.model_revision,
-        use_auth_token=True if model_args.use_auth_token else None,
-    )
+
+    if model_args.feature_extractor_name:
+        feature_extractor = AutoFeatureExtractor.from_pretrained(model_args.feature_extractor_name, **config_kwargs)
+    elif model_args.model_name_or_path:
+        feature_extractor = AutoFeatureExtractor.from_pretrained(model_args.model_name_or_path, **config_kwargs)
+    else:
+        feature_extractor = FEATURE_EXTRACTOR_MAPPING_NAMES[model_args.model_type]()
+
+    if model_args.model_name_or_path:
+        model = AutoModelForMaskedImageModeling.from_pretrained(
+            model_args.model_name_or_path,
+            from_tf=bool(".ckpt" in model_args.model_name_or_path),
+            config=config,
+            cache_dir=model_args.cache_dir,
+            revision=model_args.model_revision,
+            use_auth_token=True if model_args.use_auth_token else None,
+        )
+    else:
+        logger.info("Training new model from scratch")
+        model = AutoModelForMaskedImageModeling.from_config(config)
 
     # transformations as done in original SimMIM paper
     # source: https://github.com/microsoft/SimMIM/blob/main/data/data_simmim.py
