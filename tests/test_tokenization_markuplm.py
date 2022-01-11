@@ -532,26 +532,6 @@ class MarkupLMTokenizationTest(TokenizerTesterMixin, unittest.TestCase):
     def test_compare_prepare_for_model(self):
         pass
 
-    @slow
-    def test_sequence_builders(self):
-        tokenizer = self.tokenizer_class.from_pretrained("microsoft/markuplm-base")
-
-        text = tokenizer.encode("sequence builders", add_special_tokens=False)
-        text_2 = tokenizer.encode("multi-sequence build", add_special_tokens=False)
-
-        encoded_text_from_decode = tokenizer.encode(
-            "sequence builders", add_special_tokens=True, add_prefix_space=False
-        )
-        encoded_pair_from_decode = tokenizer.encode(
-            "sequence builders", "multi-sequence build", add_special_tokens=True, add_prefix_space=False
-        )
-
-        encoded_sentence = tokenizer.build_inputs_with_special_tokens(text)
-        encoded_pair = tokenizer.build_inputs_with_special_tokens(text, text_2)
-
-        assert encoded_sentence == encoded_text_from_decode
-        assert encoded_pair == encoded_pair_from_decode
-
     def test_pretokenized_inputs(self):
         pass
 
@@ -559,6 +539,10 @@ class MarkupLMTokenizationTest(TokenizerTesterMixin, unittest.TestCase):
     def test_alignement_methods(self):
         pass
 
+    @unittest.skip("Not implemented")
+    def test_right_and_left_truncation(self):
+        pass
+    
     # TODO: this test can be combined with `test_sentencepiece_tokenize_and_convert_tokens_to_string` after the latter is extended to all tokenizers.
     def test_tokenize_special_tokens(self):
         """Test `tokenize` with special tokens."""
