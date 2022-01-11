@@ -19,9 +19,10 @@ and _encode_plus, in which the Rust tokenizer is used.
 
 import html
 import json
-import os
 from typing import Dict, List, Optional, Tuple, Union
 
+import bs4
+from bs4 import BeautifulSoup
 from tokenizers import pre_tokenizers, processors
 
 from ...file_utils import PaddingStrategy, TensorType, add_end_docstrings
@@ -42,11 +43,9 @@ from .tokenization_markuplm import MARKUPLM_ENCODE_PLUS_ADDITIONAL_KWARGS_DOCSTR
 
 logger = logging.get_logger(__name__)
 
-import bs4
 
 # TODO solve soft dependency
 # if is_bs4_available():
-from bs4 import BeautifulSoup
 
 
 VOCAB_FILES_NAMES = {

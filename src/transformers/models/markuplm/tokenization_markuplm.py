@@ -20,7 +20,9 @@ import os
 from functools import lru_cache
 from typing import Dict, List, Optional, Tuple, Union
 
+import bs4
 import regex as re
+from bs4 import BeautifulSoup
 
 from ...file_utils import PaddingStrategy, TensorType, add_end_docstrings, is_bs4_available, requires_backends
 from ...tokenization_utils import AddedToken, PreTrainedTokenizer
@@ -38,11 +40,8 @@ from ...utils import logging
 
 logger = logging.get_logger(__name__)
 
-import bs4
-
 # TODO solve soft dependency
 # if is_bs4_available():
-from bs4 import BeautifulSoup
 
 
 VOCAB_FILES_NAMES = {
