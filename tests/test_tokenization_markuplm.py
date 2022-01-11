@@ -18,6 +18,7 @@ import inspect
 import itertools
 import json
 import os
+import tempfile
 import unittest
 from typing import List
 
@@ -925,3 +926,38 @@ class MarkupLMTokenizationTest(TokenizerTesterMixin, unittest.TestCase):
                 tokenizer_output_p = tokenizer_p.tokenize(text)
 
                 self.assertListEqual(tokenizer_output_r, tokenizer_output_p)
+
+    def test_check_tags_dict_in_tokenizer_config(self):
+        
+        def save_and_get_tags_dict(tokenizer, tmp_dir_name):
+            tokenizer.save_pretrained(tmp_dir_name)
+
+            with open(os.path.join(tmp_dir_name, "tokenizer_config.json"), encoding="utf-8") as json_file:
+                tokenizer_config = json.load(json_file)
+            
+            tags_dict_saved = tokenizer_config["tags_dict"]
+            return tags_dict_saved
+
+        tokenizers = self.get_tokenizers()
+        for tokenizer in tokenizers:
+            with self.subTest(f"{tokenizer.__class__.__name__}"):
+                with tempfile.TemporaryDirectory() as tmp_dir_name:
+                    tags_dict_saved = save_and_get_tags_dict(tokenizer, tmp_dir_name)
+                    self.assertDictEqual(tags_dict_saved, self.tags_dict)
+
+        for tokenizer, pretrained_name, kwargs in self.tokenizers_list:
+            with self.subTest(f"{tokenizer.__class__.__name__} ({pretrained_name})"):
+                tokenizer_r = self.rust_tokenizer_class.from_pretrained(pretrained_name, **kwargs)
+                tokenizer_p = self.tokenizer_class.from_pretrained(pretrained_name, **kwargs)
+
+                self.assertDictEqual(tokenizer_r.tags_dict, tokenizer_p.tags_dict)
+                self.assertNotEqual(tokenizer_r.tags_dict, {})
+                self.assertNotEqual(tokenizer_r.tags_dict, None)
+
+                with tempfile.TemporaryDirectory() as tmp_dir_name:
+                    tags_dict_saved = save_and_get_tags_dict(tokenizer_p, tmp_dir_name)
+                    self.assertDictEqual(tags_dict_saved, tokenizer_r.tags_dict)
+
+                with tempfile.TemporaryDirectory() as tmp_dir_name:
+                    tags_dict_saved = save_and_get_tags_dict(tokenizer_r, tmp_dir_name)
+                    self.assertDictEqual(tags_dict_saved, tokenizer_r.tags_dict)

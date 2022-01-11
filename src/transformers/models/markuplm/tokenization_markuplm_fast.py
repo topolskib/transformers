@@ -148,7 +148,7 @@ class MarkupLMTokenizerFast(PreTrainedTokenizerFast):
         super().__init__(
             vocab_file,
             merges_file,
-            tags_dict,
+            tags_dict=tags_dict,
             tokenizer_file=tokenizer_file,
             errors=errors,
             bos_token=bos_token,
