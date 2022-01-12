@@ -1132,6 +1132,30 @@ class MarkupLMTokenizationTest(TokenizerTesterMixin, unittest.TestCase):
                 input_p = tokenizer_p.pad({"input_ids": [[], []]}, max_length=max_length, padding="max_length")
                 self.assert_batch_padded_input_match(input_r, input_p, max_length, pad_token_id)
 
+    def test_special_tokens_mask_input_pairs(self):
+        tokenizers = self.get_tokenizers(do_lower_case=False)
+        for tokenizer in tokenizers:
+            with self.subTest(f"{tokenizer.__class__.__name__}"):
+                sequence_0 = "Encode this."
+                sequence_1 = "<html> This one too please. </html>"
+                encoded_sequence = tokenizer.encode("<html> " + sequence_0 + " </html>", add_special_tokens=False)
+                encoded_sequence += tokenizer.encode(sequence_1, add_special_tokens=False)
+                encoded_sequence_dict = tokenizer.encode_plus(
+                    sequence_0,
+                    sequence_1,
+                    add_special_tokens=True,
+                    return_special_tokens_mask=True,
+                )
+                encoded_sequence_w_special = encoded_sequence_dict["input_ids"]
+                special_tokens_mask = encoded_sequence_dict["special_tokens_mask"]
+                self.assertEqual(len(special_tokens_mask), len(encoded_sequence_w_special))
+
+                filtered_sequence = [
+                    (x if not special_tokens_mask[i] else None) for i, x in enumerate(encoded_sequence_w_special)
+                ]
+                filtered_sequence = [x for x in filtered_sequence if x is not None]
+                self.assertEqual(encoded_sequence, filtered_sequence)
+
     def test_training_new_tokenizer(self):
         # This feature only exists for fast tokenizers
         if not self.test_rust_tokenizer:
@@ -1280,6 +1304,9 @@ class MarkupLMTokenizationTest(TokenizerTesterMixin, unittest.TestCase):
 
                 tokenizer_output_r = tokenizer_r.tokenize(text)
                 tokenizer_output_p = tokenizer_p.tokenize(text)
+
+                print(tokenizer_output_r)
+                print(tokenizer_output_p)
 
                 self.assertListEqual(tokenizer_output_r, tokenizer_output_p)
 

@@ -25,19 +25,9 @@ from bs4 import BeautifulSoup
 from transformers import MarkupLMTokenizer, MarkupLMTokenizerFast, RobertaTokenizer, RobertaTokenizerFast
 
 
-huggingface_tokenizer = MarkupLMTokenizerFast(
-    vocab_file="/Users/NielsRogge/Documents/vocab.json",
-    merges_file="/Users/NielsRogge/Documents/merges.txt",
-    tags_dict="/Users/NielsRogge/Documents/tags_dict.json",
-    add_prefix_space=True,
-)
+huggingface_tokenizer = MarkupLMTokenizerFast.from_pretrained("microsoft/markuplm-base", add_prefix_space=True)
 
-huggingface_tokenizer_slow = MarkupLMTokenizer(
-    vocab_file="/Users/NielsRogge/Documents/vocab.json",
-    merges_file="/Users/NielsRogge/Documents/merges.txt",
-    tags_dict="/Users/NielsRogge/Documents/tags_dict.json",
-    add_prefix_space=True,
-)
+huggingface_tokenizer_slow = MarkupLMTokenizer.from_pretrained("microsoft/markuplm-base", add_prefix_space=True)
 
 
 class MarkupLMProcessor:
@@ -491,6 +481,8 @@ if __name__ == "__main__":
 
     print("Checking equivalence between Microsoft processor and Huggingface tokenizers")
     # verify not batched input
+    single_html_string = "<html> hello world </html>"
+    
     inputs = processor(single_html_string)
 
     inputs_bis = huggingface_tokenizer(
@@ -515,6 +507,8 @@ if __name__ == "__main__":
     for k, v in inputs_bis.items():
         if k not in ["token_type_ids", "overflow_to_sample_mapping"]:
             print(f"Checking {k}")
+            print(inputs[k])
+            print(v)
             assert torch.allclose(inputs[k], v)
 
     # verify batched input
