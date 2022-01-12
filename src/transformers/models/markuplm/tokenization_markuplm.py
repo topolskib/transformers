@@ -20,6 +20,8 @@ import os
 from functools import lru_cache
 from typing import Dict, List, Optional, Tuple, Union
 
+from numpy.lib.function_base import diff
+
 import bs4
 import regex as re
 from bs4 import BeautifulSoup
@@ -44,11 +46,7 @@ logger = logging.get_logger(__name__)
 # if is_bs4_available():
 
 
-VOCAB_FILES_NAMES = {
-    "vocab_file": "vocab.json",
-    "merges_file": "merges.txt",
-    "tokenizer_file": "tokenizer.json"
-}
+VOCAB_FILES_NAMES = {"vocab_file": "vocab.json", "merges_file": "merges.txt", "tokenizer_file": "tokenizer.json"}
 
 PRETRAINED_VOCAB_FILES_MAP = {
     "vocab_file": {
@@ -468,6 +466,22 @@ class MarkupLMTokenizer(PreTrainedTokenizer):
         cls = [self.cls_token_id]
         sep = [self.sep_token_id]
         return cls + token_ids_0 + sep + sep + token_ids_1 + sep
+
+    def build_xpath_tags_with_special_tokens(
+        self, xpath_tags_0: List[int], xpath_tags_1: Optional[List[int]] = None
+    ) -> List[int]:
+        pad = [self.pad_xpath_tags_seq]
+        if len(xpath_tags_1) == 0:
+            return pad + xpath_tags_0 + pad
+        return pad + xpath_tags_0 + pad + pad + xpath_tags_1 + pad
+
+    def build_xpath_subs_with_special_tokens(
+        self, xpath_subs_0: List[int], xpath_subs_1: Optional[List[int]] = None
+    ) -> List[int]:
+        pad = [self.pad_xpath_subs_seq]
+        if len(xpath_subs_1) == 0:
+            return pad + xpath_subs_0 + pad
+        return pad + xpath_subs_0 + pad + pad + xpath_subs_1 + pad
 
     def get_special_tokens_mask(
         self, token_ids_0: List[int], token_ids_1: Optional[List[int]] = None, already_has_special_tokens: bool = False
@@ -897,6 +911,7 @@ class MarkupLMTokenizer(PreTrainedTokenizer):
         overflowing_tokens = []
         overflowing_xpath_tags_seq = []
         overflowing_xpath_subs_seq = []
+
         if truncation_strategy != TruncationStrategy.DO_NOT_TRUNCATE and max_length and total_len > max_length:
             (
                 ids,
@@ -945,12 +960,15 @@ class MarkupLMTokenizer(PreTrainedTokenizer):
         if add_special_tokens:
             sequence = self.build_inputs_with_special_tokens(ids, pair_ids)
             token_type_ids = self.create_token_type_ids_from_sequences(ids, pair_ids)
-            xpath_tags_ids = (
-                [self.pad_xpath_tags_seq] + xpath_tags_seq + [self.pad_xpath_tags_seq] + pair_xpath_tags_seq
-            )
-            xpath_subs_ids = (
-                [self.pad_xpath_subs_seq] + xpath_subs_seq + [self.pad_xpath_subs_seq] + pair_xpath_subs_seq
-            )
+            xpath_tags_ids = self.build_xpath_tags_with_special_tokens(xpath_tags_seq, pair_xpath_tags_seq)
+            xpath_subs_ids = self.build_xpath_subs_with_special_tokens(xpath_subs_seq, pair_xpath_subs_seq)
+
+            # xpath_tags_ids = (
+            #     [self.pad_xpath_tags_seq] + xpath_tags_seq + [self.pad_xpath_tags_seq] + pair_xpath_tags_seq
+            # )
+            # xpath_subs_ids = (
+            #     [self.pad_xpath_subs_seq] + xpath_subs_seq + [self.pad_xpath_subs_seq] + + pair_xpath_subs_seq
+            # )
         else:
             sequence = ids + pair_ids if pair else ids
             token_type_ids = [0] * len(ids) + ([0] * len(pair_ids) if pair else [])
@@ -1020,7 +1038,7 @@ class MarkupLMTokenizer(PreTrainedTokenizer):
                 and `convert_tokens_to_ids` methods.
             pair_xpath_tags_seq (`List[List[int]]`, *optional*):
                 XPath tag IDs of the second sequence.
-            pair_xpath_subss_seq (`List[List[int]]`, *optional*):
+            pair_xpath_subs_seq (`List[List[int]]`, *optional*):
                 XPath sub IDs of the second sequence.
             num_tokens_to_remove (`int`, *optional*, defaults to 0):
                 Number of tokens to remove using the truncation strategy.
