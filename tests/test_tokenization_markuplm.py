@@ -1156,6 +1156,40 @@ class MarkupLMTokenizationTest(TokenizerTesterMixin, unittest.TestCase):
                 filtered_sequence = [x for x in filtered_sequence if x is not None]
                 self.assertEqual(encoded_sequence, filtered_sequence)
 
+    def test_special_tokens_initialization(self):
+        for tokenizer, pretrained_name, kwargs in self.tokenizers_list:
+            with self.subTest(f"{tokenizer.__class__.__name__} ({pretrained_name})"):
+
+                added_tokens = [AddedToken("<special>", lstrip=True)]
+
+                tokenizer_r = self.rust_tokenizer_class.from_pretrained(
+                    pretrained_name, additional_special_tokens=added_tokens, **kwargs
+                )
+                r_output = tokenizer_r.encode("<html> Hey this is a <special> token </html>")
+
+                print(r_output)
+
+                special_token_id = tokenizer_r.encode("<html> <special> </html>", add_special_tokens=False)[0]
+
+                self.assertTrue(special_token_id in r_output)
+
+                if self.test_slow_tokenizer:
+                    tokenizer_cr = self.rust_tokenizer_class.from_pretrained(
+                        pretrained_name, additional_special_tokens=added_tokens, **kwargs, from_slow=True
+                    )
+                    tokenizer_p = self.tokenizer_class.from_pretrained(
+                        pretrained_name, additional_special_tokens=added_tokens, **kwargs
+                    )
+
+                    p_output = tokenizer_p.encode("Hey this is a <special> token")
+
+                    cr_output = tokenizer_cr.encode("Hey this is a <special> token")
+
+                    self.assertEqual(p_output, r_output)
+                    self.assertEqual(cr_output, r_output)
+                    self.assertTrue(special_token_id in p_output)
+                    self.assertTrue(special_token_id in cr_output)
+    
     def test_training_new_tokenizer(self):
         # This feature only exists for fast tokenizers
         if not self.test_rust_tokenizer:

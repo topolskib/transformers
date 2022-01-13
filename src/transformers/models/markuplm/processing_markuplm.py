@@ -481,8 +481,6 @@ if __name__ == "__main__":
 
     print("Checking equivalence between Microsoft processor and Huggingface tokenizers")
     # verify not batched input
-    single_html_string = "<html> hello world </html>"
-    
     inputs = processor(single_html_string)
 
     inputs_bis = huggingface_tokenizer(

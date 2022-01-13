@@ -1,9 +1,15 @@
-from transformers import MarkupLMTokenizer
+from transformers import MarkupLMTokenizerFast
+from transformers.tokenization_utils import AddedToken
 
+added_tokens = [AddedToken("howaboutthat", lstrip=True)]
 
-tokenizer = MarkupLMTokenizer.from_pretrained("microsoft/markuplm-base")
+tokenizer = MarkupLMTokenizerFast.from_pretrained("microsoft/markuplm-base", additional_special_tokens=added_tokens)
 
-empty_tokens = tokenizer("", padding=True, pad_to_multiple_of=8)
+print(tokenizer.special_tokens_map)
 
-for k, v in empty_tokens.items():
-    print(k, len(v))
+text = "<html> hello this is howaboutthat a special token </html>"
+
+encoding = tokenizer(text, return_tensors="pt")
+
+for id in encoding.input_ids.squeeze().tolist():
+    print(id, tokenizer.decode([id]))
