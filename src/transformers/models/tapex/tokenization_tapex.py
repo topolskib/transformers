@@ -14,31 +14,27 @@
 # limitations under the License.
 """Tokenization classes for TAPEX."""
 
-import collections
-import os
-import json
-import regex as re
-import sys
-import unicodedata
 import abc
+import json
+import os
+import random
 from functools import lru_cache
 from typing import Dict, List, Optional, Tuple, Union
 
-import random
+import regex as re
 
-from ...file_utils import PaddingStrategy, TensorType, add_end_docstrings, is_pandas_available
-from ...tokenization_utils import AddedToken, PreTrainedTokenizer, _is_control, _is_punctuation, _is_whitespace
-from ..gpt2.tokenization_gpt2 import GPT2Tokenizer
+from ...file_utils import ExplicitEnum, PaddingStrategy, TensorType, add_end_docstrings, is_pandas_available
+from ...tokenization_utils import AddedToken, PreTrainedTokenizer
 from ...tokenization_utils_base import (
     ENCODE_KWARGS_DOCSTRING,
     BatchEncoding,
     EncodedInput,
     PreTokenizedInput,
     TextInput,
-    TextInputPair,
     TruncationStrategy,
 )
 from ...utils import logging
+
 
 if is_pandas_available():
     import pandas as pd
@@ -67,6 +63,14 @@ PRETRAINED_INIT_CONFIGURATION = {
 }
 
 
+class TapexTruncationStrategy(ExplicitEnum):
+    """
+    Possible value for the `truncation` argument in [`~TapasTokenizer.__call__`]. Useful for tab-completion in an IDE.
+    """
+
+    DROP_ROWS_TO_FIT = "drop_rows_to_fit"
+
+
 TAPEX_ENCODE_PLUS_ADDITIONAL_KWARGS_DOCSTRING = r"""
             add_special_tokens (`bool`, *optional*, defaults to `True`):
                 Whether or not to encode the sequences with the special tokens relative to their model.
@@ -79,9 +83,14 @@ TAPEX_ENCODE_PLUS_ADDITIONAL_KWARGS_DOCSTRING = r"""
                   acceptable input length for the model if that argument is not provided.
                 - `False` or `'do_not_pad'` (default): No padding (i.e., can output a batch with sequences of different
                   lengths).
-            truncation (`bool`, `str` or [`~tokenization_utils_base.TruncationStrategy`], *optional*, defaults to `False`):
+            truncation (`bool`, `str`, [`TapexTruncationStrategy`] or [`~tokenization_utils_base.TruncationStrategy`],
+                   *optional*, defaults to `False`):
+                
                 Activates and controls truncation. Accepts the following values:
 
+                - `'drop_rows_to_fit'`: Truncate to a maximum length specified with the argument `max_length`
+                  or to the maximum acceptable input length for the model if that argument is not provided. This will
+                  truncate row by row, removing rows from the table.
                 - `True` or `'longest_first'`: Truncate to a maximum length specified with the argument `max_length` or
                   to the maximum acceptable input length for the model if that argument is not provided. This will
                   truncate token by token, removing a token from the longest sequence in the pair if a pair of
@@ -259,7 +268,7 @@ class TapexTokenizer(PreTrainedTokenizer):
 
         # Mask token behave like a normal word, i.e. include the space before it
         mask_token = AddedToken(mask_token, lstrip=True, rstrip=False) if isinstance(mask_token, str) else mask_token
-        
+
         super().__init__(
             vocab_file=vocab_file,
             merges_file=merges_file,
@@ -295,7 +304,7 @@ class TapexTokenizer(PreTrainedTokenizer):
         # additional properties
         self.max_cell_length = max_cell_length
         self.table_linearize = IndexedRowTableLinearize()
-        
+
     def build_inputs_with_special_tokens(
         self, token_ids_0: List[int], token_ids_1: Optional[List[int]] = None
     ) -> List[int]:
@@ -640,7 +649,7 @@ class TapexTokenizer(PreTrainedTokenizer):
             verbose=verbose,
             **kwargs,
         )
-    
+
     def _batch_encode_plus(
         self,
         table,
@@ -722,7 +731,9 @@ class TapexTokenizer(PreTrainedTokenizer):
         """
         batch_outputs = {}
         for query in queries:
-            text = self.prepare_table_query(table, query)
+            text = self.prepare_table_query(
+                table, query, truncation_strategy=truncation_strategy, max_length=max_length
+            )
             tokens = self.tokenize(text)
             outputs = self.prepare_for_model(
                 ids=self.convert_tokens_to_ids(tokens),
@@ -806,7 +817,7 @@ class TapexTokenizer(PreTrainedTokenizer):
                 "To use this feature, change your tokenizer to one deriving from "
                 "transformers.PreTrainedTokenizerFast."
             )
-        
+
         return self._encode_plus(
             table=table,
             query=query,
@@ -824,7 +835,7 @@ class TapexTokenizer(PreTrainedTokenizer):
             verbose=verbose,
             **kwargs,
         )
-    
+
     def _encode_plus(
         self,
         table: "pd.DataFrame",
@@ -858,11 +869,11 @@ class TapexTokenizer(PreTrainedTokenizer):
                 "https://github.com/huggingface/transformers/pull/2674"
             )
 
-        text = self.prepare_table_query(table, query)
+        text = self.prepare_table_query(table, query, truncation_strategy=truncation_strategy, max_length=max_length)
         tokens = self.tokenize(text)
-        
+
         return self.prepare_for_model(
-            ids = self.convert_tokens_to_ids(tokens),
+            ids=self.convert_tokens_to_ids(tokens),
             add_special_tokens=add_special_tokens,
             padding=padding_strategy.value,
             truncation=truncation_strategy.value,
@@ -879,23 +890,33 @@ class TapexTokenizer(PreTrainedTokenizer):
             verbose=verbose,
         )
 
-    def prepare_table_query(self, table, query, answer=None):
+    def prepare_table_query(
+        self,
+        table,
+        query,
+        answer=None,
+        truncation_strategy=Union[str, TruncationStrategy, TapexTruncationStrategy],
+        max_length=None,
+    ):
         """
-        This method can be used to linearize a table with a corresponding query.
+        This method can be used to linearize a table and add a corresponding query.
+
+        Optionally, it also handles truncation of the table (cells).
         """
         # step 1: create table dictionary
-        table_content = {"header": list(table.columns), "rows": [list(row.values) for i,row in table.iterrows()]}
+        table_content = {"header": list(table.columns), "rows": [list(row.values) for i, row in table.iterrows()]}
 
         # TODO step 2: modify table internally
         self.truncate_table_cells(table_content, query, answer)
-        self.truncate_table_rows(table_content, query, answer)
+        if truncation_strategy == TapexTruncationStrategy.DROP_ROWS_TO_FIT:
+            self.truncate_table_rows(table_content, query, answer, max_length=max_length)
 
-        # step 2: linearize table
+        # step 3: linearize table
         linear_table = self.table_linearize.process_table(table_content)
 
-        # step 3: concatenate query with linear_table
+        # step 4: concatenate query with linear_table
         joint_input = query + " " + linear_table
-        
+
         return joint_input
 
     def truncate_table_cells(self, table_content: Dict, question: str, answer: List):
@@ -920,28 +941,31 @@ class TapexTokenizer(PreTrainedTokenizer):
         if cell_value.strip() != "":
             try_tokens = self.tokenize(cell_value)
             if len(try_tokens) >= self.max_cell_length:
-                retain_tokens = try_tokens[:self.max_cell_length]
+                retain_tokens = try_tokens[: self.max_cell_length]
                 retain_cell_value = self.convert_tokens_to_string(retain_tokens)
                 return retain_cell_value
             else:
                 return None
         else:
             return cell_value
-    
-    def truncate_table_rows(self, table_content: Dict, question: str, answer: List):
+
+    def truncate_table_rows(self, table_content: Dict, question: str, answer: List, max_length=None):
         """
         Args:
-        
-        table_content: {"header": xxx, "rows": xxx, "id" (Optionally): xxx} 
-        
-        question: natural language sentence 
-        
-        answer: if for training, is the supervision; otherwise will be empty
+
+        table_content:
+            {"header": xxx, "rows": xxx, "id" (Optionally): xxx}
+
+        question:
+            natural language sentence
+
+        answer:
+            if for training, is the supervision; otherwise will be empty
         """
-        delete_ratio, remain_token_len = self.estimate_delete_ratio(table_content, question)
+        delete_ratio, remain_token_len = self.estimate_delete_ratio(table_content, question, max_length)
         # randomly delete unrelated rows
         self.delete_unrelated_rows(table_content, question, answer, delete_ratio)
-        # guarantee the result < self.model_max_length
+        # guarantee the result < max_length
         maximum_keep_rows = 0
         for ind, row_example in enumerate(table_content["rows"]):
             value_string = self.table_linearize.process_row(row_example, ind + 1)
@@ -953,9 +977,8 @@ class TapexTokenizer(PreTrainedTokenizer):
             maximum_keep_rows += 1
         del table_content["rows"][maximum_keep_rows:]
 
-    def estimate_delete_ratio(self, table_content: Dict, question: str):
+    def estimate_delete_ratio(self, table_content: Dict, question: str, max_length=None):
         assert "header" in table_content and "rows" in table_content
-        number_of_rows = len(table_content["rows"])
         # calculate the tokens of header, special tokens will only be pre-prepended into question
         question_tokens = self.tokenize(question, add_special_tokens=True)
         # calculate the tokens of header
@@ -964,7 +987,7 @@ class TapexTokenizer(PreTrainedTokenizer):
         # split all cell values into tokens and see how many can be accommodated
         used_token_len = len(question_tokens) + len(header_tokens)
         # remaining token space for rows
-        remain_token_len = self.model_max_length - used_token_len
+        remain_token_len = max_length - used_token_len
 
         value_string = ""
         for _, row_example in enumerate(table_content["rows"]):
@@ -1000,13 +1023,12 @@ class TapexTokenizer(PreTrainedTokenizer):
                 truncated_unrelated_indices.append(_row_idx)
             else:
                 # add neighbours to preserve information aggressively
-                related_indices.extend([_row_idx - 2, _row_idx - 1,
-                                        _row_idx,
-                                        _row_idx + 1, _row_idx + 2])
+                related_indices.extend([_row_idx - 2, _row_idx - 1, _row_idx, _row_idx + 1, _row_idx + 2])
 
         # remove the neighbours
-        truncated_unrelated_indices = [_row_idx for _row_idx in truncated_unrelated_indices
-                                       if _row_idx not in related_indices]
+        truncated_unrelated_indices = [
+            _row_idx for _row_idx in truncated_unrelated_indices if _row_idx not in related_indices
+        ]
         # select some cases to drop
         drop_items = min(len(truncated_unrelated_indices), int(len(table_content["rows"]) * delete_ratio))
         drop_row_indices = random.choices(truncated_unrelated_indices, k=drop_items)

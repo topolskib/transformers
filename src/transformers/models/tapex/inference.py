@@ -1,10 +1,12 @@
-from transformers import TapexTokenizer, BartForConditionalGeneration
 import pandas as pd
+
+from transformers import BartForConditionalGeneration, TapexTokenizer
+
 
 tokenizer = TapexTokenizer.from_pretrained("facebook/bart-large", add_prefix_space=True)
 model = BartForConditionalGeneration.from_pretrained("nielsr/tapex-large-finetuned-wtq")
 
-data = {'Actors': ["Brad Pitt", "Leonardo Di Caprio", "George Clooney"], 'Number of movies': ["87", "53", "69"]}
+data = {"Actors": ["Brad Pitt", "Leonardo Di Caprio", "George Clooney"], "Number of movies": ["87", "53", "69"]}
 table = pd.DataFrame.from_dict(data)
 query = "how many movies does Brad Pitt have?"
 

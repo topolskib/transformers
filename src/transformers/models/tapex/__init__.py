@@ -18,8 +18,7 @@
 from typing import TYPE_CHECKING
 
 # rely on isort to merge the imports
-from ...file_utils import _LazyModule, is_tokenizers_available
-from ...file_utils import is_torch_available
+from ...file_utils import _LazyModule, is_tokenizers_available, is_torch_available
 
 
 _import_structure = {
@@ -46,8 +45,6 @@ if is_torch_available():
     ]
 
 
-
-
 if TYPE_CHECKING:
     from .configuration_tapex import TAPEX_PRETRAINED_CONFIG_ARCHIVE_MAP, TapexConfig
     from .tokenization_tapex import TapexTokenizer
@@ -58,8 +55,8 @@ if TYPE_CHECKING:
     if is_torch_available():
         from .modeling_tapex import (
             TAPEX_PRETRAINED_MODEL_ARCHIVE_LIST,
-            TapexForMaskedLM,
             TapexForCausalLM,
+            TapexForMaskedLM,
             TapexForMultipleChoice,
             TapexForQuestionAnswering,
             TapexForSequenceClassification,
@@ -69,7 +66,6 @@ if TYPE_CHECKING:
             TapexPreTrainedModel,
             load_tf_weights_in_tapex,
         )
-
 
 
 else:
