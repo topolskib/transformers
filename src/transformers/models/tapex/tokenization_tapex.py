@@ -21,6 +21,8 @@ import random
 from functools import lru_cache
 from typing import Dict, List, Optional, Tuple, Union
 
+from pandas.io.sql import table_exists
+
 import regex as re
 
 from ...file_utils import ExplicitEnum, PaddingStrategy, TensorType, add_end_docstrings, is_pandas_available
@@ -85,12 +87,12 @@ TAPEX_ENCODE_PLUS_ADDITIONAL_KWARGS_DOCSTRING = r"""
                   lengths).
             truncation (`bool`, `str`, [`TapexTruncationStrategy`] or [`~tokenization_utils_base.TruncationStrategy`],
                    *optional*, defaults to `False`):
-                
+
                 Activates and controls truncation. Accepts the following values:
 
-                - `'drop_rows_to_fit'`: Truncate to a maximum length specified with the argument `max_length`
-                  or to the maximum acceptable input length for the model if that argument is not provided. This will
-                  truncate row by row, removing rows from the table.
+                - `'drop_rows_to_fit'`: Truncate to a maximum length specified with the argument `max_length` or to the
+                  maximum acceptable input length for the model if that argument is not provided. This will truncate
+                  row by row, removing rows from the table.
                 - `True` or `'longest_first'`: Truncate to a maximum length specified with the argument `max_length` or
                   to the maximum acceptable input length for the model if that argument is not provided. This will
                   truncate token by token, removing a token from the longest sequence in the pair if a pair of
@@ -228,14 +230,12 @@ class IndexedRowTableLinearize(TableLinearize):
 
 class TapexTokenizer(PreTrainedTokenizer):
     r"""
-    Construct a TAPEX tokenizer. Based on BPE.
+    Construct a TAPEX tokenizer. Based on byte-level Byte-Pair-Encoding (BPE).
+
+    This tokenizer can be used to flatten a table and one or more related sentences to be used by TAPEX models.
 
     This tokenizer inherits from [`PreTrainedTokenizer`] which contains most of the main methods. Users should refer to
     this superclass for more information regarding those methods.
-
-    [`TapexTokenizer`] runs end-to-end tokenization: punctuation splitting and wordpiece. It also turns the word-level
-    bounding boxes into token-level bounding boxes.
-
     """
 
     vocab_files_names = VOCAB_FILES_NAMES
@@ -484,7 +484,7 @@ class TapexTokenizer(PreTrainedTokenizer):
     @add_end_docstrings(ENCODE_KWARGS_DOCSTRING, TAPEX_ENCODE_PLUS_ADDITIONAL_KWARGS_DOCSTRING)
     def __call__(
         self,
-        table: "pd.DataFrame",
+        tables: Union["pd.DataFrame", List["pd.DataFrame"]],
         queries: Optional[
             Union[
                 TextInput,
@@ -514,34 +514,50 @@ class TapexTokenizer(PreTrainedTokenizer):
         """
         Args:
         Main method to tokenize and prepare for the model one or several sequence(s) related to a table.
-            table (`pd.DataFrame`):
+            tables (`pd.DataFrame` or `List[pd.DataFrame]`):
                 Table containing tabular data. Note that all cell values must be text. Use *.astype(str)* on a Pandas
                 dataframe to convert it to string.
             queries (`str` or `List[str]`):
                 Question or batch of questions related to a table to be encoded. Note that in case of a batch, all
                 questions must refer to the **same** table.
         """
-        assert isinstance(table, pd.DataFrame), "Table must be of type pd.DataFrame"
-
         # Input type checking for clearer error
-        valid_query = False
+        if isinstance(tables, (list, tuple)):
+            # many tables, many queries case
+            assert len(tables) == len(queries), "One must provide as many tables as queries"
+        if isinstance(tables, pd.DataFrame) and isinstance(queries, (list, tuple)):
+            # single table, many queries case
+            tables = [tables] * len(queries)
+        if isinstance(tables, (list, tuple)) and isinstance(queries, str):
+            # many tables, single query case
+            queries = [queries] * len(tables)
+        valid_tables = False
+        valid_queries = False
 
-        # Check that query has a valid type
+        # Check that tables have a valid type
+        if isinstance(tables, pd.DataFrame):
+            valid_tables = True
+        elif isinstance(tables, (list, tuple)) and isinstance(tables[0], pd.DataFrame):
+            valid_tables = True
+
+        # Check that queries have a valid type
         if queries is None or isinstance(queries, str):
-            valid_query = True
+            valid_queries = True
         elif isinstance(queries, (list, tuple)):
             if len(queries) == 0 or isinstance(queries[0], str):
-                valid_query = True
+                valid_queries = True
 
-        if not valid_query:
+        if not valid_tables:
             raise ValueError(
-                "queries input must of type `str` (single example), `List[str]` (batch or single pretokenized example). "
+                "tables input must of type `pd.DataFrame` (single example), `List[pd.DataFrame]` (batch of examples). "
             )
+        if not valid_queries:
+            raise ValueError("queries input must of type `str` (single example), `List[str]` (batch of examples). ")
         is_batched = isinstance(queries, (list, tuple))
 
         if is_batched:
             return self.batch_encode_plus(
-                table=table,
+                tables=tables,
                 queries=queries,
                 add_special_tokens=add_special_tokens,
                 padding=padding,
@@ -560,7 +576,7 @@ class TapexTokenizer(PreTrainedTokenizer):
             )
         else:
             return self.encode_plus(
-                table=table,
+                table=tables,
                 query=queries,
                 add_special_tokens=add_special_tokens,
                 padding=padding,
@@ -581,7 +597,7 @@ class TapexTokenizer(PreTrainedTokenizer):
     @add_end_docstrings(ENCODE_KWARGS_DOCSTRING, TAPEX_ENCODE_PLUS_ADDITIONAL_KWARGS_DOCSTRING)
     def batch_encode_plus(
         self,
-        table: "pd.DataFrame",
+        tables: Union["pd.DataFrame", List["pd.DataFrame"]],
         queries: Optional[
             Union[
                 List[TextInput],
@@ -606,9 +622,13 @@ class TapexTokenizer(PreTrainedTokenizer):
     ) -> BatchEncoding:
         """
         Prepare a table and a list of strings for the model.
+
         <Tip warning={true}>
+
         This method is deprecated, `__call__` should be used instead.
+
         </Tip>
+
         Args:
             table (`pd.DataFrame`):
                 Table containing tabular data. Note that all cell values must be text. Use *.astype(str)* on a Pandas
@@ -617,26 +637,22 @@ class TapexTokenizer(PreTrainedTokenizer):
                 Batch of questions related to a table to be encoded. Note that all questions must refer to the **same**
                 table.
         """
-        if return_token_type_ids is not None and not add_special_tokens:
-            raise ValueError(
-                "Asking to return token_type_ids while setting add_special_tokens to False "
-                "results in an undefined behavior. Please set add_special_tokens to True or "
-                "set return_token_type_ids to None."
-            )
-
-        if return_offsets_mapping:
-            raise NotImplementedError(
-                "return_offset_mapping is not available when using Python tokenizers. "
-                "To use this feature, change your tokenizer to one deriving from "
-                "transformers.PreTrainedTokenizerFast."
-            )
-
-        return self._batch_encode_plus(
-            table=table,
-            queries=queries,
-            add_special_tokens=add_special_tokens,
+        # Backward compatibility for 'truncation_strategy', 'pad_to_max_length'
+        padding_strategy, truncation_strategy, max_length, kwargs = self._get_padding_truncation_strategies(
             padding=padding,
             truncation=truncation,
+            max_length=max_length,
+            pad_to_multiple_of=pad_to_multiple_of,
+            verbose=verbose,
+            **kwargs,
+        )
+
+        return self._batch_encode_plus(
+            tables=tables,
+            queries=queries,
+            add_special_tokens=add_special_tokens,
+            padding_strategy=padding_strategy,
+            truncation_strategy=truncation_strategy,
             max_length=max_length,
             pad_to_multiple_of=pad_to_multiple_of,
             return_tensors=return_tensors,
@@ -652,7 +668,7 @@ class TapexTokenizer(PreTrainedTokenizer):
 
     def _batch_encode_plus(
         self,
-        table,
+        tables: Union["pd.DataFrame", List["pd.DataFrame"]],
         queries: Union[
             List[TextInput],
             List[PreTokenizedInput],
@@ -683,7 +699,7 @@ class TapexTokenizer(PreTrainedTokenizer):
             )
 
         batch_outputs = self._batch_prepare_for_model(
-            table=table,
+            tables=tables,
             queries=queries,
             add_special_tokens=add_special_tokens,
             padding_strategy=padding_strategy,
@@ -705,7 +721,7 @@ class TapexTokenizer(PreTrainedTokenizer):
     @add_end_docstrings(ENCODE_KWARGS_DOCSTRING, TAPEX_ENCODE_PLUS_ADDITIONAL_KWARGS_DOCSTRING)
     def _batch_prepare_for_model(
         self,
-        table: "pd.DataFrame",
+        tables: Union["pd.DataFrame", List["pd.DataFrame"]],
         queries: Union[
             TextInput,
             PreTokenizedInput,
@@ -730,10 +746,11 @@ class TapexTokenizer(PreTrainedTokenizer):
         tokens and manages a moving window (with user defined stride) for overflowing tokens.
         """
         batch_outputs = {}
-        for query in queries:
+        for table, query in zip(tables, queries):
             text = self.prepare_table_query(
                 table, query, truncation_strategy=truncation_strategy, max_length=max_length
             )
+            print("Text:", text)
             tokens = self.tokenize(text)
             outputs = self.prepare_for_model(
                 ids=self.convert_tokens_to_ids(tokens),
@@ -796,34 +813,30 @@ class TapexTokenizer(PreTrainedTokenizer):
         **kwargs
     ) -> BatchEncoding:
         """
-        Prepare a table and a string for the model.
         Args:
+        Prepare a table and a string for the model.
             table (`pd.DataFrame`):
                 Table containing tabular data. Note that all cell values must be text. Use *.astype(str)* on a Pandas
                 dataframe to convert it to string.
             query (`str` or `List[str]`):
                 Question related to a table to be encoded.
         """
-        if return_token_type_ids is not None and not add_special_tokens:
-            raise ValueError(
-                "Asking to return token_type_ids while setting add_special_tokens to False "
-                "results in an undefined behavior. Please set add_special_tokens to True or "
-                "set return_token_type_ids to None."
-            )
-
-        if return_offsets_mapping:
-            raise NotImplementedError(
-                "return_offset_mapping is not available when using Python tokenizers. "
-                "To use this feature, change your tokenizer to one deriving from "
-                "transformers.PreTrainedTokenizerFast."
-            )
+        # Backward compatibility for 'truncation_strategy', 'pad_to_max_length'
+        padding_strategy, truncation_strategy, max_length, kwargs = self._get_padding_truncation_strategies(
+            padding=padding,
+            truncation=truncation,
+            max_length=max_length,
+            pad_to_multiple_of=pad_to_multiple_of,
+            verbose=verbose,
+            **kwargs,
+        )
 
         return self._encode_plus(
             table=table,
             query=query,
             add_special_tokens=add_special_tokens,
-            truncation=truncation,
-            padding=padding,
+            padding_strategy=padding_strategy,
+            truncation_strategy=truncation_strategy,
             max_length=max_length,
             pad_to_multiple_of=pad_to_multiple_of,
             return_tensors=return_tensors,
