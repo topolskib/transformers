@@ -421,7 +421,6 @@ class TapexTokenizer(PreTrainedTokenizer):
 
     def _tokenize(self, text):
         """Tokenize a string."""
-        print("Text inside tokenize:", text)
         bpe_tokens = []
         for token in re.findall(self.pat, text):
             token = "".join(
@@ -530,8 +529,6 @@ class TapexTokenizer(PreTrainedTokenizer):
                 "queries input must of type `str` (single example), `List[str]` (batch or single pretokenized example). "
             )
         is_batched = isinstance(queries, (list, tuple))
-
-        print("Is_batched:", is_batched)
 
         if is_batched:
             return self.batch_encode_plus(
@@ -809,8 +806,6 @@ class TapexTokenizer(PreTrainedTokenizer):
                 "To use this feature, change your tokenizer to one deriving from "
                 "transformers.PreTrainedTokenizerFast."
             )
-
-        print("Query:", query)
         
         return self._encode_plus(
             table=table,
@@ -864,8 +859,6 @@ class TapexTokenizer(PreTrainedTokenizer):
             )
 
         text = self.prepare_table_query(table, query)
-        print("Text:", text)
-        print(type(text))
         tokens = self.tokenize(text)
         
         return self.prepare_for_model(
@@ -890,22 +883,18 @@ class TapexTokenizer(PreTrainedTokenizer):
         """
         This method can be used to linearize a table with a corresponding query.
         """
-        print("Table:", table)
-        print("Query:", query)
         # step 1: create table dictionary
         table_content = {"header": list(table.columns), "rows": [list(row.values) for i,row in table.iterrows()]}
 
         # TODO step 2: modify table internally
-        #self.truncate_table_cells(table_content, query, answer)
-        #self.truncate_table_rows(table_content, query, answer)
+        self.truncate_table_cells(table_content, query, answer)
+        self.truncate_table_rows(table_content, query, answer)
 
         # step 2: linearize table
         linear_table = self.table_linearize.process_table(table_content)
 
         # step 3: concatenate query with linear_table
         joint_input = query + " " + linear_table
-
-        print("Joint input:", joint_input)
         
         return joint_input
 
@@ -919,9 +908,10 @@ class TapexTokenizer(PreTrainedTokenizer):
                     row[i] = truncate_cell
 
         # modify the answer list
-        for i, case in enumerate(answer):
-            if case in cell_mapping.keys():
-                answer[i] = cell_mapping[case]
+        if answer is not None:
+            for i, case in enumerate(answer):
+                if case in cell_mapping.keys():
+                    answer[i] = cell_mapping[case]
 
     def truncate_cell(self, cell_value):
         # do not process on these cases
@@ -950,8 +940,8 @@ class TapexTokenizer(PreTrainedTokenizer):
         """
         delete_ratio, remain_token_len = self.estimate_delete_ratio(table_content, question)
         # randomly delete unrelated rows
-        self.delete_unrealted_rows(table_content, question, answer, delete_ratio)
-        # guarantee the result < self.max_length
+        self.delete_unrelated_rows(table_content, question, answer, delete_ratio)
+        # guarantee the result < self.model_max_length
         maximum_keep_rows = 0
         for ind, row_example in enumerate(table_content["rows"]):
             value_string = self.table_linearize.process_row(row_example, ind + 1)
@@ -974,7 +964,7 @@ class TapexTokenizer(PreTrainedTokenizer):
         # split all cell values into tokens and see how many can be accommodated
         used_token_len = len(question_tokens) + len(header_tokens)
         # remaining token space for rows
-        remain_token_len = self.max_length - used_token_len
+        remain_token_len = self.model_max_length - used_token_len
 
         value_string = ""
         for _, row_example in enumerate(table_content["rows"]):
@@ -989,13 +979,13 @@ class TapexTokenizer(PreTrainedTokenizer):
             # calc a roughly delete rate
             return 1.0 - remain_token_len / value_token_len, remain_token_len
 
-    def delete_unrealted_rows(self, table_content: Dict, question: str, answer: List, delete_ratio: float):
+    def delete_unrelated_rows(self, table_content: Dict, question: str, answer: List, delete_ratio: float):
         """
         The argument answer is used only during training.
         """
         truncated_unrelated_indices = []
         related_indices = []
-        if len(answer) == 0:
+        if answer is None or len(answer) == 0:
             answer_set = set([])
         else:
             answer_set = set([ans_ex.lower() for ans_ex in answer])

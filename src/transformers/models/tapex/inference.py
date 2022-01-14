@@ -6,10 +6,13 @@ model = BartForConditionalGeneration.from_pretrained("nielsr/tapex-large-finetun
 
 data = {'Actors': ["Brad Pitt", "Leonardo Di Caprio", "George Clooney"], 'Number of movies': ["87", "53", "69"]}
 table = pd.DataFrame.from_dict(data)
-query = "what's his name?"
+query = "how many movies does Brad Pitt have?"
 
 encoding = tokenizer(table=table, queries=query, return_tensors="pt")
-
-print(encoding.keys())
-
+del encoding["token_type_ids"]
 print(tokenizer.decode(encoding.input_ids.squeeze()))
+
+# forward pass
+outputs = model.generate(**encoding)
+
+print(tokenizer.batch_decode(outputs, skip_special_tokens=True))
