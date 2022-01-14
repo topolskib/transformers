@@ -522,9 +522,6 @@ class TapexTokenizer(PreTrainedTokenizer):
                 questions must refer to the **same** table.
         """
         # Input type checking for clearer error
-        if isinstance(tables, (list, tuple)):
-            # many tables, many queries case
-            assert len(tables) == len(queries), "One must provide as many tables as queries"
         if isinstance(tables, pd.DataFrame) and isinstance(queries, (list, tuple)):
             # single table, many queries case
             tables = [tables] * len(queries)

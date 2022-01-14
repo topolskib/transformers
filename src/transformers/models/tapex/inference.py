@@ -41,3 +41,9 @@ for k, v in encoding.items():
 del encoding["token_type_ids"]
 outputs = model.generate(**encoding)
 print(tokenizer.batch_decode(outputs, skip_special_tokens=True))
+
+# many-1
+encoding = tokenizer(tables, queries=query, padding=True, return_tensors="pt")
+
+for k, v in encoding.items():
+    print(k, v.shape)
