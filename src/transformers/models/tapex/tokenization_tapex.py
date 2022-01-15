@@ -21,8 +21,6 @@ import random
 from functools import lru_cache
 from typing import Dict, List, Optional, Tuple, Union
 
-from pandas.io.sql import table_exists
-
 import regex as re
 
 from ...file_utils import ExplicitEnum, PaddingStrategy, TensorType, add_end_docstrings, is_pandas_available
@@ -242,6 +240,7 @@ class TapexTokenizer(PreTrainedTokenizer):
     pretrained_vocab_files_map = PRETRAINED_VOCAB_FILES_MAP
     max_model_input_sizes = PRETRAINED_POSITIONAL_EMBEDDINGS_SIZES
     pretrained_init_configuration = PRETRAINED_INIT_CONFIGURATION
+    model_input_names = ["input_ids", "attention_mask"]
 
     def __init__(
         self,

@@ -12,7 +12,6 @@ query = "how many movies does Brad Pitt have?"
 
 # 1-1
 encoding = tokenizer(table, queries=query, return_tensors="pt")
-del encoding["token_type_ids"]
 print(tokenizer.decode(encoding.input_ids.squeeze()))
 
 # forward pass
@@ -38,7 +37,6 @@ for k, v in encoding.items():
     print(k, v.shape)
 
 # batched inference
-del encoding["token_type_ids"]
 outputs = model.generate(**encoding)
 print(tokenizer.batch_decode(outputs, skip_special_tokens=True))
 

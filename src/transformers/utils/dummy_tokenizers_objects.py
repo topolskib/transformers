@@ -371,15 +371,6 @@ class T5TokenizerFast:
         requires_backends(cls, ["tokenizers"])
 
 
-class TapexTokenizerFast:
-    def __init__(self, *args, **kwargs):
-        requires_backends(self, ["tokenizers"])
-
-    @classmethod
-    def from_pretrained(cls, *args, **kwargs):
-        requires_backends(cls, ["tokenizers"])
-
-
 class XLMRobertaTokenizerFast:
     def __init__(self, *args, **kwargs):
         requires_backends(self, ["tokenizers"])

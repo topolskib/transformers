@@ -18,54 +18,16 @@
 from typing import TYPE_CHECKING
 
 # rely on isort to merge the imports
-from ...file_utils import _LazyModule, is_tokenizers_available, is_torch_available
+from ...file_utils import _LazyModule
 
 
 _import_structure = {
-    "configuration_tapex": ["TAPEX_PRETRAINED_CONFIG_ARCHIVE_MAP", "TapexConfig"],
     "tokenization_tapex": ["TapexTokenizer"],
 }
 
-if is_tokenizers_available():
-    _import_structure["tokenization_tapex_fast"] = ["TapexTokenizerFast"]
-
-if is_torch_available():
-    _import_structure["modeling_tapex"] = [
-        "TAPEX_PRETRAINED_MODEL_ARCHIVE_LIST",
-        "TapexForCausalLM",
-        "TapexForMaskedLM",
-        "TapexForMultipleChoice",
-        "TapexForQuestionAnswering",
-        "TapexForSequenceClassification",
-        "TapexForTokenClassification",
-        "TapexLayer",
-        "TapexModel",
-        "TapexPreTrainedModel",
-        "load_tf_weights_in_tapex",
-    ]
-
 
 if TYPE_CHECKING:
-    from .configuration_tapex import TAPEX_PRETRAINED_CONFIG_ARCHIVE_MAP, TapexConfig
     from .tokenization_tapex import TapexTokenizer
-
-    if is_tokenizers_available():
-        from .tokenization_tapex_fast import TapexTokenizerFast
-
-    if is_torch_available():
-        from .modeling_tapex import (
-            TAPEX_PRETRAINED_MODEL_ARCHIVE_LIST,
-            TapexForCausalLM,
-            TapexForMaskedLM,
-            TapexForMultipleChoice,
-            TapexForQuestionAnswering,
-            TapexForSequenceClassification,
-            TapexForTokenClassification,
-            TapexLayer,
-            TapexModel,
-            TapexPreTrainedModel,
-            load_tf_weights_in_tapex,
-        )
 
 
 else:
