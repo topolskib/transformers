@@ -924,8 +924,8 @@ class TapexTokenizer(PreTrainedTokenizer):
         linear_table = self.table_linearize.process_table(table_content)
 
         # step 4: concatenate query with linear_table
-        joint_input = query + " " + linear_table
-
+        joint_input = (query + " " + linear_table).lower()
+        
         return joint_input
 
     def truncate_table_cells(self, table_content: Dict, question: str, answer: List):
