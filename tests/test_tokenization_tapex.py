@@ -234,6 +234,34 @@ class TapexTokenizationTest(TokenizerTesterMixin, unittest.TestCase):
                 self.assertEqual(len(output["token_type_ids"]), len(output["input_ids"]))
                 self.assertIn(0, output["token_type_ids"])
 
+    def test_add_special_tokens(self):
+        tokenizers: List[TapexTokenizer] = self.get_tokenizers(do_lower_case=False)
+        for tokenizer in tokenizers:
+            with self.subTest(f"{tokenizer.__class__.__name__}"):
+                input_table = self.get_table(tokenizer, length=0)
+
+                special_token = "[SPECIAL_TOKEN]"
+
+                tokenizer.add_special_tokens({"cls_token": special_token})
+                encoded_special_token = tokenizer.encode(input_table, special_token, add_special_tokens=False)
+                self.assertEqual(len(encoded_special_token), 1)
+
+                decoded = tokenizer.decode(encoded_special_token, skip_special_tokens=True)
+                self.assertTrue(special_token not in decoded)
+
+    def test_batch_encode_plus_overflowing_tokens(self):
+        tokenizers = self.get_tokenizers(do_lower_case=False)
+        for tokenizer in tokenizers:
+            table = self.get_table(tokenizer, length=10)
+            string_sequences = ["Testing the prepare_for_model method.", "Test"]
+
+            if tokenizer.pad_token is None:
+                tokenizer.add_special_tokens({"pad_token": "[PAD]"})
+
+            tokenizer.batch_encode_plus(
+                table, string_sequences, return_overflowing_tokens=True, truncation=True, padding=True, max_length=3
+            )
+
     def test_call(self):
         # Tests that all call wrap to encode_plus and batch_encode_plus
         tokenizers = self.get_tokenizers(do_lower_case=False)
@@ -460,7 +488,7 @@ class TapexTokenizationTest(TokenizerTesterMixin, unittest.TestCase):
                     normal_tokens = tokenizer(table, "This", padding=True, truncation=True, pad_to_multiple_of=8)
                     for key, value in normal_tokens.items():
                         self.assertEqual(len(value) % 8, 0, f"BatchEncoding.{key} is not multiple of 8")
-    
+
     def test_right_and_left_padding(self):
         tokenizers = self.get_tokenizers(do_lower_case=False)
         for tokenizer in tokenizers:
@@ -523,7 +551,7 @@ class TapexTokenizationTest(TokenizerTesterMixin, unittest.TestCase):
                 padded_sequence_left_length = len(padded_sequence_left)
                 assert sequence_length == padded_sequence_left_length
                 assert encoded_sequence == padded_sequence_left
-    
+
     def test_encode_plus_with_padding(self):
         tokenizers = self.get_tokenizers(do_lower_case=False)
         for tokenizer in tokenizers:
@@ -630,7 +658,6 @@ class TapexTokenizationTest(TokenizerTesterMixin, unittest.TestCase):
                     assert attention_mask + [0] * padding_size == right_padded_attention_mask
                     assert [0] * padding_size + attention_mask == left_padded_attention_mask
 
-    
     def test_batch_encode_plus_padding(self):
         # Test that padded sequences are equivalent between batch_encode_plus and encode_plus
 
@@ -687,7 +714,7 @@ class TapexTokenizationTest(TokenizerTesterMixin, unittest.TestCase):
                 self.assertListEqual(
                     encoded_sequences, self.convert_batch_encode_plus_format_to_encode_plus(encoded_sequences_batch)
                 )
-    
+
     def test_batch_encode_plus_batch_sequence_length(self):
         # Tests that all encoded values have the correct size
         tokenizers = self.get_tokenizers(do_lower_case=False)
@@ -745,7 +772,38 @@ class TapexTokenizationTest(TokenizerTesterMixin, unittest.TestCase):
                         encoded_sequences_batch_padded_1[key],
                         encoded_sequences_batch_padded_2[key],
                     )
-    
+
+    def test_special_tokens_mask_input_pairs(self):
+        tokenizers = self.get_tokenizers(do_lower_case=False)
+        for tokenizer in tokenizers:
+            with self.subTest(f"{tokenizer.__class__.__name__}"):
+                sequence_0 = "Encode this."
+                empty_table = self.get_table(tokenizer, length=0)
+                table = self.get_table(tokenizer, length=10)
+                encoded_sequence = tokenizer.encode(empty_table, sequence_0, add_special_tokens=False)
+                number_of_tokens = len(encoded_sequence)
+                encoded_sequence += tokenizer.encode(table, "", add_special_tokens=False)
+                encoded_sequence_dict = tokenizer.encode_plus(
+                    table,
+                    sequence_0,
+                    add_special_tokens=True,
+                    return_special_tokens_mask=True,
+                )
+                encoded_sequence_w_special = encoded_sequence_dict["input_ids"]
+                special_tokens_mask = encoded_sequence_dict["special_tokens_mask"]
+                self.assertEqual(len(special_tokens_mask), len(encoded_sequence_w_special))
+
+                filtered_sequence = [
+                    (x if not special_tokens_mask[i] else None) for i, x in enumerate(encoded_sequence_w_special)
+                ]
+                # NOTE: as TAPEX adds a space between a table and a sequence, we need to remove it
+                # in order to have equivalent results with encoding an empty table or empty sequence
+                del filtered_sequence[number_of_tokens + 1]
+                filtered_sequence = [x for x in filtered_sequence if x is not None]
+                print("Encoded sequence:", encoded_sequence)
+                print("Filtered sequence:", filtered_sequence)
+                self.assertEqual(encoded_sequence, filtered_sequence)
+
     @slow
     def test_full_tokenizer(self):
         question = "Greece held its last Summer Olympics in 2004"

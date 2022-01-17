@@ -58,7 +58,7 @@ PRETRAINED_POSITIONAL_EMBEDDINGS_SIZES = {
 }
 
 PRETRAINED_INIT_CONFIGURATION = {
-    "microsoft/tapex-base": {"do_lower_case": False},
+    "microsoft/tapex-base": {"do_lower_case": True},
 }
 
 
@@ -927,11 +927,6 @@ class TapexTokenizer(PreTrainedTokenizer):
         text = self.prepare_table_query(table, query, truncation_strategy=truncation_strategy, max_length=max_length)
         tokens = self.tokenize(text)
 
-        print("Length of tokens:", len(tokens))
-        print("Padding strategy:", padding_strategy.value)
-        print("Truncation strategy:", truncation_strategy.value)
-        print("Max length:", max_length)
-
         return self.prepare_for_model(
             ids=self.convert_tokens_to_ids(tokens),
             add_special_tokens=add_special_tokens,
@@ -978,8 +973,10 @@ class TapexTokenizer(PreTrainedTokenizer):
             linear_table = ""
 
         # step 4: concatenate query with linear_table
+        print("Query:", query)
+        print("Linear table:", linear_table)
         separator = " " if query and linear_table else ""
-        joint_input = (query + separator + linear_table) if query is not None else linear_table
+        joint_input = (query + separator + linear_table) if query else linear_table
         joint_input = joint_input
         print("Joint input:", joint_input)
 
