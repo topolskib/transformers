@@ -27,8 +27,7 @@ print(encoding.input_ids)
 
 print(tokenizer.decode(encoding.input_ids.squeeze()))
 
-### integration tests
-
+# integration tests
 model = BartForConditionalGeneration.from_pretrained("nielsr/tapex-large-finetuned-wtq")
 
 data = {"Actors": ["Brad Pitt", "Leonardo Di Caprio", "George Clooney"], "Number of movies": ["87", "53", "69"]}

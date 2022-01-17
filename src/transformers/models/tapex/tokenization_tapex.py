@@ -229,7 +229,16 @@ class TapexTokenizer(PreTrainedTokenizer):
     r"""
     Construct a TAPEX tokenizer. Based on byte-level Byte-Pair-Encoding (BPE).
 
-    This tokenizer can be used to flatten a table and one or more related sentences to be used by TAPEX models.
+    This tokenizer can be used to flatten (a) table(s) and concatenate it (them) with one or more related sentences to
+    be used by TAPEX models. The format that the TAPEX tokenizer creates is the following:
+
+    sentence col: col1 | col2 | col 3 row 1 : val1 | val2 | val3 row 2 : ...
+
+    The tokenizer supports a single table + single query, a single table and multiple queries (in which case the table
+    will be duplicated for every query), a single query and multiple tables (in which case the query will be duplicated
+    for every table), and multiple tables and queries.
+
+    Tokenization itself is based on the BPE algorithm. It is identical to the one used by BART, RoBERTa and GPT-2.
 
     This tokenizer inherits from [`PreTrainedTokenizer`] which contains most of the main methods. Users should refer to
     this superclass for more information regarding those methods.
@@ -806,10 +815,10 @@ class TapexTokenizer(PreTrainedTokenizer):
         **kwargs
     ) -> List[int]:
         """
+        Args:
         Prepare a table and a string for the model. This method does not return token type IDs, attention masks, etc.
         which are necessary for the model to work correctly. Use that method if you want to build your processing on
         your own, otherwise refer to `__call__`.
-        Args:
             table (`pd.DataFrame`):
                 Table containing tabular data. Note that all cell values must be text. Use *.astype(str)* on a Pandas
                 dataframe to convert it to string.
