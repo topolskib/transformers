@@ -57,7 +57,6 @@ PRETRAINED_POSITIONAL_EMBEDDINGS_SIZES = {
     "microsoft/tapex-base": 512,
 }
 
-
 PRETRAINED_INIT_CONFIGURATION = {
     "microsoft/tapex-base": {"do_lower_case": False},
 }
@@ -246,6 +245,7 @@ class TapexTokenizer(PreTrainedTokenizer):
         self,
         vocab_file,
         merges_file,
+        do_lower_case=True,
         errors="replace",
         bos_token="<s>",
         eos_token="</s>",
@@ -271,6 +271,7 @@ class TapexTokenizer(PreTrainedTokenizer):
         super().__init__(
             vocab_file=vocab_file,
             merges_file=merges_file,
+            do_lower_case=do_lower_case,
             errors=errors,
             bos_token=bos_token,
             eos_token=eos_token,
@@ -296,6 +297,7 @@ class TapexTokenizer(PreTrainedTokenizer):
         self.bpe_ranks = dict(zip(bpe_merges, range(len(bpe_merges))))
         self.cache = {}
         self.add_prefix_space = add_prefix_space
+        self.do_lower_case = do_lower_case
 
         # Should have added re.IGNORECASE so BPE merges can happen for capitalized versions of contractions
         self.pat = re.compile(r"""'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+""")
@@ -521,12 +523,6 @@ class TapexTokenizer(PreTrainedTokenizer):
                 questions must refer to the **same** table.
         """
         # Input type checking for clearer error
-        if isinstance(table, pd.DataFrame) and isinstance(query, (list, tuple)):
-            # single table, many queries case
-            table = [table] * len(query)
-        if isinstance(table, (list, tuple)) and isinstance(query, str):
-            # many tables, single query case
-            query = [query] * len(table)
         valid_table = False
         valid_query = False
 
@@ -549,7 +545,7 @@ class TapexTokenizer(PreTrainedTokenizer):
             )
         if not valid_query:
             raise ValueError("query input must of type `str` (single example), `List[str]` (batch of examples). ")
-        is_batched = isinstance(query, (list, tuple))
+        is_batched = isinstance(table, (list, tuple)) or isinstance(query, (list, tuple))
 
         if is_batched:
             return self.batch_encode_plus(
@@ -694,6 +690,15 @@ class TapexTokenizer(PreTrainedTokenizer):
                 "transformers.PreTrainedTokenizerFast."
             )
 
+        if isinstance(table, pd.DataFrame) and isinstance(query, (list, tuple)):
+            # single table, many queries case
+            # duplicate table for every query
+            table = [table] * len(query)
+        if isinstance(table, (list, tuple)) and isinstance(query, str):
+            # many tables, single query case
+            # duplicate query for every table
+            query = [query] * len(table)
+
         batch_outputs = self._batch_prepare_for_model(
             table=table,
             query=query,
@@ -746,7 +751,6 @@ class TapexTokenizer(PreTrainedTokenizer):
             text = self.prepare_table_query(
                 _table, _query, truncation_strategy=truncation_strategy, max_length=max_length
             )
-            print("Text:", text)
             tokens = self.tokenize(text)
             outputs = self.prepare_for_model(
                 ids=self.convert_tokens_to_ids(tokens),
@@ -920,9 +924,6 @@ class TapexTokenizer(PreTrainedTokenizer):
                 "https://github.com/huggingface/transformers/pull/2674"
             )
 
-        print("Table inside encode_plus:", table)
-        print("Query inside encode_plus:", query)
-
         text = self.prepare_table_query(table, query, truncation_strategy=truncation_strategy, max_length=max_length)
         tokens = self.tokenize(text)
 
@@ -974,11 +975,10 @@ class TapexTokenizer(PreTrainedTokenizer):
         # step 4: concatenate query with linear_table
         separator = " " if query and linear_table else ""
         joint_input = (query + separator + linear_table) if query is not None else linear_table
-
-        print("Query:", query)
+        joint_input = joint_input
         print("Joint input:", joint_input)
 
-        return joint_input.lower()
+        return joint_input
 
     def truncate_table_cells(self, table_content: Dict, question: str, answer: List):
         cell_mapping = {}

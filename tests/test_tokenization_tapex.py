@@ -16,6 +16,8 @@
 
 import json
 import os
+import shutil
+import tempfile
 import unittest
 from typing import List
 
@@ -161,23 +163,6 @@ class TapexTokenizationTest(TokenizerTesterMixin, unittest.TestCase):
             [0, 31414, 232, 328, 740, 1140, 12695, 69, 46078, 1588, 2],
         )
 
-    def test_add_special_tokens(self):
-        tokenizers: List[TapexTokenizer] = self.get_tokenizers(do_lower_case=False)
-        for tokenizer in tokenizers:
-            with self.subTest(f"{tokenizer.__class__.__name__}"):
-                input_table = self.get_table(tokenizer, length=0)
-
-                special_token = "[SPECIAL_TOKEN]"
-
-                tokenizer.add_special_tokens({"cls_token": special_token})
-                print("Input table:", input_table)
-                print("Special token:", special_token)
-                encoded_special_token = tokenizer.encode(input_table, special_token, add_special_tokens=False)
-                self.assertEqual(len(encoded_special_token), 1)
-
-                decoded = tokenizer.decode(encoded_special_token, skip_special_tokens=True)
-                self.assertTrue(special_token not in decoded)
-
     def test_add_tokens_tokenizer(self):
         tokenizers: List[TapexTokenizer] = self.get_tokenizers(do_lower_case=False)
         for tokenizer in tokenizers:
@@ -203,10 +188,6 @@ class TapexTokenizationTest(TokenizerTesterMixin, unittest.TestCase):
                 self.assertEqual(all_size_2, all_size + len(new_toks))
 
                 tokens = tokenizer.encode(table, "aaaaa bbbbbb low cccccccccdddddddd l", add_special_tokens=False)
-
-                print(tokens)
-                for token in tokens:
-                    print(token, tokenizer.decode([token]))
 
                 self.assertGreaterEqual(len(tokens), 4)
                 self.assertGreater(tokens[0], tokenizer.vocab_size - 1)
@@ -236,6 +217,167 @@ class TapexTokenizationTest(TokenizerTesterMixin, unittest.TestCase):
                 self.assertEqual(tokens[0], tokenizer.eos_token_id)
                 self.assertEqual(tokens[-2], tokenizer.pad_token_id)
 
+    def test_token_type_ids(self):
+        tokenizers = self.get_tokenizers()
+        for tokenizer in tokenizers:
+            with self.subTest(f"{tokenizer.__class__.__name__}"):
+                empty_table = self.get_table(tokenizer, length=0)
+                seq_0 = "Test this method."
+
+                # We want to have sequence 0 and sequence 1 are tagged
+                # respectively with 0 and 1 token_ids
+                # (regardless of whether the model use token type ids)
+                # We use this assumption in the QA pipeline among other place
+                output = tokenizer(empty_table, seq_0, return_token_type_ids=True)
+
+                # Assert that the token type IDs have the same length as the input IDs
+                self.assertEqual(len(output["token_type_ids"]), len(output["input_ids"]))
+                self.assertIn(0, output["token_type_ids"])
+
+    def test_call(self):
+        # Tests that all call wrap to encode_plus and batch_encode_plus
+        tokenizers = self.get_tokenizers(do_lower_case=False)
+        for tokenizer in tokenizers:
+            with self.subTest(f"{tokenizer.__class__.__name__}"):
+                sequences = [
+                    "Testing batch encode plus",
+                    "Testing batch encode plus with different sequence lengths",
+                    "Testing batch encode plus with different sequence lengths correctly pads",
+                ]
+
+                # Test not batched
+                table = self.get_table(tokenizer, length=0)
+                encoded_sequences_1 = tokenizer.encode_plus(table, sequences[0])
+                encoded_sequences_2 = tokenizer(table, sequences[0])
+                self.assertEqual(encoded_sequences_1, encoded_sequences_2)
+
+                # Test not batched pairs
+                table = self.get_table(tokenizer, length=10)
+                encoded_sequences_1 = tokenizer.encode_plus(table, sequences[1])
+                encoded_sequences_2 = tokenizer(table, sequences[1])
+                self.assertEqual(encoded_sequences_1, encoded_sequences_2)
+
+                # Test batched
+                table = self.get_table(tokenizer, length=0)
+                encoded_sequences_1 = tokenizer.batch_encode_plus(table, sequences)
+                encoded_sequences_2 = tokenizer(table, sequences)
+                self.assertEqual(encoded_sequences_1, encoded_sequences_2)
+
+    def test_internal_consistency(self):
+        tokenizers = self.get_tokenizers()
+        for tokenizer in tokenizers:
+            with self.subTest(f"{tokenizer.__class__.__name__}"):
+                table = self.get_table(tokenizer, length=0)
+                input_text, output_text = self.get_input_output_texts(tokenizer)
+
+                tokens = tokenizer.tokenize(input_text)
+                ids = tokenizer.convert_tokens_to_ids(tokens)
+                ids_2 = tokenizer.encode(table, input_text, add_special_tokens=False)
+                self.assertListEqual(ids, ids_2)
+
+                tokens_2 = tokenizer.convert_ids_to_tokens(ids)
+                self.assertNotEqual(len(tokens_2), 0)
+                text_2 = tokenizer.decode(ids)
+                self.assertIsInstance(text_2, str)
+
+                self.assertEqual(text_2, output_text)
+
+    def test_save_and_load_tokenizer(self):
+        # safety check on max_len default value so we are sure the test works
+        tokenizers = self.get_tokenizers()
+        for tokenizer in tokenizers:
+            with self.subTest(f"{tokenizer.__class__.__name__}"):
+                self.assertNotEqual(tokenizer.model_max_length, 42)
+
+        # Now let's start the test
+        tokenizers = self.get_tokenizers()
+        for tokenizer in tokenizers:
+            with self.subTest(f"{tokenizer.__class__.__name__}"):
+                # Isolate this from the other tests because we save additional tokens/etc
+                table = self.get_table(tokenizer, length=0)
+                tmpdirname = tempfile.mkdtemp()
+
+                sample_text = " He is very happy, UNwant\u00E9d,running"
+                before_tokens = tokenizer.encode(table, sample_text, add_special_tokens=False)
+                before_vocab = tokenizer.get_vocab()
+                tokenizer.save_pretrained(tmpdirname)
+
+                after_tokenizer = tokenizer.__class__.from_pretrained(tmpdirname)
+                after_tokens = after_tokenizer.encode(table, sample_text, add_special_tokens=False)
+                after_vocab = after_tokenizer.get_vocab()
+                self.assertListEqual(before_tokens, after_tokens)
+                self.assertDictEqual(before_vocab, after_vocab)
+
+                shutil.rmtree(tmpdirname)
+
+    def test_number_of_added_tokens(self):
+        tokenizers = self.get_tokenizers(do_lower_case=False)
+        for tokenizer in tokenizers:
+            with self.subTest(f"{tokenizer.__class__.__name__}"):
+
+                table, query = self.get_table_and_query(tokenizer)
+
+                sequences = tokenizer.encode(table, query, add_special_tokens=False)
+                attached_sequences = tokenizer.encode(table, query, add_special_tokens=True)
+
+                self.assertEqual(2, len(attached_sequences) - len(sequences))
+
+    @unittest.skip("TAPEX cannot handle `prepare_for_model` without passing by `encode_plus` or `batch_encode_plus`")
+    def test_prepare_for_model(self):
+        pass
+
+    @unittest.skip("TAPEX tokenizer does not support pairs.")
+    def test_maximum_encoding_length_pair_input(self):
+        pass
+
+    @unittest.skip("TAPEX tokenizer does not support pairs.")
+    def test_maximum_encoding_length_single_input(self):
+        pass
+
+    def test_tokenize_special_tokens(self):
+        """Test `tokenize` with special tokens."""
+        tokenizers = self.get_tokenizers(fast=True, do_lower_case=True)
+        for tokenizer in tokenizers:
+            with self.subTest(f"{tokenizer.__class__.__name__}"):
+                SPECIAL_TOKEN_1 = "[SPECIAL_TOKEN_1]"
+                SPECIAL_TOKEN_2 = "[SPECIAL_TOKEN_2]"
+
+                # TODO:
+                # Can we combine `unique_no_split_tokens` and `all_special_tokens`(and properties related to it)
+                # with one variable(property) for a better maintainability?
+
+                # `add_tokens` method stores special tokens only in `tokenizer.unique_no_split_tokens`. (in tokenization_utils.py)
+                tokenizer.add_tokens([SPECIAL_TOKEN_1], special_tokens=True)
+                # `add_special_tokens` method stores special tokens in `tokenizer.additional_special_tokens`,
+                # which also occur in `tokenizer.all_special_tokens`. (in tokenization_utils_base.py)
+                tokenizer.add_special_tokens({"additional_special_tokens": [SPECIAL_TOKEN_2]})
+
+                token_1 = tokenizer.tokenize(SPECIAL_TOKEN_1)
+                token_2 = tokenizer.tokenize(SPECIAL_TOKEN_2)
+
+                self.assertEqual(len(token_1), 1)
+                self.assertEqual(len(token_2), 1)
+                self.assertEqual(token_1[0], SPECIAL_TOKEN_1)
+                self.assertEqual(token_2[0], SPECIAL_TOKEN_2)
+    
+    def test_special_tokens_mask(self):
+        tokenizers = self.get_tokenizers(do_lower_case=False)
+        for tokenizer in tokenizers:
+            with self.subTest(f"{tokenizer.__class__.__name__}"):
+                table = self.get_table(tokenizer, length=0)
+                sequence_0 = "Encode this."
+                # Testing single inputs
+                encoded_sequence = tokenizer.encode(table, sequence_0, add_special_tokens=False)
+                encoded_sequence_dict = tokenizer.encode_plus(
+                    table, sequence_0, add_special_tokens=True, return_special_tokens_mask=True
+                )
+                encoded_sequence_w_special = encoded_sequence_dict["input_ids"]
+                special_tokens_mask = encoded_sequence_dict["special_tokens_mask"]
+                self.assertEqual(len(special_tokens_mask), len(encoded_sequence_w_special))
+
+                filtered_sequence = [x for i, x in enumerate(encoded_sequence_w_special) if not special_tokens_mask[i]]
+                self.assertEqual(encoded_sequence, filtered_sequence)
+    
     @slow
     def test_full_tokenizer(self):
         question = "Greece held its last Summer Olympics in 2004"
@@ -255,10 +397,9 @@ class TapexTokenizationTest(TokenizerTesterMixin, unittest.TestCase):
 
         # TODO replace nielsr by microsoft
         tokenizer = TapexTokenizer.from_pretrained("nielsr/tapex-large-finetuned-wtq")
+        print("Do lower case:", tokenizer.do_lower_case)
         encoding = tokenizer(table, question)
 
-        print(encoding.input_ids)
-        
         # fmt: off
         expected_results = {'input_ids': [0, 571, 5314, 1755, 547, 63, 94, 1035, 1021, 31434, 2857, 11, 4482, 11311, 4832, 76, 1721, 343, 1721, 247, 1721, 3949, 3236, 112, 4832, 42773, 1721, 23, 27859, 1721, 821, 5314, 1755, 1721, 501, 3236, 132, 4832, 23137, 1721, 2242, 354, 1721, 6664, 2389, 1721, 706, 3236, 155, 4832, 42224, 1721, 1690, 4, 26120, 354, 1721, 201, 102, 1721, 316, 3236, 204, 4832, 4482, 1721, 23, 27859, 1721, 821, 5314, 1755, 1721, 21458, 3236, 195, 4832, 2266, 1721, 28, 40049, 1721, 1855, 1243, 1721, 28325, 3236, 231, 4832, 1125, 1721, 784, 24639, 1721, 1717, 330, 1721, 28325, 2]}
         # fmt: on
