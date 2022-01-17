@@ -638,7 +638,7 @@ class TapexTokenizer(PreTrainedTokenizer):
             verbose=verbose,
             **kwargs,
         )
-        
+
         return self._batch_encode_plus(
             table=table,
             query=query,
@@ -872,7 +872,7 @@ class TapexTokenizer(PreTrainedTokenizer):
             verbose=verbose,
             **kwargs,
         )
-        
+
         return self._encode_plus(
             table=table,
             query=query,
@@ -931,7 +931,7 @@ class TapexTokenizer(PreTrainedTokenizer):
         print("Padding strategy:", padding_strategy.value)
         print("Truncation strategy:", truncation_strategy.value)
         print("Max length:", max_length)
-        
+
         return self.prepare_for_model(
             ids=self.convert_tokens_to_ids(tokens),
             add_special_tokens=add_special_tokens,
