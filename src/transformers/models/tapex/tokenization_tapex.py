@@ -483,8 +483,8 @@ class TapexTokenizer(PreTrainedTokenizer):
     @add_end_docstrings(ENCODE_KWARGS_DOCSTRING, TAPEX_ENCODE_PLUS_ADDITIONAL_KWARGS_DOCSTRING)
     def __call__(
         self,
-        tables: Union["pd.DataFrame", List["pd.DataFrame"]],
-        queries: Optional[
+        table: Union["pd.DataFrame", List["pd.DataFrame"]],
+        query: Optional[
             Union[
                 TextInput,
                 PreTokenizedInput,
@@ -513,48 +513,48 @@ class TapexTokenizer(PreTrainedTokenizer):
         """
         Args:
         Main method to tokenize and prepare for the model one or several sequence(s) related to a table.
-            tables (`pd.DataFrame` or `List[pd.DataFrame]`):
+            table (`pd.DataFrame` or `List[pd.DataFrame]`):
                 Table containing tabular data. Note that all cell values must be text. Use *.astype(str)* on a Pandas
                 dataframe to convert it to string.
-            queries (`str` or `List[str]`):
+            query (`str` or `List[str]`):
                 Question or batch of questions related to a table to be encoded. Note that in case of a batch, all
                 questions must refer to the **same** table.
         """
         # Input type checking for clearer error
-        if isinstance(tables, pd.DataFrame) and isinstance(queries, (list, tuple)):
+        if isinstance(table, pd.DataFrame) and isinstance(query, (list, tuple)):
             # single table, many queries case
-            tables = [tables] * len(queries)
-        if isinstance(tables, (list, tuple)) and isinstance(queries, str):
+            table = [table] * len(query)
+        if isinstance(table, (list, tuple)) and isinstance(query, str):
             # many tables, single query case
-            queries = [queries] * len(tables)
-        valid_tables = False
-        valid_queries = False
+            query = [query] * len(table)
+        valid_table = False
+        valid_query = False
 
-        # Check that tables have a valid type
-        if isinstance(tables, pd.DataFrame):
-            valid_tables = True
-        elif isinstance(tables, (list, tuple)) and isinstance(tables[0], pd.DataFrame):
-            valid_tables = True
+        # Check that table have a valid type
+        if isinstance(table, pd.DataFrame):
+            valid_table = True
+        elif isinstance(table, (list, tuple)) and isinstance(table[0], pd.DataFrame):
+            valid_table = True
 
-        # Check that queries have a valid type
-        if queries is None or isinstance(queries, str):
-            valid_queries = True
-        elif isinstance(queries, (list, tuple)):
-            if len(queries) == 0 or isinstance(queries[0], str):
-                valid_queries = True
+        # Check that query have a valid type
+        if query is None or isinstance(query, str):
+            valid_query = True
+        elif isinstance(query, (list, tuple)):
+            if len(query) == 0 or isinstance(query[0], str):
+                valid_query = True
 
-        if not valid_tables:
+        if not valid_table:
             raise ValueError(
-                "tables input must of type `pd.DataFrame` (single example), `List[pd.DataFrame]` (batch of examples). "
+                "table input must of type `pd.DataFrame` (single example), `List[pd.DataFrame]` (batch of examples). "
             )
-        if not valid_queries:
-            raise ValueError("queries input must of type `str` (single example), `List[str]` (batch of examples). ")
-        is_batched = isinstance(queries, (list, tuple))
+        if not valid_query:
+            raise ValueError("query input must of type `str` (single example), `List[str]` (batch of examples). ")
+        is_batched = isinstance(query, (list, tuple))
 
         if is_batched:
             return self.batch_encode_plus(
-                tables=tables,
-                queries=queries,
+                table=table,
+                query=query,
                 add_special_tokens=add_special_tokens,
                 padding=padding,
                 truncation=truncation,
@@ -572,8 +572,8 @@ class TapexTokenizer(PreTrainedTokenizer):
             )
         else:
             return self.encode_plus(
-                table=tables,
-                query=queries,
+                table=table,
+                query=query,
                 add_special_tokens=add_special_tokens,
                 padding=padding,
                 truncation=truncation,
@@ -593,8 +593,8 @@ class TapexTokenizer(PreTrainedTokenizer):
     @add_end_docstrings(ENCODE_KWARGS_DOCSTRING, TAPEX_ENCODE_PLUS_ADDITIONAL_KWARGS_DOCSTRING)
     def batch_encode_plus(
         self,
-        tables: Union["pd.DataFrame", List["pd.DataFrame"]],
-        queries: Optional[
+        table: Union["pd.DataFrame", List["pd.DataFrame"]],
+        query: Optional[
             Union[
                 List[TextInput],
                 List[PreTokenizedInput],
@@ -629,7 +629,7 @@ class TapexTokenizer(PreTrainedTokenizer):
             table (`pd.DataFrame`):
                 Table containing tabular data. Note that all cell values must be text. Use *.astype(str)* on a Pandas
                 dataframe to convert it to string.
-            queries (`List[str]`):
+            query (`List[str]`):
                 Batch of questions related to a table to be encoded. Note that all questions must refer to the **same**
                 table.
         """
@@ -644,8 +644,8 @@ class TapexTokenizer(PreTrainedTokenizer):
         )
 
         return self._batch_encode_plus(
-            tables=tables,
-            queries=queries,
+            table=table,
+            query=query,
             add_special_tokens=add_special_tokens,
             padding_strategy=padding_strategy,
             truncation_strategy=truncation_strategy,
@@ -664,8 +664,8 @@ class TapexTokenizer(PreTrainedTokenizer):
 
     def _batch_encode_plus(
         self,
-        tables: Union["pd.DataFrame", List["pd.DataFrame"]],
-        queries: Union[
+        table: Union["pd.DataFrame", List["pd.DataFrame"]],
+        query: Union[
             List[TextInput],
             List[PreTokenizedInput],
             List[EncodedInput],
@@ -695,8 +695,8 @@ class TapexTokenizer(PreTrainedTokenizer):
             )
 
         batch_outputs = self._batch_prepare_for_model(
-            tables=tables,
-            queries=queries,
+            table=table,
+            query=query,
             add_special_tokens=add_special_tokens,
             padding_strategy=padding_strategy,
             truncation_strategy=truncation_strategy,
@@ -717,8 +717,8 @@ class TapexTokenizer(PreTrainedTokenizer):
     @add_end_docstrings(ENCODE_KWARGS_DOCSTRING, TAPEX_ENCODE_PLUS_ADDITIONAL_KWARGS_DOCSTRING)
     def _batch_prepare_for_model(
         self,
-        tables: Union["pd.DataFrame", List["pd.DataFrame"]],
-        queries: Union[
+        table: Union["pd.DataFrame", List["pd.DataFrame"]],
+        query: Union[
             TextInput,
             PreTokenizedInput,
             EncodedInput,
@@ -742,9 +742,9 @@ class TapexTokenizer(PreTrainedTokenizer):
         tokens and manages a moving window (with user defined stride) for overflowing tokens.
         """
         batch_outputs = {}
-        for table, query in zip(tables, queries):
+        for _table, _query in zip(table, query):
             text = self.prepare_table_query(
-                table, query, truncation_strategy=truncation_strategy, max_length=max_length
+                _table, _query, truncation_strategy=truncation_strategy, max_length=max_length
             )
             print("Text:", text)
             tokens = self.tokenize(text)
@@ -782,6 +782,48 @@ class TapexTokenizer(PreTrainedTokenizer):
         batch_outputs = BatchEncoding(batch_outputs, tensor_type=return_tensors)
 
         return batch_outputs
+
+    @add_end_docstrings(ENCODE_KWARGS_DOCSTRING)
+    def encode(
+        self,
+        table: "pd.DataFrame",
+        query: Optional[
+            Union[
+                TextInput,
+                PreTokenizedInput,
+                EncodedInput,
+            ]
+        ] = None,
+        add_special_tokens: bool = True,
+        padding: Union[bool, str, PaddingStrategy] = False,
+        truncation: Union[bool, str, TruncationStrategy, TapexTruncationStrategy] = False,
+        max_length: Optional[int] = None,
+        return_tensors: Optional[Union[str, TensorType]] = None,
+        **kwargs
+    ) -> List[int]:
+        """
+        Prepare a table and a string for the model. This method does not return token type IDs, attention masks, etc.
+        which are necessary for the model to work correctly. Use that method if you want to build your processing on
+        your own, otherwise refer to `__call__`.
+        Args:
+            table (`pd.DataFrame`):
+                Table containing tabular data. Note that all cell values must be text. Use *.astype(str)* on a Pandas
+                dataframe to convert it to string.
+            query (`str` or `List[str]`):
+                Question related to a table to be encoded.
+        """
+        encoded_inputs = self.encode_plus(
+            table,
+            query=query,
+            add_special_tokens=add_special_tokens,
+            padding=padding,
+            truncation=truncation,
+            max_length=max_length,
+            return_tensors=return_tensors,
+            **kwargs,
+        )
+
+        return encoded_inputs["input_ids"]
 
     @add_end_docstrings(ENCODE_KWARGS_DOCSTRING, TAPEX_ENCODE_PLUS_ADDITIONAL_KWARGS_DOCSTRING)
     def encode_plus(
@@ -878,6 +920,9 @@ class TapexTokenizer(PreTrainedTokenizer):
                 "https://github.com/huggingface/transformers/pull/2674"
             )
 
+        print("Table inside encode_plus:", table)
+        print("Query inside encode_plus:", query)
+
         text = self.prepare_table_query(table, query, truncation_strategy=truncation_strategy, max_length=max_length)
         tokens = self.tokenize(text)
 
@@ -912,21 +957,28 @@ class TapexTokenizer(PreTrainedTokenizer):
 
         Optionally, it also handles truncation of the table (cells).
         """
-        # step 1: create table dictionary
-        table_content = {"header": list(table.columns), "rows": [list(row.values) for i, row in table.iterrows()]}
+        if not table.empty:
+            # step 1: create table dictionary
+            table_content = {"header": list(table.columns), "rows": [list(row.values) for i, row in table.iterrows()]}
 
-        # TODO step 2: modify table internally
-        self.truncate_table_cells(table_content, query, answer)
-        if truncation_strategy == TapexTruncationStrategy.DROP_ROWS_TO_FIT:
-            self.truncate_table_rows(table_content, query, answer, max_length=max_length)
+            # TODO step 2: modify table internally
+            self.truncate_table_cells(table_content, query, answer)
+            if truncation_strategy == TapexTruncationStrategy.DROP_ROWS_TO_FIT:
+                self.truncate_table_rows(table_content, query, answer, max_length=max_length)
 
-        # step 3: linearize table
-        linear_table = self.table_linearize.process_table(table_content)
+            # step 3: linearize table
+            linear_table = self.table_linearize.process_table(table_content)
+        else:
+            linear_table = ""
 
         # step 4: concatenate query with linear_table
-        joint_input = (query + " " + linear_table).lower()
-        
-        return joint_input
+        separator = " " if query and linear_table else ""
+        joint_input = (query + separator + linear_table) if query is not None else linear_table
+
+        print("Query:", query)
+        print("Joint input:", joint_input)
+
+        return joint_input.lower()
 
     def truncate_table_cells(self, table_content: Dict, question: str, answer: List):
         cell_mapping = {}

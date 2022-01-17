@@ -2,6 +2,7 @@ import pandas as pd
 
 from transformers import BartForConditionalGeneration, TapexTokenizer
 
+
 tokenizer = TapexTokenizer.from_pretrained("facebook/bart-large")
 
 question = "Greece held its last Summer Olympics in 2004"
@@ -13,8 +14,8 @@ table_dict = {
         [1904, "St. Louis", "USA", 12],
         [2004, "Athens", "Greece", 201],
         [2008, "Beijing", "China", 204],
-        [2012, "London", "UK", 204]
-    ]
+        [2012, "London", "UK", 204],
+    ],
 }
 
 table = pd.DataFrame.from_dict(table_dict["rows"])
@@ -35,7 +36,7 @@ table = pd.DataFrame.from_dict(data)
 query = "how many movies does Brad Pitt have?"
 
 # 1-1
-encoding = tokenizer(table, queries=query, return_tensors="pt")
+encoding = tokenizer(table, query, return_tensors="pt")
 print(tokenizer.decode(encoding.input_ids.squeeze()))
 
 # forward pass
@@ -45,7 +46,7 @@ print(tokenizer.batch_decode(outputs, skip_special_tokens=True))
 
 # 1-many
 queries = ["how many movies does Brad Pitt have?", "how many movies does George Clooney have?"]
-encoding = tokenizer(table, queries=queries, padding=True, return_tensors="pt")
+encoding = tokenizer(table, queries, padding=True, return_tensors="pt")
 
 for k, v in encoding.items():
     print(k, v.shape)
@@ -55,7 +56,7 @@ data = {"Actors": ["Niels Rogge", "Leonardo Di Caprio", "Veerle Declercq"], "Num
 table_2 = pd.DataFrame.from_dict(data)
 tables = [table, table_2]
 queries = ["how many movies does Brad Pitt have?", "how many movies does Niels Rogge have?"]
-encoding = tokenizer(tables, queries=queries, padding=True, return_tensors="pt")
+encoding = tokenizer(tables, queries, padding=True, return_tensors="pt")
 
 for k, v in encoding.items():
     print(k, v.shape)
@@ -65,7 +66,7 @@ outputs = model.generate(**encoding)
 print(tokenizer.batch_decode(outputs, skip_special_tokens=True))
 
 # many-1
-encoding = tokenizer(tables, queries=query, padding=True, return_tensors="pt")
+encoding = tokenizer(tables, query, padding=True, return_tensors="pt")
 
 for k, v in encoding.items():
     print(k, v.shape)
