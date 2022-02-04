@@ -160,11 +160,17 @@ class ConvNextFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMix
         else:
             images = [self.to_pil_image(image) for image in images]
 
+        for image in images:
+            print(type(image))
+        
         if self.do_normalize:
             images = [self.normalize(image=image, mean=self.image_mean, std=self.image_std) for image in images]
         else:
             images = [self.to_numpy_array(image) for image in images]
 
+        for image in images:
+            print(type(image))
+        
         # return as BatchFeature
         data = {"pixel_values": images}
         encoded_inputs = BatchFeature(data=data, tensor_type=return_tensors)
