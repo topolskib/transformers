@@ -86,7 +86,7 @@ class ConvNextFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMix
         self.image_std = image_std if image_std is not None else IMAGENET_DEFAULT_STD
 
     def __call__(
-        self, images: ImageInput, return_tensors: Optional[Union[str, TensorType]] = None, **kwargs
+        self, images: ImageInput, return_tensors: Optional[Union[str, TensorType]] = "np", **kwargs
     ) -> BatchFeature:
         """
         Main method to prepare for the model one or several image(s).
@@ -157,9 +157,13 @@ class ConvNextFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMix
                     for image in images
                 ]
                 images = [self.center_crop(image=image, size=self.size) for image in images]
+        else:
+            images = [self.to_pil_image(image) for image in images]
 
         if self.do_normalize:
             images = [self.normalize(image=image, mean=self.image_mean, std=self.image_std) for image in images]
+        else:
+            images = [self.to_numpy_array(image) for image in images]
 
         # return as BatchFeature
         data = {"pixel_values": images}
