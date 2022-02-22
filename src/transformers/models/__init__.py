@@ -48,6 +48,7 @@ from . import (
     dialogpt,
     distilbert,
     dpr,
+    dpt,
     electra,
     encoder_decoder,
     flaubert,

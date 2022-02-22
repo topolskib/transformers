@@ -219,6 +219,7 @@ _import_structure = {
         "DPRReaderOutput",
         "DPRReaderTokenizer",
     ],
+    "models.dpt": ["DPT_PRETRAINED_CONFIG_ARCHIVE_MAP", "DPTConfig"],
     "models.electra": ["ELECTRA_PRETRAINED_CONFIG_ARCHIVE_MAP", "ElectraConfig", "ElectraTokenizer"],
     "models.encoder_decoder": ["EncoderDecoderConfig"],
     "models.flaubert": ["FLAUBERT_PRETRAINED_CONFIG_ARCHIVE_MAP", "FlaubertConfig", "FlaubertTokenizer"],
@@ -524,6 +525,7 @@ if is_vision_available():
     _import_structure["models.convnext"].append("ConvNextFeatureExtractor")
     _import_structure["models.deit"].append("DeiTFeatureExtractor")
     _import_structure["models.detr"].append("DetrFeatureExtractor")
+    _import_structure["models.dpt"].append("DPTFeatureExtractor")
     _import_structure["models.imagegpt"].append("ImageGPTFeatureExtractor")
     _import_structure["models.layoutlmv2"].append("LayoutLMv2FeatureExtractor")
     _import_structure["models.layoutlmv2"].append("LayoutLMv2Processor")
@@ -654,6 +656,7 @@ if is_torch_available():
     _import_structure["modeling_utils"] = ["Conv1D", "PreTrainedModel", "apply_chunking_to_forward", "prune_layer"]
 
     # PyTorch models structure
+
     _import_structure["models.albert"].extend(
         [
             "ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST",
@@ -951,6 +954,14 @@ if is_torch_available():
             "DPRPretrainedReader",
             "DPRQuestionEncoder",
             "DPRReader",
+        ]
+    )
+    _import_structure["models.dpt"].extend(
+        [
+            "DPT_PRETRAINED_MODEL_ARCHIVE_LIST",
+            "DPTLayer",
+            "DPTModel",
+            "DPTPreTrainedModel",
         ]
     )
     _import_structure["models.electra"].extend(
@@ -2518,6 +2529,7 @@ if TYPE_CHECKING:
         DPRReaderOutput,
         DPRReaderTokenizer,
     )
+    from .models.dpt import DPT_PRETRAINED_CONFIG_ARCHIVE_MAP, DPTConfig
     from .models.electra import ELECTRA_PRETRAINED_CONFIG_ARCHIVE_MAP, ElectraConfig, ElectraTokenizer
     from .models.encoder_decoder import EncoderDecoderConfig
     from .models.flaubert import FLAUBERT_PRETRAINED_CONFIG_ARCHIVE_MAP, FlaubertConfig, FlaubertTokenizer
@@ -2775,6 +2787,7 @@ if TYPE_CHECKING:
         from .models.convnext import ConvNextFeatureExtractor
         from .models.deit import DeiTFeatureExtractor
         from .models.detr import DetrFeatureExtractor
+        from .models.dpt import DPTFeatureExtractor
         from .models.imagegpt import ImageGPTFeatureExtractor
         from .models.layoutlmv2 import LayoutLMv2FeatureExtractor, LayoutLMv2Processor
         from .models.layoutxlm import LayoutXLMProcessor
@@ -2831,6 +2844,7 @@ if TYPE_CHECKING:
         from .utils.dummy_pytorch_quantization_and_torch_objects import *
 
     if is_torch_available():
+
         # Benchmarks
         from .benchmark.benchmark import PyTorchBenchmark
         from .benchmark.benchmark_args import PyTorchBenchmarkArguments
@@ -3127,6 +3141,7 @@ if TYPE_CHECKING:
             DPRQuestionEncoder,
             DPRReader,
         )
+        from .models.dpt import DPT_PRETRAINED_MODEL_ARCHIVE_LIST, DPTLayer, DPTModel, DPTPreTrainedModel
         from .models.electra import (
             ELECTRA_PRETRAINED_MODEL_ARCHIVE_LIST,
             ElectraForCausalLM,
