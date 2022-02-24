@@ -960,6 +960,7 @@ if is_torch_available():
         [
             "DPT_PRETRAINED_MODEL_ARCHIVE_LIST",
             "DPTForDepthEstimation",
+            "DPTForSemanticSegmentation",
             "DPTLayer",
             "DPTModel",
             "DPTPreTrainedModel",
@@ -3145,6 +3146,7 @@ if TYPE_CHECKING:
         from .models.dpt import (
             DPT_PRETRAINED_MODEL_ARCHIVE_LIST,
             DPTForDepthEstimation,
+            DPTForSemanticSegmentation,
             DPTLayer,
             DPTModel,
             DPTPreTrainedModel,
