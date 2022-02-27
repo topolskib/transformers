@@ -53,6 +53,7 @@ from . import (
     fnet,
     fsmt,
     funnel,
+    glpn,
     gpt2,
     gpt_neo,
     gptj,
