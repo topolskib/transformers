@@ -310,6 +310,7 @@ MODEL_FOR_SEMANTIC_SEGMENTATION_MAPPING_NAMES = OrderedDict(
         # Model for Semantic Segmentation mapping
         ("beit", "BeitForSemanticSegmentation"),
         ("segformer", "SegformerForSemanticSegmentation"),
+        ("swin", "SwinForSemanticSegmentation"),
     ]
 )
 

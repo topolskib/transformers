@@ -31,6 +31,7 @@ if is_torch_available():
         "SWIN_PRETRAINED_MODEL_ARCHIVE_LIST",
         "SwinForImageClassification",
         "SwinForMaskedImageModeling",
+        "SwinForSemanticSegmentation",
         "SwinModel",
         "SwinPreTrainedModel",
     ]
@@ -44,6 +45,7 @@ if TYPE_CHECKING:
             SWIN_PRETRAINED_MODEL_ARCHIVE_LIST,
             SwinForImageClassification,
             SwinForMaskedImageModeling,
+            SwinForSemanticSegmentation,
             SwinModel,
             SwinPreTrainedModel,
         )

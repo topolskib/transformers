@@ -75,6 +75,22 @@ class SwinConfig(PretrainedConfig):
             The epsilon used by the layer normalization layers.
         encoder_stride (`int`, `optional`, defaults to 32):
             Factor to increase the spatial resolution by in the decoder head for masked image modeling.
+        out_indices (`List[int]`, *optional*, defaults to `[3, 5, 7, 11]`):
+            Indices of the feature maps to use for semantic segmentation.
+        pool_scales (`Tuple[int]`, *optional*, defaults to `[1, 2, 3, 6]`):
+            Pooling scales used in Pooling Pyramid Module applied on the last feature map.
+        use_auxiliary_head (`bool`, *optional*, defaults to `True`):
+            Whether to use an auxiliary head during training.
+        auxiliary_loss_weight (`float`, *optional*, defaults to 0.4):
+            Weight of the cross-entropy loss of the auxiliary head.
+        auxiliary_channels (`int`, *optional*, defaults to 256):
+            Number of channels to use in the auxiliary head.
+        auxiliary_num_convs (`int`, *optional*, defaults to 1):
+            Number of convolutional layers to use in the auxiliary head.
+        auxiliary_concat_input (`bool`, *optional*, defaults to `False`):
+            Whether to concatenate the output of the auxiliary head with the input before the classification layer.
+        semantic_loss_ignore_index (`int`, *optional*, defaults to 255):
+            The index that is ignored by the loss function of the semantic segmentation model.
 
         Example:
 
@@ -116,6 +132,14 @@ class SwinConfig(PretrainedConfig):
         initializer_range=0.02,
         layer_norm_eps=1e-5,
         encoder_stride=32,
+        out_indices=[3, 5, 7, 11],
+        pool_scales=[1, 2, 3, 6],
+        use_auxiliary_head=True,
+        auxiliary_loss_weight=0.4,
+        auxiliary_channels=256,
+        auxiliary_num_convs=1,
+        auxiliary_concat_input=False,
+        semantic_loss_ignore_index=255,
         **kwargs
     ):
         super().__init__(**kwargs)
@@ -142,3 +166,13 @@ class SwinConfig(PretrainedConfig):
         # we set the hidden_size attribute in order to make Swin work with VisionEncoderDecoderModel
         # this indicates the channel dimension after the last stage of the model
         self.hidden_size = embed_dim * 8
+        # decode head attributes (semantic segmentation)
+        self.out_indices = out_indices
+        self.pool_scales = pool_scales
+        # auxiliary head attributes (semantic segmentation)
+        self.use_auxiliary_head = use_auxiliary_head
+        self.auxiliary_loss_weight = auxiliary_loss_weight
+        self.auxiliary_channels = auxiliary_channels
+        self.auxiliary_num_convs = auxiliary_num_convs
+        self.auxiliary_concat_input = auxiliary_concat_input
+        self.semantic_loss_ignore_index = semantic_loss_ignore_index
