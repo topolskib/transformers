@@ -22,6 +22,7 @@ https://github.com/open-mmlab/mmsegmentation/blob/master/mmseg/models/decode_hea
 
 import collections.abc
 import math
+from typing import List
 
 import torch
 import torch.utils.checkpoint
@@ -591,6 +592,55 @@ class DPTFeatureFusionBlock(nn.Module):
         return x
 
 
+class DPTNeck(nn.Module):
+    """
+    DPTNeck, which includes:
+    * DPTReassembleBlocks
+    * FeatureFusionBlocks.
+    Args:
+        config (dict): config dict.
+    """
+
+    def __init__(self, config):
+        super().__init__()
+
+        self.config = config
+
+        # postprocessing
+        self.reassemble_blocks = DPTReassembleBlocks(config)
+        self.post_process_channels = [
+            channel * math.pow(2, i) if config.expand_channels else channel
+            for i, channel in enumerate(config.post_process_channels)
+        ]
+        self.convs = nn.ModuleList()
+        for channel in self.post_process_channels:
+            self.convs.append(nn.Conv2d(channel, config.channels, kernel_size=3, padding=1, bias=False))
+
+        # fusion
+        self.fusion_blocks = nn.ModuleList()
+        for _ in range(len(self.convs)):
+            self.fusion_blocks.append(DPTFeatureFusionBlock(config))
+        self.fusion_blocks[0].res_conv_unit1 = None  # not sure why this is done in mmseg
+
+    def forward(self, encoder_hidden_states: List[torch.Tensor]) -> List[torch.Tensor]:
+        # TODO: possibly move
+        # only keep certain features based on config.out_indices
+        # note that the encoder_hidden_states also include the initial embeddings
+        features = [feature for idx, feature in enumerate(encoder_hidden_states[1:]) if idx in self.config.out_indices]
+
+        # postprocess features
+        features = self.reassemble_blocks(features)
+
+        features = [self.convs[i](feature) for i, feature in enumerate(features)]
+
+        # fusion
+        out = self.fusion_blocks[0](features[-1])
+        for i in range(1, len(self.fusion_blocks)):
+            out = self.fusion_blocks[i](out, features[-(i + 1)])
+
+        return out
+
+
 class DPTPreTrainedModel(PreTrainedModel):
     """
     An abstract class to handle weights initialization and a simple interface for downloading and loading pretrained
@@ -654,7 +704,7 @@ DPT_INPUTS_DOCSTRING = r"""
 
 
 @add_start_docstrings(
-    "The bare DPT Model transformer outputting raw hidden-states without any specific head on top.",
+    "The DPT Model consisting of a Vision Transformer backbone and neck outputting raw hidden-states without any specific head on top.",
     DPT_START_DOCSTRING,
 )
 class DPTModel(DPTPreTrainedModel):
@@ -665,24 +715,10 @@ class DPTModel(DPTPreTrainedModel):
         # vit encoder
         self.embeddings = DPTViTEmbeddings(config)
         self.encoder = DPTViTEncoder(config)
-
         self.pooler = DPTViTPooler(config) if add_pooling_layer else None
 
-        # postprocessing
-        self.reassemble_blocks = DPTReassembleBlocks(config)
-        self.post_process_channels = [
-            channel * math.pow(2, i) if config.expand_channels else channel
-            for i, channel in enumerate(config.post_process_channels)
-        ]
-        self.convs = nn.ModuleList()
-        for channel in self.post_process_channels:
-            self.convs.append(nn.Conv2d(channel, config.channels, kernel_size=3, padding=1, bias=False))
-
-        # fusion
-        self.fusion_blocks = nn.ModuleList()
-        for _ in range(len(self.convs)):
-            self.fusion_blocks.append(DPTFeatureFusionBlock(config))
-        self.fusion_blocks[0].res_conv_unit1 = None  # not sure why this is done in mmseg
+        # neck
+        self.neck = DPTNeck(config)
 
         # Initialize weights and apply final processing
         self.post_init()
@@ -709,7 +745,7 @@ class DPTModel(DPTPreTrainedModel):
     )
     def forward(
         self,
-        pixel_values=None,
+        pixel_values,
         head_mask=None,
         output_attentions=None,
         output_hidden_states=None,
@@ -720,9 +756,6 @@ class DPTModel(DPTPreTrainedModel):
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-
-        if pixel_values is None:
-            raise ValueError("You have to specify pixel_values")
 
         # Prepare head mask if needed
         # 1.0 in head_mask indicate we keep the head
@@ -743,19 +776,7 @@ class DPTModel(DPTPreTrainedModel):
 
         encoder_hidden_states = encoder_outputs.hidden_states if return_dict else encoder_outputs[2]
 
-        # only keep certain features based on config.out_indices
-        # note that the encoder_hidden_states also include the initial embeddings
-        features = [feature for idx, feature in enumerate(encoder_hidden_states[1:]) if idx in self.config.out_indices]
-
-        # postprocess features
-        features = self.reassemble_blocks(features)
-
-        features = [self.convs[i](feature) for i, feature in enumerate(features)]
-
-        # fusion
-        out = self.fusion_blocks[0](features[-1])
-        for i in range(1, len(self.fusion_blocks)):
-            out = self.fusion_blocks[i](out, features[-(i + 1)])
+        out = self.neck(encoder_hidden_states)
 
         if not return_dict:
             return (out,) + encoder_outputs[1:]
