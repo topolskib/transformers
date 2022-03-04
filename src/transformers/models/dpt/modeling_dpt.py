@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2022 The HuggingFace Inc. team. All rights reserved.
+# Copyright 2022 Dmbodied AI Foundation, OpenMMLab and The HuggingFace Inc. team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ from typing import List
 import torch
 import torch.utils.checkpoint
 from torch import nn
+from torch.nn import CrossEntropyLoss
 
 from ...activations import ACT2FN
 from ...file_utils import (
@@ -1018,15 +1019,26 @@ class DPTForSemanticSegmentation(DPTPreTrainedModel):
 
         loss = None
         if labels is not None:
-            raise NotImplementedError("Training is not implemented yet")
+            if self.config.num_labels == 1:
+                raise ValueError("The number of labels should be greater than one")
+            else:
+                # upsample logits to the images' original size
+                upsampled_logits = nn.functional.interpolate(
+                    logits, size=labels.shape[-2:], mode="bilinear", align_corners=False
+                )
+                loss_fct = CrossEntropyLoss(ignore_index=self.config.semantic_loss_ignore_index)
+                loss = loss_fct(upsampled_logits, labels)
 
         if not return_dict:
-            output = (logits,) + outputs[2:]
+            if output_hidden_states:
+                output = (logits,) + outputs[1:]
+            else:
+                output = (logits,) + outputs[2:]
             return ((loss,) + output) if loss is not None else output
 
         return SemanticSegmentationModelOutput(
             loss=loss,
             logits=logits,
-            hidden_states=outputs.hidden_states,
+            hidden_states=outputs.hidden_states if output_hidden_states else None,
             attentions=outputs.attentions,
         )

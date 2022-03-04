@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2021 Google AI and The HuggingFace Inc. team. All rights reserved.
+# Copyright 2022 The HuggingFace Inc. team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ class DPTConfig(PretrainedConfig):
     This is the configuration class to store the configuration of a [`DPTModel`]. It is used to instantiate an DPT
     model according to the specified arguments, defining the model architecture. Instantiating a configuration with the
     defaults will yield a similar configuration to that of the DPT
-    [google/vit-base-patch16-224](https://huggingface.co/google/vit-base-patch16-224) architecture.
+    [google/dpt-large](https://huggingface.co/google/dpt-large) architecture.
 
     Configuration objects inherit from [`PretrainedConfig`] and can be used to control the model outputs. Read the
     documentation from [`PretrainedConfig`] for more information.
@@ -90,10 +90,10 @@ class DPTConfig(PretrainedConfig):
     ```python
     >>> from transformers import DPTModel, DPTConfig
 
-    >>> # Initializing a DPT vit-base-patch16-224 style configuration
+    >>> # Initializing a DPT dpt-large style configuration
     >>> configuration = DPTConfig()
 
-    >>> # Initializing a model from the vit-base-patch16-224 style configuration
+    >>> # Initializing a model from the dpt-large style configuration
     >>> model = DPTModel(configuration)
 
     >>> # Accessing the model configuration
