@@ -16,6 +16,8 @@
 import json
 import logging
 import os
+# TODO remove this
+os.system("git clone -b add_miou_metric https://github.com/NielsRogge/datasets.git")
 import random
 import sys
 from dataclasses import dataclass, field
