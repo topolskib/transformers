@@ -177,9 +177,6 @@ class DataTrainingArguments:
     dataset_name: Optional[str] = field(
         default="scene_parse_150", metadata={"help": "Name of a dataset from the datasets package."}
     )
-    dataset_config_name: Optional[str] = field(
-        default=None, metadata={"help": "The configuration name of the dataset to use (via the datasets library)."}
-    )
     train_val_split: Optional[float] = field(
         default=0.15, metadata={"help": "Percent to split off of train for validation."}
     )
@@ -286,8 +283,6 @@ def main():
     # Initialize our dataset.
     ds = load_dataset(
         data_args.dataset_name,
-        data_args.dataset_config_name,
-        data_files=data_args.data_files,
         cache_dir=model_args.cache_dir,
     )
 
