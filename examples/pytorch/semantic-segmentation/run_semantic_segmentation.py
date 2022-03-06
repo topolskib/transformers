@@ -13,24 +13,24 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 
+import json
 import logging
 import os
+import random
 import sys
 from dataclasses import dataclass, field
 from typing import Optional
 
-import random
-
-import datasets
 import numpy as np
 import torch
-from torch import nn
 from datasets import load_dataset, load_metric
 from PIL import Image
+from torch import nn
 from torchvision import transforms
 from torchvision.transforms import functional
 
 import transformers
+from huggingface_hub import cached_download, hf_hub_url
 from transformers import (
     MODEL_FOR_SEMANTIC_SEGMENTATION_MAPPING,
     AutoConfig,
@@ -223,7 +223,9 @@ class ModelArguments:
         default="main",
         metadata={"help": "The specific model version to use (can be a branch name, tag name or commit id)."},
     )
-    feature_extractor_name_or_path: str = field(default=None, metadata={"help": "Name or path of preprocessor config."})
+    feature_extractor_name_or_path: str = field(
+        default=None, metadata={"help": "Name or path of preprocessor config."}
+    )
     use_auth_token: bool = field(
         default=False,
         metadata={
@@ -298,11 +300,12 @@ def main():
 
     # Prepare label mappings.
     # We'll include these in the model's config to get human readable labels in the Inference API.
-    labels = ds["train"].features["labels"].names
-    label2id, id2label = dict(), dict()
-    for i, label in enumerate(labels):
-        label2id[label] = str(i)
-        id2label[str(i)] = label
+    repo_id = "datasets/huggingface/label-files"
+    filename = "ade20k-id2label.json"
+    num_labels = 150
+    id2label = json.load(open(cached_download(hf_hub_url(repo_id, filename)), "r"))
+    id2label = {int(k): v for k, v in id2label.items()}
+    label2id = {v: k for k, v in id2label.items()}
 
     # Load the accuracy metric from the datasets package
     metric = load_metric("/content/datasets/metrics/mean_iou/mean_iou.py")
@@ -322,18 +325,21 @@ def main():
             ).argmax(dim=1)
 
             pred_labels = logits_tensor.detach().cpu().numpy()
-            metrics = metric.compute(predictions=pred_labels, references=labels, 
-                                        num_labels=num_labels, 
-                                        ignore_index=0,
-                                        reduce_labels=feature_extractor.reduce_labels)
+            metrics = metric.compute(
+                predictions=pred_labels,
+                references=labels,
+                num_labels=num_labels,
+                ignore_index=0,
+                reduce_labels=feature_extractor.reduce_labels,
+            )
             for key, value in metrics.items():
-            if type(value) is np.ndarray:
-                metrics[key] = value.tolist()
+                if type(value) is np.ndarray:
+                    metrics[key] = value.tolist()
             return metrics
 
     config = AutoConfig.from_pretrained(
         model_args.config_name_or_path or model_args.model_name_or_path,
-        num_labels=len(labels),
+        num_labels=num_labels,
         label2id=label2id,
         id2label=id2label,
         finetuning_task="image-segmentation",
@@ -359,23 +365,27 @@ def main():
     # Define torchvision transforms to be applied to each image + target.
     # Not that straightforward in torchvision: https://github.com/pytorch/vision/issues/9
     # Currently based on official torchvision references: https://github.com/pytorch/vision/blob/main/references/segmentation/transforms.py
-    _train_transforms = Compose([
-        ReduceLabels(),
-        RandomCrop(size=feature_extractor.size),
-        RandomHorizontalFlip(flip_prob=0.5),
-        PILToTensor(),
-        ConvertImageDtype(torch.float),
-        Normalize(mean=feature_extractor.image_mean, std=feature_extractor.image_std),
-    ])
+    _train_transforms = Compose(
+        [
+            ReduceLabels(),
+            RandomCrop(size=feature_extractor.size),
+            RandomHorizontalFlip(flip_prob=0.5),
+            PILToTensor(),
+            ConvertImageDtype(torch.float),
+            Normalize(mean=feature_extractor.image_mean, std=feature_extractor.image_std),
+        ]
+    )
     # Define torchvision transform to be applied to each image.
-    #jitter = ColorJitter(brightness=0.25, contrast=0.25, saturation=0.25, hue=0.1)
-    _val_transforms = Compose([
-        ReduceLabels(),
-        Resize(size=(feature_extractor.size, feature_extractor.size)),
-        PILToTensor(),
-        ConvertImageDtype(torch.float),
-        Normalize(mean=feature_extractor.image_mean, std=feature_extractor.image_std),
-    ])
+    # jitter = ColorJitter(brightness=0.25, contrast=0.25, saturation=0.25, hue=0.1)
+    _val_transforms = Compose(
+        [
+            ReduceLabels(),
+            Resize(size=(feature_extractor.size, feature_extractor.size)),
+            PILToTensor(),
+            ConvertImageDtype(torch.float),
+            Normalize(mean=feature_extractor.image_mean, std=feature_extractor.image_std),
+        ]
+    )
 
     def train_transforms(example_batch):
         pixel_values = []
@@ -384,11 +394,11 @@ def main():
             image, target = _train_transforms(image, target)
             pixel_values.append(image)
             labels.append(target)
-        
+
         encoding = dict()
         encoding["pixel_values"] = torch.stack(pixel_values)
         encoding["labels"] = torch.stack(labels)
-        
+
         return encoding
 
     def val_transforms(example_batch):
@@ -398,11 +408,11 @@ def main():
             image, target = _val_transforms(image, target)
             pixel_values.append(image)
             labels.append(target)
-        
+
         encoding = dict()
         encoding["pixel_values"] = torch.stack(pixel_values)
         encoding["labels"] = torch.stack(labels)
-        
+
         return encoding
 
     if training_args.do_train:
