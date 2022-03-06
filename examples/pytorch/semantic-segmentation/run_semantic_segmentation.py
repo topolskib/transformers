@@ -305,7 +305,8 @@ def main():
     label2id = {v: k for k, v in id2label.items()}
 
     # Load the accuracy metric from the datasets package
-    metric = load_metric("/content/datasets/metrics/mean_iou/mean_iou.py")
+    # TODO update once merged
+    metric = load_metric("/content/transformers/examples/pytorch/semantic-segmentation/datasets/metrics/mean_iou/mean_iou.py")
 
     # Define our compute_metrics function. It takes an `EvalPrediction` object (a namedtuple with a
     # predictions and label_ids field) and has to return a dictionary string to float.
