@@ -34,6 +34,7 @@ from tqdm.auto import tqdm
 
 import transformers
 from accelerate import Accelerator
+from accelerate.utils import set_seed
 from huggingface_hub import Repository, hf_hub_download
 from transformers import (
     AdamW,
@@ -43,7 +44,6 @@ from transformers import (
     SchedulerType,
     default_data_collator,
     get_scheduler,
-    set_seed,
 )
 from transformers.utils import get_full_repo_name
 from transformers.utils.versions import require_version
@@ -80,7 +80,7 @@ class Resize:
 
     def __call__(self, image, target):
         image = functional.resize(image, self.size)
-        target = functional.resize(target, self.size)
+        target = functional.resize(target, self.size, interpolation=transforms.InterpolationMode.NEAREST)
         return image, target
 
 
@@ -312,7 +312,7 @@ def main():
 
     # If passed along, set the training seed now.
     if args.seed is not None:
-        set_seed(args.seed)
+        set_seed(args.seed, device_specific=True)
 
     # Handle the repository creation
     if accelerator.is_main_process:
@@ -573,18 +573,19 @@ def main():
                         accelerator.log(train_logs)
 
             # Save model every `checkpointing_steps`
-            if (step + 1) % (args.gradient_accumulation_steps * checkpointing_steps) == 0:
-                if (args.push_to_hub and epoch < args.num_train_epochs - 1) or args.output_dir is not None:
-                    accelerator.wait_for_everyone()
-                    unwrapped_model = accelerator.unwrap_model(model)
-                    unwrapped_model.save_pretrained(args.output_dir, save_function=accelerator.save)
+            if isinstance(checkpointing_steps, int):
+                if (step + 1) % (args.gradient_accumulation_steps * checkpointing_steps) == 0:
+                    if (args.push_to_hub and epoch < args.num_train_epochs - 1) or args.output_dir is not None:
+                        accelerator.wait_for_everyone()
+                        unwrapped_model = accelerator.unwrap_model(model)
+                        unwrapped_model.save_pretrained(args.output_dir, save_function=accelerator.save)
 
-                if (args.push_to_hub and epoch < args.num_train_epochs - 1) and accelerator.is_main_process:
-                    repo.push_to_hub(
-                        commit_message=f"Training in progress step {completed_steps}",
-                        blocking=False,
-                        auto_lfs_prune=True,
-                    )
+                    if (args.push_to_hub and epoch < args.num_train_epochs - 1) and accelerator.is_main_process:
+                        repo.push_to_hub(
+                            commit_message=f"Training in progress step {completed_steps}",
+                            blocking=False,
+                            auto_lfs_prune=True,
+                        )
 
         model.eval()
         for step, batch in enumerate(eval_dataloader):
