@@ -52,6 +52,8 @@ class ResNetConfig(PretrainedConfig):
             are supported.
         downsample_in_first_stage (`bool`, *optional*, defaults to `False`):
             If `True`, the first stage will downsample the inputs using a `stride` of 2.
+        replace_stride_with_dilation
+            ...
 
     Example:
     ```python
@@ -77,6 +79,7 @@ class ResNetConfig(PretrainedConfig):
         layer_type="bottleneck",
         hidden_act="relu",
         downsample_in_first_stage=False,
+        replace_stride_with_dilation=[False, False, False],
         **kwargs
     ):
         super().__init__(**kwargs)
@@ -89,3 +92,4 @@ class ResNetConfig(PretrainedConfig):
         self.layer_type = layer_type
         self.hidden_act = hidden_act
         self.downsample_in_first_stage = downsample_in_first_stage
+        self.replace_stride_with_dilation = replace_stride_with_dilation

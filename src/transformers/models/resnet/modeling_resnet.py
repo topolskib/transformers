@@ -54,11 +54,24 @@ RESNET_PRETRAINED_MODEL_ARCHIVE_LIST = [
 
 class ResNetConvLayer(nn.Sequential):
     def __init__(
-        self, in_channels: int, out_channels: int, kernel_size: int = 3, stride: int = 1, activation: str = "relu"
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int = 3,
+        stride: int = 1,
+        dilation: int = 1,
+        padding: int = 0,
+        activation: str = "relu",
     ):
         super().__init__()
         self.convolution = nn.Conv2d(
-            in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=kernel_size // 2, bias=False
+            in_channels,
+            out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            dilation=dilation,
+            padding=dilation if dilation > 1 else kernel_size // 2,
+            bias=False,
         )
         self.normalization = nn.BatchNorm2d(out_channels)
         self.activation = ACT2FN[activation] if activation is not None else nn.Identity()
@@ -72,7 +85,12 @@ class ResNetEmbeddings(nn.Sequential):
     def __init__(self, config: ResNetConfig):
         super().__init__()
         self.embedder = ResNetConvLayer(
-            config.num_channels, config.embedding_size, kernel_size=7, stride=2, activation=config.hidden_act
+            config.num_channels,
+            config.embedding_size,
+            kernel_size=7,
+            stride=2,
+            padding=3,
+            activation=config.hidden_act,
         )
         self.pooler = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
 
@@ -94,15 +112,17 @@ class ResNetBasicLayer(nn.Module):
     A classic ResNet's residual layer composed by a two `3x3` convolutions.
     """
 
-    def __init__(self, in_channels: int, out_channels: int, stride: int = 1, activation: str = "relu"):
+    def __init__(
+        self, in_channels: int, out_channels: int, stride: int = 1, dilation: int = 1, activation: str = "relu"
+    ):
         super().__init__()
         should_apply_shortcut = in_channels != out_channels or stride != 1
         self.shortcut = (
             ResNetShortCut(in_channels, out_channels, stride=stride) if should_apply_shortcut else nn.Identity()
         )
         self.layer = nn.Sequential(
-            ResNetConvLayer(in_channels, out_channels, stride=stride),
-            ResNetConvLayer(out_channels, out_channels, activation=None),
+            ResNetConvLayer(in_channels, out_channels, stride=stride, padding=dilation),
+            ResNetConvLayer(out_channels, out_channels, activation=None, padding=dilation),
         )
         self.activation = ACT2FN[activation]
 
@@ -124,7 +144,14 @@ class ResNetBottleNeckLayer(nn.Module):
     """
 
     def __init__(
-        self, in_channels: int, out_channels: int, stride: int = 1, activation: str = "relu", reduction: int = 4
+        self,
+        in_channels: int,
+        out_channels: int,
+        stride: int = 1,
+        dilation: int = 1,
+        activation: str = "relu",
+        reduction: int = 4,
+        stage: int = None,
     ):
         super().__init__()
         should_apply_shortcut = in_channels != out_channels or stride != 1
@@ -134,18 +161,44 @@ class ResNetBottleNeckLayer(nn.Module):
         )
         self.layer = nn.Sequential(
             ResNetConvLayer(in_channels, reduces_channels, kernel_size=1),
-            ResNetConvLayer(reduces_channels, reduces_channels, stride=stride),
+            PrintLayer(),
+            ResNetConvLayer(reduces_channels, reduces_channels, stride=stride, dilation=dilation, padding=dilation),
+            PrintLayer(),
             ResNetConvLayer(reduces_channels, out_channels, kernel_size=1, activation=None),
+            PrintLayer(),
         )
         self.activation = ACT2FN[activation]
 
+        self.stage = stage
+
     def forward(self, hidden_state):
+        # if self.stage == 4:
+        #     print("Shape before Bottleneck: ", hidden_state.shape)
+
         residual = hidden_state
         hidden_state = self.layer(hidden_state)
+
+        # if self.stage == 4:
+        #     print("Shape after 3 conv layers: ", hidden_state.shape)
+
         residual = self.shortcut(residual)
         hidden_state += residual
         hidden_state = self.activation(hidden_state)
+
+        # if self.stage == 4:
+        #     print("Shape after Bottleneck: ", hidden_state.shape)
+
         return hidden_state
+
+
+class PrintLayer(nn.Module):
+    def __init__(self):
+        super(PrintLayer, self).__init__()
+
+    def forward(self, x):
+        # Do your print / debug stuff here
+        # print(x.shape)
+        return x
 
 
 class ResNetStage(nn.Sequential):
@@ -159,22 +212,36 @@ class ResNetStage(nn.Sequential):
         in_channels: int,
         out_channels: int,
         stride: int = 2,
+        dilation: int = 1,
         depth: int = 2,
+        dilate: bool = False,
+        stage: int = None,
     ):
         super().__init__()
 
         layer = ResNetBottleNeckLayer if config.layer_type == "bottleneck" else ResNetBasicLayer
 
+        if dilate:
+            dilation *= stride
+            stride = 1
+
         self.layers = nn.Sequential(
             # downsampling is done in the first layer with stride of 2
-            layer(in_channels, out_channels, stride=stride, activation=config.hidden_act),
-            *[layer(out_channels, out_channels, activation=config.hidden_act) for _ in range(depth - 1)],
+            layer(in_channels, out_channels, stride=stride, activation=config.hidden_act, stage=stage),
+            PrintLayer(),
+            *[
+                layer(out_channels, out_channels, dilation=dilation, activation=config.hidden_act, stage=stage)
+                for _ in range(depth - 1)
+            ],
         )
 
 
 class ResNetEncoder(nn.Module):
     def __init__(self, config: ResNetConfig):
         super().__init__()
+
+        self.dilation = 1
+
         self.stages = nn.ModuleList([])
         # based on `downsample_in_first_stage` the first layer of the first stage may or may not downsample the input
         self.stages.append(
@@ -184,18 +251,24 @@ class ResNetEncoder(nn.Module):
                 config.hidden_sizes[0],
                 stride=2 if config.downsample_in_first_stage else 1,
                 depth=config.depths[0],
+                stage=1,
             )
         )
         in_out_channels = zip(config.hidden_sizes, config.hidden_sizes[1:])
-        for (in_channels, out_channels), depth in zip(in_out_channels, config.depths[1:]):
-            self.stages.append(ResNetStage(config, in_channels, out_channels, depth=depth))
+        for idx, ((in_channels, out_channels), depth, dilate) in enumerate(
+            zip(in_out_channels, config.depths[1:], config.replace_stride_with_dilation)
+        ):
+            self.stages.append(
+                ResNetStage(config, in_channels, out_channels, depth=depth, dilate=dilate, stage=idx + 2)
+            )
 
     def forward(
         self, hidden_state: Tensor, output_hidden_states: bool = False, return_dict: bool = True
     ) -> BaseModelOutputWithNoAttention:
         hidden_states = () if output_hidden_states else None
 
-        for stage_module in self.stages:
+        for i, stage_module in enumerate(self.stages):
+            print("Stage:", i)
             if output_hidden_states:
                 hidden_states = hidden_states + (hidden_state,)
 
