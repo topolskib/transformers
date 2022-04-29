@@ -85,6 +85,11 @@ class ResNetConfig(PretrainedConfig):
         super().__init__(**kwargs)
         if layer_type not in self.layer_types:
             raise ValueError(f"layer_type={layer_type} is not one of {','.join(self.layer_types)}")
+        if len(replace_stride_with_dilation) != 3:
+            raise ValueError(
+                "replace_stride_with_dilation should be" f"a 3-element tuple, got {replace_stride_with_dilation}"
+            )
+
         self.num_channels = num_channels
         self.embedding_size = embedding_size
         self.hidden_sizes = hidden_sizes

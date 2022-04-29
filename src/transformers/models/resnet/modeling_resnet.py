@@ -103,10 +103,12 @@ class ResNetShortCut(nn.Sequential):
 
 class ResNetBasicLayer(nn.Module):
     """
-    A classic ResNet's residual layer composed by a two `3x3` convolutions.
+    A classic ResNet's residual layer composed by two `3x3` convolutions.
     """
 
-    def __init__(self, in_channels: int, out_channels: int, stride: int = 1, activation: str = "relu"):
+    def __init__(
+        self, in_channels: int, out_channels: int, stride: int = 1, dilation: int = 1, activation: str = "relu"
+    ):
         super().__init__()
         should_apply_shortcut = in_channels != out_channels or stride != 1
         self.shortcut = (
@@ -129,10 +131,10 @@ class ResNetBasicLayer(nn.Module):
 
 class ResNetBottleNeckLayer(nn.Module):
     """
-    A classic ResNet's bottleneck layer composed by a three `3x3` convolutions.
+    A classic ResNet's bottleneck layer composed by three convolutions.
 
     The first `1x1` convolution reduces the input by a factor of `reduction` in order to make the second `3x3`
-    convolution faster. The last `1x1` convolution remap the reduced features to `out_channels`.
+    convolution faster. The last `1x1` convolution remaps the reduced features to `out_channels`.
     """
 
     def __init__(

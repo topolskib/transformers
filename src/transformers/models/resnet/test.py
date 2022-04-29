@@ -3,7 +3,7 @@ import torch
 from transformers import ResNetConfig, ResNetForImageClassification
 
 
-config = ResNetConfig(replace_stride_with_dilation=[False, False, True])
+config = ResNetConfig(replace_stride_with_dilation=[True, True, True])
 
 model = ResNetForImageClassification(config)
 
