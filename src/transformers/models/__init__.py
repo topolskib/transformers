@@ -68,6 +68,7 @@ from . import (
     imagegpt,
     layoutlm,
     layoutlmv2,
+    layoutlmv3,
     layoutxlm,
     led,
     longformer,
