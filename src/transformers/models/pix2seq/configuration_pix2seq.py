@@ -20,7 +20,6 @@ from typing import Mapping
 from packaging import version
 
 from ...configuration_utils import PretrainedConfig
-from ...onnx import OnnxConfig
 from ...utils import logging
 
 
@@ -63,16 +62,14 @@ class Pix2SeqConfig(PretrainedConfig):
             The standard deviation of the truncated_normal_initializer for initializing all weight matrices.
         layer_norm_eps (`float`, *optional*, defaults to 1e-12):
             The epsilon used by the layer normalization layers.
-        image_size (`int`, *optional*, defaults to `224`):
-            The size (resolution) of each image.
         patch_size (`int`, *optional*, defaults to `16`):
             The size (resolution) of each patch.
         num_channels (`int`, *optional*, defaults to `3`):
             The number of input channels.
         qkv_bias (`bool`, *optional*, defaults to `True`):
             Whether to add a bias to the queries, keys and values.
-        encoder_stride (`int`, `optional`, defaults to 16):
-           Factor to increase the spatial resolution by in the decoder head for masked image modeling.
+        use_cls_token (`bool`, *optional*, defaults to `False`):
+            Whether to use a CLS token.
 
     Example:
 
@@ -102,11 +99,10 @@ class Pix2SeqConfig(PretrainedConfig):
         initializer_range=0.02,
         layer_norm_eps=1e-12,
         is_encoder_decoder=False,
-        image_size=224,
         patch_size=16,
         num_channels=3,
         qkv_bias=True,
-        encoder_stride=16,
+        use_cls_token=False,
         **kwargs
     ):
         super().__init__(**kwargs)
@@ -120,25 +116,7 @@ class Pix2SeqConfig(PretrainedConfig):
         self.attention_probs_dropout_prob = attention_probs_dropout_prob
         self.initializer_range = initializer_range
         self.layer_norm_eps = layer_norm_eps
-        self.image_size = image_size
         self.patch_size = patch_size
         self.num_channels = num_channels
         self.qkv_bias = qkv_bias
-        self.encoder_stride = encoder_stride
-
-
-class Pix2SeqOnnxConfig(OnnxConfig):
-
-    torch_onnx_minimum_version = version.parse("1.11")
-
-    @property
-    def inputs(self) -> Mapping[str, Mapping[int, str]]:
-        return OrderedDict(
-            [
-                ("pixel_values", {0: "batch", 1: "sequence"}),
-            ]
-        )
-
-    @property
-    def atol_for_validation(self) -> float:
-        return 1e-4
+        self.use_cls_token = use_cls_token
