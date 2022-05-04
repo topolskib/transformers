@@ -55,6 +55,88 @@ def to_2tuple(x):
     return (x, x)
 
 
+def get_angles(pos, i, dim):
+  angle_rates = 1 / torch.pow(10000., (2 * (i//2).float()) / dim)
+  return pos.float() * angle_rates.float()
+
+
+def positional_encoding(coords, dim):
+    """
+    Args:
+        coords:
+            Coordinates in (batch_size, dimension)
+            
+        Returns: 
+            Position embeddings of shape (bsz, size, dim).
+    """
+    angle_rads = get_angles(coords.unsqueeze(-1),
+                            torch.range(start=0, end=dim-1)[None, None, :],
+                            dim)
+
+    # apply sin to even indices in the array; 2i
+    angle_rads1 = torch.sin(angle_rads[:, :, 0::2])
+
+    # apply cos to odd indices in the array; 2i+1
+    angle_rads2 = torch.cos(angle_rads[:, :, 1::2])
+
+    pos_encoding = torch.cat([angle_rads1, angle_rads2], -1)
+
+    return pos_encoding.float()
+
+
+def get_2d_position_codes(height, width, out_dim, normalization_max=6.2831852):
+    """Get 2d positional embedding with sin/cos codes.
+    
+    Args:
+        height:
+            An `int` specifying the height of the 2d image / feature map.
+        width:
+            An `int` specifying the width of the 2d image / feature map.
+        out_dim: 
+            An `int` specifying the output dimension of the encoding. Must be divisible by 2.
+        normalization_max: 
+            ?ormalize coordinates between [0, normalization_max]. If None, raw coordinates from 0 to height/width will be used.
+    
+    Returns:
+        positional code of shape (1, height, width, out_dim)
+    """
+    y_coords = torch.range(start=0, end=height-1, dtype=torch.float)
+    if normalization_max is not None:
+        y_coords = y_coords / (height - 1) * normalization_max
+    y_coords = positional_encoding(y_coords, out_dim//2)
+    y_coords = y_coords.unsqueeze(2)
+    y_coords = torch.cat([y_coords, torch.zeros_like(y_coords)], -1)
+
+    x_coords = torch.range(start=0, end=width-1, dtype=torch.float)
+    if normalization_max is not None:
+        x_coords = x_coords / (width - 1) * normalization_max
+    x_coords = positional_encoding(x_coords, out_dim//2)
+    x_coords = x_coords.unsqueeze(1)
+    x_coords = torch.cat([torch.zeros_like(x_coords), x_coords], -1)
+    
+    return y_coords + x_coords
+
+
+class Pix2SeqPositionEmbeddings(nn.Module):
+    def __init__(self, config: Pix2SeqConfig):
+        super().__init__()
+        
+        n_rows = n_cols = config.image_size // config.patch_size
+        dim = config.hidden_size
+        
+        if config.positional_encoding == 'learned':
+            self.embeddings = nn.Parameter(shape=(n_rows * n_cols, dim))
+        elif config.positional_encoding == 'sin_cos':
+            sin_cos = get_2d_position_codes(
+                n_rows, n_cols, dim, normalization_max=6.2831852)
+            self.embeddings = torch.reshape(sin_cos, [n_rows * n_cols, dim])
+        else:
+            raise ValueError("Unknown positional encoding:", config.positional_encoding)
+
+    def forward(self):
+        return self.embeddings
+
+
 class Pix2SeqEmbeddings(nn.Module):
     """
     Construct the CLS token, position and patch embeddings.
@@ -72,6 +154,7 @@ class Pix2SeqEmbeddings(nn.Module):
         )
         # num_patches = self.patch_embeddings.num_patches
         # self.position_embeddings = nn.Parameter(torch.zeros(1, num_patches + 1, config.hidden_size))
+        self.position_embeddings = Pix2SeqPositionEmbeddings(config)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.config = config
 
@@ -87,7 +170,11 @@ class Pix2SeqEmbeddings(nn.Module):
             embeddings = torch.cat((cls_tokens, embeddings), dim=1)
 
         # add positional encoding to each token
-        # embeddings = embeddings + self.position_embeddings
+        embeddings = embeddings + self.position_embeddings().unsqueeze(0)
+
+        print("First values after position embeddings:", embeddings[0,:3,:3])
+        print("Last values after position embeddings:", embeddings[0,-3:,:3:])
+        print("Sum of embeddings:", embeddings.sum())
 
         embeddings = self.dropout(embeddings)
 
