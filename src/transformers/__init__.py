@@ -251,6 +251,7 @@ _import_structure = {
     "models.pegasus": ["PEGASUS_PRETRAINED_CONFIG_ARCHIVE_MAP", "PegasusConfig", "PegasusTokenizer"],
     "models.perceiver": ["PERCEIVER_PRETRAINED_CONFIG_ARCHIVE_MAP", "PerceiverConfig", "PerceiverTokenizer"],
     "models.phobert": ["PhobertTokenizer"],
+    "models.pix2seq": ["PIX2SEQ_PRETRAINED_CONFIG_ARCHIVE_MAP", "Pix2SeqConfig"],
     "models.plbart": ["PLBART_PRETRAINED_CONFIG_ARCHIVE_MAP", "PLBartConfig"],
     "models.poolformer": ["POOLFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP", "PoolFormerConfig"],
     "models.prophetnet": ["PROPHETNET_PRETRAINED_CONFIG_ARCHIVE_MAP", "ProphetNetConfig", "ProphetNetTokenizer"],
@@ -1356,6 +1357,13 @@ else:
             "PerceiverLayer",
             "PerceiverModel",
             "PerceiverPreTrainedModel",
+        ]
+    )
+    _import_structure["models.pix2seq"].extend(
+        [
+            "PIX2SEQ_PRETRAINED_MODEL_ARCHIVE_LIST",
+            "Pix2SeqModel",
+            "Pix2SeqPreTrainedModel",
         ]
     )
     _import_structure["models.plbart"].extend(
@@ -2769,6 +2777,7 @@ if TYPE_CHECKING:
     from .models.pegasus import PEGASUS_PRETRAINED_CONFIG_ARCHIVE_MAP, PegasusConfig, PegasusTokenizer
     from .models.perceiver import PERCEIVER_PRETRAINED_CONFIG_ARCHIVE_MAP, PerceiverConfig, PerceiverTokenizer
     from .models.phobert import PhobertTokenizer
+    from .models.pix2seq import PIX2SEQ_PRETRAINED_CONFIG_ARCHIVE_MAP, Pix2SeqConfig
     from .models.plbart import PLBART_PRETRAINED_CONFIG_ARCHIVE_MAP, PLBartConfig
     from .models.poolformer import POOLFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP, PoolFormerConfig
     from .models.prophetnet import PROPHETNET_PRETRAINED_CONFIG_ARCHIVE_MAP, ProphetNetConfig, ProphetNetTokenizer
@@ -3703,6 +3712,7 @@ if TYPE_CHECKING:
             PerceiverModel,
             PerceiverPreTrainedModel,
         )
+        from .models.pix2seq import PIX2SEQ_PRETRAINED_MODEL_ARCHIVE_LIST, Pix2SeqModel, Pix2SeqPreTrainedModel
         from .models.plbart import (
             PLBART_PRETRAINED_MODEL_ARCHIVE_LIST,
             PLBartForCausalLM,

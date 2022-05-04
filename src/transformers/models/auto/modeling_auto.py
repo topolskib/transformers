@@ -88,6 +88,7 @@ MODEL_MAPPING_NAMES = OrderedDict(
         ("opt", "OPTModel"),
         ("pegasus", "PegasusModel"),
         ("perceiver", "PerceiverModel"),
+        ("pix2seq", "Pix2SeqModel"),
         ("plbart", "PLBartModel"),
         ("poolformer", "PoolFormerModel"),
         ("prophetnet", "ProphetNetModel"),

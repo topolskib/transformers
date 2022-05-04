@@ -51,6 +51,7 @@ FEATURE_EXTRACTOR_MAPPING_NAMES = OrderedDict(
         ("hubert", "Wav2Vec2FeatureExtractor"),
         ("layoutlmv2", "LayoutLMv2FeatureExtractor"),
         ("maskformer", "MaskFormerFeatureExtractor"),
+        ("pix2seq", "Pix2SeqFeatureExtractor"),
         ("perceiver", "PerceiverFeatureExtractor"),
         ("poolformer", "PoolFormerFeatureExtractor"),
         ("regnet", "ConvNextFeatureExtractor"),
