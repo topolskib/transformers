@@ -70,6 +70,8 @@ class Pix2SeqConfig(PretrainedConfig):
             Whether to add a bias to the queries, keys and values.
         use_cls_token (`bool`, *optional*, defaults to `False`):
             Whether to use a CLS token.
+        positional_encoding `str`, *optional*, defaults to `sin_cos`):
+            Position encoding type to use. Either "learned" or "sin_cos".
 
     Example:
 
@@ -89,6 +91,9 @@ class Pix2SeqConfig(PretrainedConfig):
 
     def __init__(
         self,
+        num_channels=3,
+        image_size=640,
+        patch_size=16,
         hidden_size=768,
         num_hidden_layers=12,
         num_attention_heads=12,
@@ -98,15 +103,16 @@ class Pix2SeqConfig(PretrainedConfig):
         attention_probs_dropout_prob=0.0,
         initializer_range=0.02,
         layer_norm_eps=1e-12,
-        is_encoder_decoder=False,
-        patch_size=16,
-        num_channels=3,
         qkv_bias=True,
         use_cls_token=False,
+        positional_encoding="sin_cos",
         **kwargs
     ):
         super().__init__(**kwargs)
 
+        self.num_channels = num_channels
+        self.image_size = image_size
+        self.patch_size = patch_size
         self.hidden_size = hidden_size
         self.num_hidden_layers = num_hidden_layers
         self.num_attention_heads = num_attention_heads
@@ -116,7 +122,6 @@ class Pix2SeqConfig(PretrainedConfig):
         self.attention_probs_dropout_prob = attention_probs_dropout_prob
         self.initializer_range = initializer_range
         self.layer_norm_eps = layer_norm_eps
-        self.patch_size = patch_size
-        self.num_channels = num_channels
         self.qkv_bias = qkv_bias
         self.use_cls_token = use_cls_token
+        self.positional_encoding = positional_encoding
