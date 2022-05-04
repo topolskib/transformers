@@ -91,6 +91,7 @@ from . import (
     pegasus,
     perceiver,
     phobert,
+    pix2seq,
     plbart,
     poolformer,
     prophetnet,

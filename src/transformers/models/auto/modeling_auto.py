@@ -71,6 +71,7 @@ MODEL_MAPPING_NAMES = OrderedDict(
         ("big_bird", "BigBirdModel"),
         ("speech_to_text", "Speech2TextModel"),
         ("vit", "ViTModel"),
+        ("pix2seq", "Pix2SeqModel"),
         ("wav2vec2", "Wav2Vec2Model"),
         ("unispeech-sat", "UniSpeechSatModel"),
         ("wavlm", "WavLMModel"),
@@ -277,6 +278,7 @@ MODEL_FOR_CAUSAL_LM_MAPPING_NAMES = OrderedDict(
 MODEL_FOR_MASKED_IMAGE_MODELING_MAPPING_NAMES = OrderedDict(
     [
         ("vit", "ViTForMaskedImageModeling"),
+        ("pix2seq", "Pix2SeqForMaskedImageModeling"),
         ("deit", "DeiTForMaskedImageModeling"),
         ("swin", "SwinForMaskedImageModeling"),
     ]
@@ -294,6 +296,7 @@ MODEL_FOR_IMAGE_CLASSIFICATION_MAPPING_NAMES = OrderedDict(
     [
         # Model for Image Classification mapping
         ("vit", "ViTForImageClassification"),
+        ("pix2seq", "Pix2SeqForImageClassification"),
         ("deit", ("DeiTForImageClassification", "DeiTForImageClassificationWithTeacher")),
         ("beit", "BeitForImageClassification"),
         ("data2vec-vision", "Data2VecVisionForImageClassification"),
