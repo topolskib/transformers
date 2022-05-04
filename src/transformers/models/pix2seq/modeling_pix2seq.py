@@ -116,6 +116,7 @@ class PatchEmbeddings(nn.Module):
         self.num_patches = num_patches
 
         self.projection = nn.Conv2d(num_channels, embed_dim, kernel_size=patch_size, stride=patch_size)
+        self.layer_norm = nn.LayerNorm(embed_dim)
 
     def forward(self, pixel_values: torch.Tensor) -> torch.Tensor:
         batch_size, num_channels, height, width = pixel_values.shape
@@ -124,6 +125,8 @@ class PatchEmbeddings(nn.Module):
                 f"Input image size ({height}*{width}) doesn't match model ({self.image_size[0]}*{self.image_size[1]})."
             )
         x = self.projection(pixel_values).flatten(2).transpose(1, 2)
+        x = self.layer_norm(x)
+
         return x
 
 
@@ -450,13 +453,12 @@ PIX2SEQ_INPUTS_DOCSTRING = r"""
     "The bare Pix2Seq Model transformer outputting raw hidden-states without any specific head on top.",
     PIX2SEQ_START_DOCSTRING,
 )
-# Copied from transformers.models.vit.modeling_vit.ViTModel with VIT->PIX2SEQ,ViT->Pix2Seq
 class Pix2SeqModel(Pix2SeqPreTrainedModel):
-    def __init__(self, config: Pix2SeqConfig, add_pooling_layer: bool = True, use_mask_token: bool = False):
+    def __init__(self, config: Pix2SeqConfig, add_pooling_layer: bool = True):
         super().__init__(config)
         self.config = config
 
-        self.embeddings = Pix2SeqEmbeddings(config, use_mask_token=use_mask_token)
+        self.embeddings = Pix2SeqEmbeddings(config)
         self.encoder = Pix2SeqEncoder(config)
 
         self.layernorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
