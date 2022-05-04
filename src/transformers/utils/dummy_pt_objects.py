@@ -3039,6 +3039,23 @@ class PerceiverPreTrainedModel(metaclass=DummyObject):
         requires_backends(self, ["torch"])
 
 
+PIX2SEQ_PRETRAINED_MODEL_ARCHIVE_LIST = None
+
+
+class Pix2SeqModel(metaclass=DummyObject):
+    _backends = ["torch"]
+
+    def __init__(self, *args, **kwargs):
+        requires_backends(self, ["torch"])
+
+
+class Pix2SeqPreTrainedModel(metaclass=DummyObject):
+    _backends = ["torch"]
+
+    def __init__(self, *args, **kwargs):
+        requires_backends(self, ["torch"])
+
+
 PLBART_PRETRAINED_MODEL_ARCHIVE_LIST = None
 
 
