@@ -1,60 +1,17 @@
 import argparse
-import json
 import os
-import logging
 
-import torch
-import tensorflow as tf
 import numpy as np
+import tensorflow as tf
+import torch
 from PIL import Image
 
 import requests
-from huggingface_hub import hf_hub_download
-from transformers import AutoFeatureExtractor, Pix2SeqConfig, Pix2SeqModel
-
-logger = logging.get_logger(__name__)
+from transformers import Pix2SeqConfig, Pix2SeqModel, ViTFeatureExtractor
 
 
-def get_pix2seq_config(pix2seq_name):
+def get_pix2seq_config(model_name):
     config = Pix2SeqConfig()
-    name_split = pix2seq_name.split("_")
-
-    model_size = name_split[1]
-    img_size = int(name_split[4])
-    window_size = int(name_split[3][-1])
-
-    if model_size == "tiny":
-        embed_dim = 96
-        depths = (2, 2, 6, 2)
-        num_heads = (3, 6, 12, 24)
-    elif model_size == "small":
-        embed_dim = 96
-        depths = (2, 2, 18, 2)
-        num_heads = (3, 6, 12, 24)
-    elif model_size == "base":
-        embed_dim = 128
-        depths = (2, 2, 18, 2)
-        num_heads = (4, 8, 16, 32)
-    else:
-        embed_dim = 192
-        depths = (2, 2, 18, 2)
-        num_heads = (6, 12, 24, 48)
-
-    if "in22k" in pix2seq_name:
-        num_classes = 21841
-    else:
-        num_classes = 1000
-        repo_id = "datasets/huggingface/label-files"
-        filename = "imagenet-1k-id2label.json"
-        id2label = json.load(open(hf_hub_download(repo_id, filename), "r"))
-        id2label = {int(k): v for k, v in id2label.items()}
-        config.id2label = id2label
-        config.label2id = {v: k for k, v in id2label.items()}
-
-    config.image_size = img_size
-    config.num_labels = num_classes
-    config.embed_dim = embed_dim
-    config.num_heads = num_heads
 
     return config
 
@@ -80,71 +37,63 @@ def rename_key(name, param):
         name = name.replace("model.encoder.transformer_encoder.enc_layers", "encoder.layer")
     if "mha_ln" in name:
         name = name.replace("mha_ln", "layernorm_before")
+    if "mha._output_dense" in name:
+        name = name.replace("mha._output_dense", "attention.output.dense")
     if "mha" in name:
         name = name.replace("mha", "attention.attention")
     if "_query_dense" in name:
         name = name.replace("_query_dense", "query")
-    if "_output_dense" in name:
-        name = name.replace("_output_dense", "output.dense")
+    if "_key_dense" in name:
+        name = name.replace("_key_dense", "key")
+    if "_value_dense" in name:
+        name = name.replace("_value_dense", "value")
     if "mlp.mlp_layers.0.dense1" in name:
         name = name.replace("mlp.mlp_layers.0.dense1", "intermediate.dense")
     if "mlp.mlp_layers.0.dense2" in name:
         name = name.replace("mlp.mlp_layers.0.dense2", "output.dense")
     if "mlp.layernorms.0" in name:
         name = name.replace("mlp.layernorms.0", "layernorm_after")
+    # output layer norm
+    if "model.encoder.output_ln" in name:
+        name = name.replace("model.encoder.output_ln", "layernorm")
     
-    # TODO rename kernel -> weight, gamma -> weight, beta -> bias
+    # handle qkv
+    if "attention.output.dense" in name:
+        if "kernel" in name:
+            # (12, 64, 768) -> (768, 768) for weights 
+            param = np.reshape(param, (param.shape[-1], -1))
+
+    if ("query" in name or "key" in name or "value" in name):
+        # print("Updating param for parameter:", name)
+        # print("Old shape of param", param.shape)
+        if "kernel" in name:
+            # (768, 12, 64) -> (768, 768) for weights, or 
+            param = np.reshape(param, (param.shape[0], -1))
+        elif "bias" in name:
+            # (12, 64) -> (768,) for biases
+            param = param.flatten()
+        # print("New shape of param:", param.shape)
+    
+    # rename kernel, gamma and beta (+ important: transpose if kernel!)
     if "kernel" in name:
         name = name.replace("kernel", "weight")
-        param = np.transpose(param)
+        if "patch_embeddings" in name:
+            # important: conv2d layers have a special transpose
+            param = np.transpose(param, axes=(3, 2, 0, 1))
+        else:
+            param = np.transpose(param)
     if "gamma" in name:
         name = name.replace("gamma", "weight")
     if "beta" in name:
         name = name.replace("beta", "bias")
-    
+
     # add prefix
     # name = "pix2seq." + name
 
     return name, param
 
 
-def convert_state_dict(orig_state_dict, model):
-    for key in orig_state_dict.copy().keys():
-        val = orig_state_dict.pop(key)
-
-        if "qkv" in key:
-            key_split = key.split(".")
-            layer_num = int(key_split[1])
-            block_num = int(key_split[3])
-            dim = model.pix2seq.encoder.layers[layer_num].blocks[block_num].attention.self.all_head_size
-
-            if "weight" in key:
-                orig_state_dict[
-                    f"pix2seq.encoder.layers.{layer_num}.blocks.{block_num}.attention.self.query.weight"
-                ] = val[:dim, :]
-                orig_state_dict[f"pix2seq.encoder.layers.{layer_num}.blocks.{block_num}.attention.self.key.weight"] = val[
-                    dim : dim * 2, :
-                ]
-                orig_state_dict[
-                    f"pix2seq.encoder.layers.{layer_num}.blocks.{block_num}.attention.self.value.weight"
-                ] = val[-dim:, :]
-            else:
-                orig_state_dict[f"pix2seq.encoder.layers.{layer_num}.blocks.{block_num}.attention.self.query.bias"] = val[
-                    :dim
-                ]
-                orig_state_dict[f"pix2seq.encoder.layers.{layer_num}.blocks.{block_num}.attention.self.key.bias"] = val[
-                    dim : dim * 2
-                ]
-                orig_state_dict[f"pix2seq.encoder.layers.{layer_num}.blocks.{block_num}.attention.self.value.bias"] = val[
-                    -dim:
-                ]
-        else:
-            orig_state_dict[rename_key(key)] = val
-
-    return orig_state_dict
-
-
-def convert_pix2seq_checkpoint(checkpoint_path, pytorch_dump_folder_path):
+def convert_pix2seq_checkpoint(model_name, checkpoint_path, pytorch_dump_folder_path):
     config = get_pix2seq_config(checkpoint_path)
     model = Pix2SeqModel(config)
     model.eval()
@@ -152,45 +101,59 @@ def convert_pix2seq_checkpoint(checkpoint_path, pytorch_dump_folder_path):
     # Load weights from TF model
     tf_path = os.path.abspath(checkpoint_path)
     init_vars = tf.train.list_variables(tf_path)
-    tf_vars = []
+    tf_vars = dict()
     for name, shape in init_vars:
         if "model" in name and "optimizer" not in name.lower():
-            logger.info(f"Loading TF weight {name} with shape {shape}")
+            print(f"Loading TF weight {name} with shape {shape}")
             array = tf.train.load_variable(tf_path, name)
-            tf_vars.append((name, array.squeeze()))
+            tf_vars[name] = array.squeeze()
 
     # Rename keys
     state_dict = {}
     for name, param in tf_vars.items():
+        if "decoder" in name or name.startswith("model/proj"):
+            continue
         name, param = rename_key(name, param)
-        state_dict[rename_key(name)] = param
+        state_dict[name] = torch.from_numpy(param)
     
     model.load_state_dict(state_dict)
+    model.eval()
 
     url = "http://images.cocodataset.org/val2017/000000039769.jpg"
 
-    feature_extractor = AutoFeatureExtractor()
-    image = Image.open(requests.get(url, stream=True).raw)
-    inputs = feature_extractor(images=image, return_tensors="pt")
+    with open('/home/niels/checkpoints/pix2seq/pixel_values.npy', 'rb') as f:
+        pixel_values = np.load(f)
+        pixel_values = torch.from_numpy(pixel_values)
+        pixel_values = pixel_values.permute(0, 3, 1, 2)
+        print("Shape of pixel values:", pixel_values.shape)
 
-    outputs = model(**inputs).logits
+    with torch.no_grad():
+        outputs = model(pixel_values)
 
-    # TODO assert outputs
+    # TODO assert outputs on cats image
+    last_hidden_state = outputs.last_hidden_state
+    print("Shape of last hidden states:", last_hidden_state.shape)
 
-    print(f"Saving model {pix2seq_name} to {pytorch_dump_folder_path}")
+    print(f"Saving model {model_name} to {pytorch_dump_folder_path}")
     model.save_pretrained(pytorch_dump_folder_path)
 
-    print(f"Saving feature extractor to {pytorch_dump_folder_path}")
-    feature_extractor.save_pretrained(pytorch_dump_folder_path)
+    # print(f"Saving feature extractor to {pytorch_dump_folder_path}")
+    # feature_extractor.save_pretrained(pytorch_dump_folder_path)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     # Required parameters
     parser.add_argument(
+        "--model_name",
+        type=str,
+        default="vit-base",
+        help="Name of the Pix2Seq model you'd like to convert.",
+    )
+    parser.add_argument(
         "--checkpoint_path",
         type=str,
-        required=True,
+        default="/home/niels/checkpoints/pix2seq/ckpt-112728.index",
         help="Path to the Pix2Seq checkpoint you'd like to convert.",
     )
     parser.add_argument(
@@ -198,4 +161,4 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    convert_pix2seq_checkpoint(args.checkpoint_path, args.pytorch_dump_folder_path)
+    convert_pix2seq_checkpoint(args.model_name, args.checkpoint_path, args.pytorch_dump_folder_path)

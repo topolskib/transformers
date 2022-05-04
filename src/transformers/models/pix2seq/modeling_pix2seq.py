@@ -21,7 +21,7 @@ from typing import Dict, List, Optional, Set, Tuple, Union
 
 import torch
 import torch.utils.checkpoint
-from torch import nn
+from torch import embedding, nn
 
 from ...activations import ACT2FN
 from ...modeling_outputs import BaseModelOutput, BaseModelOutputWithPooling
@@ -64,15 +64,14 @@ class Pix2SeqEmbeddings(nn.Module):
     def __init__(self, config: Pix2SeqConfig) -> None:
         super().__init__()
 
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, config.hidden_size))
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, config.hidden_size)) if config.use_cls_token else None
         self.patch_embeddings = PatchEmbeddings(
-            image_size=config.image_size,
             patch_size=config.patch_size,
             num_channels=config.num_channels,
             embed_dim=config.hidden_size,
         )
-        num_patches = self.patch_embeddings.num_patches
-        self.position_embeddings = nn.Parameter(torch.zeros(1, num_patches + 1, config.hidden_size))
+        # num_patches = self.patch_embeddings.num_patches
+        # self.position_embeddings = nn.Parameter(torch.zeros(1, num_patches + 1, config.hidden_size))
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.config = config
 
@@ -82,12 +81,13 @@ class Pix2SeqEmbeddings(nn.Module):
 
         batch_size, seq_len, _ = embeddings.size()
 
-        # add the [CLS] token to the embedded patch tokens
-        cls_tokens = self.cls_token.expand(batch_size, -1, -1)
-        embeddings = torch.cat((cls_tokens, embeddings), dim=1)
+        if self.config.use_cls_token:
+            # add the [CLS] token to the embedded patch tokens
+            cls_tokens = self.cls_token.expand(batch_size, -1, -1)
+            embeddings = torch.cat((cls_tokens, embeddings), dim=1)
 
         # add positional encoding to each token
-        embeddings = embeddings + self.position_embeddings
+        # embeddings = embeddings + self.position_embeddings
 
         embeddings = self.dropout(embeddings)
 
@@ -102,32 +102,38 @@ class PatchEmbeddings(nn.Module):
 
     def __init__(
         self,
-        image_size: int = 224,
         patch_size: Union[int, Tuple[int, int]] = 16,
         num_channels: int = 3,
         embed_dim: int = 768,
     ):
         super().__init__()
-        image_size = to_2tuple(image_size)
-        patch_size = to_2tuple(patch_size)
-        num_patches = (image_size[1] // patch_size[1]) * (image_size[0] // patch_size[0])
-        self.image_size = image_size
-        self.patch_size = patch_size
-        self.num_patches = num_patches
-
-        self.projection = nn.Conv2d(num_channels, embed_dim, kernel_size=patch_size, stride=patch_size)
+        self.projection = nn.Conv2d(num_channels, embed_dim, kernel_size=patch_size, stride=patch_size, padding="valid")
         self.layer_norm = nn.LayerNorm(embed_dim)
 
     def forward(self, pixel_values: torch.Tensor) -> torch.Tensor:
         batch_size, num_channels, height, width = pixel_values.shape
-        if height != self.image_size[0] or width != self.image_size[1]:
-            raise ValueError(
-                f"Input image size ({height}*{width}) doesn't match model ({self.image_size[0]}*{self.image_size[1]})."
-            )
-        x = self.projection(pixel_values).flatten(2).transpose(1, 2)
-        x = self.layer_norm(x)
+        
+        print("First values of pixel values:", pixel_values[0,:3,0,0])
 
-        return x
+        print("Shape of kernel of conv2d layer:", self.projection.weight.data.shape)
+        print("First values of kernel of conv2d layer:", self.projection.weight.data[:3,0,2,0])
+        print("First values of bias of conv2d layer:", self.projection.bias.data[:3])
+        
+        embeddings = self.projection(pixel_values)
+
+        # shape (batch_size, hidden_size, num_patches, num_patches)
+        
+        print("Shape of patch embeddings:", embeddings.shape)
+        print("First values of patch embeddings:", embeddings[0,:3,0,0])
+        
+        embeddings = embeddings.flatten(2).transpose(1, 2)
+
+        embeddings = self.layer_norm(embeddings)
+
+        print("Shape of embeddings after layernorm:", embeddings.shape)
+        print("First values of embeddings after layer norm:", embeddings[0,:3,:3])
+
+        return embeddings
 
 
 # Copied from transformers.models.vit.modeling_vit.ViTSelfAttention with ViT->Pix2Seq
@@ -454,7 +460,7 @@ PIX2SEQ_INPUTS_DOCSTRING = r"""
     PIX2SEQ_START_DOCSTRING,
 )
 class Pix2SeqModel(Pix2SeqPreTrainedModel):
-    def __init__(self, config: Pix2SeqConfig, add_pooling_layer: bool = True):
+    def __init__(self, config: Pix2SeqConfig, add_pooling_layer: bool = False):
         super().__init__(config)
         self.config = config
 
@@ -490,11 +496,9 @@ class Pix2SeqModel(Pix2SeqPreTrainedModel):
     def forward(
         self,
         pixel_values: Optional[torch.Tensor] = None,
-        bool_masked_pos: Optional[torch.BoolTensor] = None,
         head_mask: Optional[torch.Tensor] = None,
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
-        interpolate_pos_encoding: Optional[bool] = None,
         return_dict: Optional[bool] = None,
     ):
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
@@ -513,9 +517,7 @@ class Pix2SeqModel(Pix2SeqPreTrainedModel):
         # and head_mask is converted to shape [num_hidden_layers x batch x num_heads x seq_length x seq_length]
         head_mask = self.get_head_mask(head_mask, self.config.num_hidden_layers)
 
-        embedding_output = self.embeddings(
-            pixel_values, bool_masked_pos=bool_masked_pos, interpolate_pos_encoding=interpolate_pos_encoding
-        )
+        embedding_output = self.embeddings(pixel_values)
 
         encoder_outputs = self.encoder(
             embedding_output,
