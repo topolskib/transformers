@@ -22,19 +22,12 @@ from typing import Dict, List, Optional, Set, Tuple, Union
 import torch
 import torch.utils.checkpoint
 from torch import nn
-from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
 
 from ...activations import ACT2FN
-from ...modeling_outputs import BaseModelOutput, BaseModelOutputWithPooling, ImageClassifierOutput, MaskedLMOutput
+from ...modeling_outputs import BaseModelOutput, BaseModelOutputWithPooling
 from ...modeling_utils import PreTrainedModel
 from ...pytorch_utils import find_pruneable_heads_and_indices, prune_linear_layer
-from ...utils import (
-    add_code_sample_docstrings,
-    add_start_docstrings,
-    add_start_docstrings_to_model_forward,
-    logging,
-    replace_return_docstrings,
-)
+from ...utils import add_code_sample_docstrings, add_start_docstrings, add_start_docstrings_to_model_forward, logging
 from .configuration_pix2seq import Pix2SeqConfig
 
 
@@ -53,7 +46,6 @@ PIX2SEQ_PRETRAINED_MODEL_ARCHIVE_LIST = [
     "google/pix2seq-vit-base",
     # See all Pix2Seq models at https://huggingface.co/models?filter=pix2seq
 ]
-
 
 
 # Copied from transformers.models.vit.modeling_vit.to_2tuple
