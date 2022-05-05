@@ -70,7 +70,7 @@ def positional_encoding(coords, dim):
             Position embeddings of shape (bsz, size, dim).
     """
     angle_rads = get_angles(coords.unsqueeze(-1),
-                            torch.range(start=0, end=dim-1)[None, None, :],
+                            torch.arange(start=0, end=dim)[None, None, :],
                             dim)
 
     # apply sin to even indices in the array; 2i
@@ -100,14 +100,14 @@ def get_2d_position_codes(height, width, out_dim, normalization_max=6.2831852):
     Returns:
         positional code of shape (1, height, width, out_dim)
     """
-    y_coords = torch.range(start=0, end=height-1, dtype=torch.float)
+    y_coords = torch.arange(start=0, end=height, dtype=torch.float)
     if normalization_max is not None:
         y_coords = y_coords / (height - 1) * normalization_max
     y_coords = positional_encoding(y_coords, out_dim//2)
     y_coords = y_coords.unsqueeze(2)
     y_coords = torch.cat([y_coords, torch.zeros_like(y_coords)], -1)
 
-    x_coords = torch.range(start=0, end=width-1, dtype=torch.float)
+    x_coords = torch.arange(start=0, end=width, dtype=torch.float)
     if normalization_max is not None:
         x_coords = x_coords / (width - 1) * normalization_max
     x_coords = positional_encoding(x_coords, out_dim//2)
@@ -118,11 +118,10 @@ def get_2d_position_codes(height, width, out_dim, normalization_max=6.2831852):
 
 
 class Pix2SeqPositionEmbeddings(nn.Module):
-    def __init__(self, config: Pix2SeqConfig):
+    def __init__(self, config: Pix2SeqConfig, dim):
         super().__init__()
         
         n_rows = n_cols = config.image_size // config.patch_size
-        dim = config.hidden_size
         
         if config.positional_encoding == 'learned':
             self.embeddings = nn.Parameter(shape=(n_rows * n_cols, dim))
@@ -154,7 +153,7 @@ class Pix2SeqEmbeddings(nn.Module):
         )
         # num_patches = self.patch_embeddings.num_patches
         # self.position_embeddings = nn.Parameter(torch.zeros(1, num_patches + 1, config.hidden_size))
-        self.position_embeddings = Pix2SeqPositionEmbeddings(config)
+        self.position_embeddings = Pix2SeqPositionEmbeddings(config, dim=config.hidden_size)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.config = config
 
@@ -479,6 +478,105 @@ class Pix2SeqEncoder(nn.Module):
         )
 
 
+# Copied from transformers.models.convnext.modeling_convnext.drop_path
+def drop_path(x, drop_prob: float = 0.0, training: bool = False, scale_by_keep=True):
+    """
+    Drop paths (Stochastic Depth) per sample (when applied in main path of residual blocks). This is the same as the
+    DropConnect impl I created for EfficientNet, etc networks, however, the original name is misleading as 'Drop
+    Connect' is a different form of dropout in a separate paper... See discussion:
+    https://github.com/tensorflow/tpu/issues/494#issuecomment-532968956 ... I've opted for changing the layer and
+    argument names to 'drop path' rather than mix DropConnect as a layer name and use 'survival rate' as the argument.
+    """
+    if drop_prob == 0.0 or not training:
+        return x
+    keep_prob = 1 - drop_prob
+    shape = (x.shape[0],) + (1,) * (x.ndim - 1)  # work with diff dim tensors, not just 2D ConvNets
+    random_tensor = keep_prob + torch.rand(shape, dtype=x.dtype, device=x.device)
+    random_tensor.floor_()  # binarize
+    output = x.div(keep_prob) * random_tensor
+    return output
+
+
+# Copied from transformers.models.convnext.modeling_convnext.ConvNextDropPath
+class Pix2SeqDropPath(nn.Module):
+    """Drop paths (Stochastic Depth) per sample (when applied in main path of residual blocks)."""
+
+    def __init__(self, drop_prob=None):
+        super().__init__()
+        self.drop_prob = drop_prob
+
+    def forward(self, x):
+        return drop_path(x, self.drop_prob, self.training)
+
+
+class Pix2SeqProjectionMLP(nn.Module):
+    """
+    Pix2Seq projection MLP, only used if config.dec_proj_mode == "mlp".
+    """
+    def __init__(self, config: Pix2SeqConfig) -> None:
+        super().__init__()
+        self.layernorm = nn.LayerNorm(config.dim_att_dec)
+        self.dense1 = nn.Linear(config.dim_att_dec, config.dim_att_dec)
+        self.dropout = nn.Dropout()
+        self.dense2 = nn.Linear(config.dim_att_dec, config.dim_att_dec)
+        self.drop_path = Pix2SeqDropPath(config.drop_path_rate)
+
+    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
+        input = hidden_states
+        
+        hidden_states = self.layernorm(hidden_states)
+        hidden_states = self.dense1(hidden_states)
+        hidden_states = self.dropout(hidden_states)
+        hidden_states = self.dense2(hidden_states)
+
+        hidden_states = input + self.drop_path(hidden_states)
+
+        return hidden_states
+
+
+class Pix2SeqProjection(nn.Module):
+    """
+    A class to prepare the final hidden states of the encoder to be used by the decoder.
+
+    3 options are possible:
+    - linear (just a linear layer)
+    - linear_p (linear layer + position embeddings)
+    - mlp (position embeddings + MLP)
+    """
+    
+    def __init__(self, config: Pix2SeqConfig) -> None:
+        super().__init__()
+        self.projection = nn.Linear(config.hidden_size, config.dim_att_dec)
+        self.layernorm = nn.LayerNorm(config.dim_att_dec)
+        
+        if config.dec_proj_mode in ['linear_p', 'mlp']:
+            self.position_embeddings = Pix2SeqPositionEmbeddings(config, dim=config.dim_att_dec)
+        if config.dec_proj_mode == 'mlp':
+            self.projection_mlp = Pix2SeqProjectionMLP(config)
+
+        self.config = config
+
+    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
+        hidden_states = self.projection(hidden_states)
+        hidden_states = self.layernorm(hidden_states)
+
+        # Add (optional) positional embedding to encoded visual units.
+        if self.config.dec_proj_mode != 'linear':
+            position_embeddings = self.position_embeddings().unsqueeze(0)
+            if self.config.use_cls_token:
+                hidden_states = hidden_states + torch.cat(
+                    [torch.zeros_like(position_embeddings[:, :1]), position_embeddings], 1)
+            else:
+                hidden_states = hidden_states + position_embeddings
+        
+            if self.config.dec_proj_mode == 'mlp':
+                hidden_states = self.projection_mlp(hidden_states)
+            else:
+                assert self.config.dec_proj_mode == 'linear_p'
+
+        return hidden_states
+
+
 # Copied from transformers.models.vit.modeling_vit.ViTPreTrainedModel with ViT->Pix2Seq,vit->pix2seq
 class Pix2SeqPreTrainedModel(PreTrainedModel):
     """
@@ -547,15 +645,15 @@ PIX2SEQ_INPUTS_DOCSTRING = r"""
     PIX2SEQ_START_DOCSTRING,
 )
 class Pix2SeqModel(Pix2SeqPreTrainedModel):
-    def __init__(self, config: Pix2SeqConfig, add_pooling_layer: bool = False):
+    def __init__(self, config: Pix2SeqConfig):
         super().__init__(config)
         self.config = config
 
         self.embeddings = Pix2SeqEmbeddings(config)
         self.encoder = Pix2SeqEncoder(config)
-
         self.layernorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
-        self.pooler = Pix2SeqPooler(config) if add_pooling_layer else None
+        
+        # self.projection = Pix2SeqProjection(config)
 
         # Initialize weights and apply final processing
         self.post_init()
@@ -615,31 +713,15 @@ class Pix2SeqModel(Pix2SeqPreTrainedModel):
         )
         sequence_output = encoder_outputs[0]
         sequence_output = self.layernorm(sequence_output)
-        pooled_output = self.pooler(sequence_output) if self.pooler is not None else None
+        # sequence_output = self.projection(sequence_output)
 
         if not return_dict:
-            head_outputs = (sequence_output, pooled_output) if pooled_output is not None else (sequence_output,)
+            head_outputs = (sequence_output,)
             return head_outputs + encoder_outputs[1:]
 
         return BaseModelOutputWithPooling(
             last_hidden_state=sequence_output,
-            pooler_output=pooled_output,
+            pooler_output=None,
             hidden_states=encoder_outputs.hidden_states,
             attentions=encoder_outputs.attentions,
         )
-
-
-# Copied from transformers.models.vit.modeling_vit.ViTPooler with ViT->Pix2Seq
-class Pix2SeqPooler(nn.Module):
-    def __init__(self, config: Pix2SeqConfig):
-        super().__init__()
-        self.dense = nn.Linear(config.hidden_size, config.hidden_size)
-        self.activation = nn.Tanh()
-
-    def forward(self, hidden_states):
-        # We "pool" the model by simply taking the hidden state corresponding
-        # to the first token.
-        first_token_tensor = hidden_states[:, 0]
-        pooled_output = self.dense(first_token_tensor)
-        pooled_output = self.activation(pooled_output)
-        return pooled_output

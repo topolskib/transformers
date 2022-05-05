@@ -106,6 +106,9 @@ class Pix2SeqConfig(PretrainedConfig):
         qkv_bias=True,
         use_cls_token=False,
         positional_encoding="sin_cos",
+        dec_proj_mode="mlp",
+        dim_att_dec=512,
+        drop_path_rate=0.1,
         **kwargs
     ):
         super().__init__(**kwargs)
@@ -125,3 +128,6 @@ class Pix2SeqConfig(PretrainedConfig):
         self.qkv_bias = qkv_bias
         self.use_cls_token = use_cls_token
         self.positional_encoding = positional_encoding
+        self.dec_proj_mode = dec_proj_mode
+        self.dim_att_dec = dim_att_dec
+        self.drop_path_rate = drop_path_rate
