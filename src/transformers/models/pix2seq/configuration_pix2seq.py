@@ -70,8 +70,16 @@ class Pix2SeqConfig(PretrainedConfig):
             Whether to add a bias to the queries, keys and values.
         use_cls_token (`bool`, *optional*, defaults to `False`):
             Whether to use a CLS token.
-        positional_encoding `str`, *optional*, defaults to `sin_cos`):
-            Position encoding type to use. Either "learned" or "sin_cos".
+        positional_encoding (`str`, *optional*, defaults to `sin_cos`):
+            Position encoding type to use. Either "learned" or (2D) "sin_cos".
+        position_encoding_decoder (`str`, *optional*, defaults to `learned`):
+            Position encoding type to use in the decoder. Either "learned" or (1D) "sin_cos".
+        max_position_embeddings (`int`, *optional*, defaults to `512`):
+            The maximum sequence length in the decoder.
+        num_decoder_layers (`int`, *optional*, defaults to `6`):
+            The number of layers in the decoder.
+        num_attention_heads_decoder (`int`, *optional*, defaults to `16`):
+            The number of attention heads in the decoder.
 
     Example:
 
@@ -107,8 +115,15 @@ class Pix2SeqConfig(PretrainedConfig):
         use_cls_token=False,
         positional_encoding="sin_cos",
         dec_proj_mode="mlp",
-        dim_att_dec=512,
         drop_path_rate=0.1,
+        vocab_size=3000,
+        dim_decoder=512,
+        positional_encoding_decoder="learned",
+        max_position_embeddings=512,
+        num_decoder_layers=6,
+        num_attention_heads_decoder=16,
+        output_bias = True,
+        use_cache = False,
         **kwargs
     ):
         super().__init__(**kwargs)
@@ -129,5 +144,13 @@ class Pix2SeqConfig(PretrainedConfig):
         self.use_cls_token = use_cls_token
         self.positional_encoding = positional_encoding
         self.dec_proj_mode = dec_proj_mode
-        self.dim_att_dec = dim_att_dec
         self.drop_path_rate = drop_path_rate
+        # decoder attributes
+        self.dim_decoder = dim_decoder
+        self.vocab_size = vocab_size
+        self.positional_encoding_decoder = positional_encoding_decoder
+        self.max_position_embeddings = max_position_embeddings
+        self.num_decoder_layers = num_decoder_layers
+        self.num_attention_heads_decoder = num_attention_heads_decoder
+        self.output_bias = output_bias
+        self.use_cache = use_cache

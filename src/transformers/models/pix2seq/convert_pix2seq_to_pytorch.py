@@ -41,6 +41,15 @@ def rename_key(name, param):
         name = name.replace("model.proj_mlp.mlp_layers.0", "projection.projection_mlp")
     if "model.proj" in name:
         name = name.replace("model.proj", "projection.projection")
+    # decoder embeddings, output bias and layernorm
+    if "model.decoder.ar_decoder.Stoken_embedding" in name:
+        name = name.replace("model.decoder.ar_decoder.Stoken_embedding", "decoder.embed_tokens.weight")
+    if "model.decoder.ar_decoder.Sseq_pos_embedding" in name:
+        name = name.replace("model.decoder.ar_decoder.Sseq_pos_embedding", "decoder.embed_positions.embeddings")
+    if "model.decoder.ar_decoder.Soutp_bias" in name:
+        name = name.replace("model.decoder.ar_decoder.Soutp_bias", "decoder.output_bias")
+    if "model.decoder.output_ln" in name:
+        name = name.replace("model.decoder.output_ln", "decoder.layernorm")
     # encoder layers
     if "model.encoder.transformer_encoder.enc_layers" in name:
         name = name.replace("model.encoder.transformer_encoder.enc_layers", "encoder.layer")
@@ -120,7 +129,7 @@ def convert_pix2seq_checkpoint(model_name, checkpoint_path, pytorch_dump_folder_
     # Rename keys
     state_dict = {}
     for name, param in tf_vars.items():
-        if "decoder" in name:
+        if name.startswith("model/decoder/decoder"):
             continue
         name, param = rename_key(name, param)
         state_dict[name] = torch.from_numpy(param)
@@ -136,8 +145,10 @@ def convert_pix2seq_checkpoint(model_name, checkpoint_path, pytorch_dump_folder_
         pixel_values = pixel_values.permute(0, 3, 1, 2)
         print("Shape of pixel values:", pixel_values.shape)
 
+    prompt = torch.tensor([[10]])
+    
     with torch.no_grad():
-        outputs = model(pixel_values)
+        outputs = model(pixel_values, decoder_input_ids=prompt)
     
     expected_slice = torch.tensor([[-4.3100,  2.0649, -0.2276],
         [-3.3208,  1.9842,  0.9854],

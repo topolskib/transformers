@@ -17,6 +17,7 @@
 
 import collections.abc
 import math
+import random
 from typing import Dict, List, Optional, Set, Tuple, Union
 
 import torch
@@ -24,7 +25,7 @@ import torch.utils.checkpoint
 from torch import embedding, nn
 
 from ...activations import ACT2FN
-from ...modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
+from ...modeling_outputs import BaseModelOutput, BaseModelOutputWithPastAndCrossAttentions, Seq2SeqLMOutput
 from ...modeling_utils import PreTrainedModel
 from ...pytorch_utils import find_pruneable_heads_and_indices, prune_linear_layer
 from ...utils import add_code_sample_docstrings, add_start_docstrings, add_start_docstrings_to_model_forward, logging
@@ -55,6 +56,35 @@ def to_2tuple(x):
     return (x, x)
 
 
+def _make_causal_mask(input_ids_shape: torch.Size, dtype: torch.dtype, past_key_values_length: int = 0):
+    """
+    Make causal mask used for bi-directional self-attention.
+    """
+    bsz, tgt_len = input_ids_shape
+    mask = torch.full((tgt_len, tgt_len), float("-inf"))
+    mask_cond = torch.arange(mask.size(-1))
+    mask.masked_fill_(mask_cond < (mask_cond + 1).view(mask.size(-1), 1), 0)
+    mask = mask.to(dtype)
+
+    if past_key_values_length > 0:
+        mask = torch.cat([torch.zeros(tgt_len, past_key_values_length, dtype=dtype), mask], dim=-1)
+    return mask[None, None, :, :].expand(bsz, 1, tgt_len, tgt_len + past_key_values_length)
+
+
+def _expand_mask(mask: torch.Tensor, dtype: torch.dtype, tgt_len: Optional[int] = None):
+    """
+    Expands attention_mask from `[bsz, seq_len]` to `[bsz, 1, tgt_seq_len, src_seq_len]`.
+    """
+    bsz, src_len = mask.size()
+    tgt_len = tgt_len if tgt_len is not None else src_len
+
+    expanded_mask = mask[:, None, None, :].expand(bsz, 1, tgt_len, src_len).to(dtype)
+
+    inverted_mask = 1.0 - expanded_mask
+
+    return inverted_mask.masked_fill(inverted_mask.bool(), torch.finfo(dtype).min)
+
+
 def get_angles(pos, i, dim):
   angle_rates = 1 / torch.pow(10000., (2 * (i//2).float()) / dim)
   return pos.float() * angle_rates.float()
@@ -82,6 +112,27 @@ def positional_encoding(coords, dim):
     pos_encoding = torch.cat([angle_rads1, angle_rads2], -1)
 
     return pos_encoding.float()
+
+
+def get_1d_position_codes(seqlen, out_dim, normalization_max=6.2831852):
+    """Get 1d positional embedding with sin/cos codes.
+    
+    Args:
+        seqlen:
+            An `int` specifying the length of the sequence.
+        out_dim:
+            An `int` specifying the output dimension of the encoding.
+        normalization_max:
+            Normalize coordinates between [0, normalization_max]. If None, raw coordinates from 0 to seqlen will be used.
+    
+    Returns:
+        positional code of shape (1, seqlen, out_dim)
+    """
+    coords = torch.arange(seqlen, dtype=torch.float)
+    if normalization_max is not None:
+        coords = coords / (seqlen - 1) * normalization_max
+    coords = positional_encoding(coords, out_dim)
+    return coords
 
 
 def get_2d_position_codes(height, width, out_dim, normalization_max=6.2831852):
@@ -117,18 +168,42 @@ def get_2d_position_codes(height, width, out_dim, normalization_max=6.2831852):
     return y_coords + x_coords
 
 
-class Pix2SeqPositionEmbeddings(nn.Module):
+class Pix2SeqPatchPositionEmbeddings(nn.Module):
+    """
+    Position embeddings to be added to the patch tokens.
+    """
     def __init__(self, config: Pix2SeqConfig, dim):
         super().__init__()
         
         n_rows = n_cols = config.image_size // config.patch_size
         
         if config.positional_encoding == 'learned':
-            self.embeddings = nn.Parameter(shape=(n_rows * n_cols, dim))
+            self.embeddings = nn.Parameter(torch.randn(n_rows * n_cols, dim))
         elif config.positional_encoding == 'sin_cos':
             sin_cos = get_2d_position_codes(
                 n_rows, n_cols, dim, normalization_max=6.2831852)
             self.embeddings = torch.reshape(sin_cos, [n_rows * n_cols, dim])
+        else:
+            raise ValueError("Unknown positional encoding:", config.positional_encoding)
+
+    def forward(self):
+        return self.embeddings
+
+
+class Pix2SeqSequencePositionEmbeddings(nn.Module):
+    """
+    Position embeddings to be added to the text tokens.
+    """
+    def __init__(self, config: Pix2SeqConfig):
+        super().__init__()
+        
+        dim = config.dim_decoder
+        
+        if config.positional_encoding_decoder == 'learned':
+            self.embeddings = nn.Parameter(torch.randn(config.max_position_embeddings, dim))
+        elif config.positional_encoding_decoder == 'sin_cos':
+            sin_cos = get_1d_position_codes(config.max_position_embeddings, dim, normalization_max=6.2831852)
+            self.embeddings = torch.reshape(sin_cos, [config.max_position_embeddings, dim])
         else:
             raise ValueError("Unknown positional encoding:", config.positional_encoding)
 
@@ -153,7 +228,7 @@ class Pix2SeqEmbeddings(nn.Module):
         )
         # num_patches = self.patch_embeddings.num_patches
         # self.position_embeddings = nn.Parameter(torch.zeros(1, num_patches + 1, config.hidden_size))
-        self.position_embeddings = Pix2SeqPositionEmbeddings(config, dim=config.hidden_size)
+        self.position_embeddings = Pix2SeqPatchPositionEmbeddings(config, dim=config.hidden_size)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.config = config
 
@@ -515,11 +590,11 @@ class Pix2SeqProjectionMLP(nn.Module):
     """
     def __init__(self, config: Pix2SeqConfig, mlp_ratio=4) -> None:
         super().__init__()
-        self.layernorm = nn.LayerNorm(config.dim_att_dec, eps=config.layer_norm_eps)
-        self.dense1 = nn.Linear(config.dim_att_dec, config.dim_att_dec * mlp_ratio)
+        self.layernorm = nn.LayerNorm(config.dim_decoder, eps=config.layer_norm_eps)
+        self.dense1 = nn.Linear(config.dim_decoder, config.dim_decoder * mlp_ratio)
         self.activation = nn.GELU()
         self.dropout = nn.Dropout()
-        self.dense2 = nn.Linear(config.dim_att_dec * mlp_ratio, config.dim_att_dec)
+        self.dense2 = nn.Linear(config.dim_decoder * mlp_ratio, config.dim_decoder)
         self.drop_path = Pix2SeqDropPath(config.drop_path_rate)
 
     def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
@@ -553,11 +628,11 @@ class Pix2SeqProjection(nn.Module):
     
     def __init__(self, config: Pix2SeqConfig) -> None:
         super().__init__()
-        self.projection = nn.Linear(config.hidden_size, config.dim_att_dec)
-        self.layernorm = nn.LayerNorm(config.dim_att_dec)
+        self.projection = nn.Linear(config.hidden_size, config.dim_decoder)
+        self.layernorm = nn.LayerNorm(config.dim_decoder)
         
         if config.dec_proj_mode in ['linear_p', 'mlp']:
-            self.position_embeddings = Pix2SeqPositionEmbeddings(config, dim=config.dim_att_dec)
+            self.position_embeddings = Pix2SeqPatchPositionEmbeddings(config, dim=config.dim_decoder)
         if config.dec_proj_mode == 'mlp':
             self.projection_mlp = Pix2SeqProjectionMLP(config)
 
@@ -620,6 +695,222 @@ class Pix2SeqPreTrainedModel(PreTrainedModel):
             module.gradient_checkpointing = value
 
 
+class Pix2SeqDecoderLayer(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        pass
+
+    def forward(
+        self,
+        hidden_states: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+        encoder_hidden_states: Optional[torch.Tensor] = None,
+        layer_head_mask: Optional[torch.Tensor] = None,
+        cross_attn_layer_head_mask: Optional[torch.Tensor] = None,
+        past_key_value: Optional[Tuple[torch.Tensor]] = None,
+        output_attentions: Optional[bool] = False,
+        use_cache: Optional[bool] = True,
+    ) -> Tuple[torch.FloatTensor, Optional[Tuple[torch.FloatTensor, torch.FloatTensor]]]:
+        return (hidden_states,)
+
+
+class Pix2SeqDecoder(Pix2SeqPreTrainedModel):
+    """
+    Transformer decoder consisting of *config.num_decoder_layers* layers. Each layer is a [`Pix2SeqDecoderLayer`].
+
+    The decoder uses shared input and output embeddings by default.
+    
+    Args:
+        config: Pix2SeqConfig
+        embed_tokens (nn.Embedding): optional output embedding.
+    """
+    def __init__(self, config: Pix2SeqConfig, embed_tokens: Optional[nn.Embedding] = None):
+        super().__init__(config)
+        self.padding_idx = config.pad_token_id
+
+        if embed_tokens is not None:
+            self.embed_tokens = embed_tokens
+        else:
+            self.embed_tokens = nn.Embedding(config.vocab_size, config.dim_decoder, self.padding_idx)
+
+        self.embed_positions = Pix2SeqSequencePositionEmbeddings(config)
+
+        self.layers = nn.ModuleList([Pix2SeqDecoderLayer(config) for _ in range(config.num_decoder_layers)])
+        self.layernorm = nn.LayerNorm(config.dim_decoder)
+        self.output_bias = nn.Parameter(torch.randn(config.vocab_size)) if config.output_bias else None
+
+        self.gradient_checkpointing = False
+        # Initialize weights and apply final processing
+        self.post_init()
+
+    def get_input_embeddings(self):
+        return self.embed_tokens
+
+    def set_input_embeddings(self, value):
+        self.embed_tokens = value
+    
+    def _prepare_decoder_attention_mask(self, attention_mask, input_shape, inputs_embeds, past_key_values_length):
+        # create causal mask
+        # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
+        combined_attention_mask = None
+        if input_shape[-1] > 1:
+            combined_attention_mask = _make_causal_mask(
+                input_shape, inputs_embeds.dtype, past_key_values_length=past_key_values_length
+            ).to(self.device)
+
+        if attention_mask is not None:
+            # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
+            expanded_attn_mask = _expand_mask(attention_mask, inputs_embeds.dtype, tgt_len=input_shape[-1])
+            combined_attention_mask = (
+                expanded_attn_mask if combined_attention_mask is None else expanded_attn_mask + combined_attention_mask
+            )
+
+        return combined_attention_mask
+    
+    def forward(
+        self,
+        input_ids: torch.LongTensor = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        encoder_hidden_states: Optional[torch.FloatTensor] = None,
+        head_mask: Optional[torch.Tensor] = None,
+        cross_attn_head_mask: Optional[torch.Tensor] = None,
+        past_key_values: Optional[List[torch.FloatTensor]] = None,
+        inputs_embeds: Optional[torch.FloatTensor] = None,
+        use_cache: Optional[bool] = None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+    ) -> Union[Tuple, BaseModelOutputWithPastAndCrossAttentions]:
+
+        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
+        output_hidden_states = (
+            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
+        )
+        use_cache = use_cache if use_cache is not None else self.config.use_cache
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        # retrieve input_ids and inputs_embeds
+        if input_ids is not None and inputs_embeds is not None:
+            raise ValueError("You cannot specify both decoder_input_ids and decoder_inputs_embeds at the same time")
+        elif input_ids is not None:
+            input_shape = input_ids.size()
+            input_ids = input_ids.view(-1, input_shape[-1])
+        elif inputs_embeds is not None:
+            input_shape = inputs_embeds.size()[:-1]
+        else:
+            raise ValueError("You have to specify either decoder_input_ids or decoder_inputs_embeds")
+
+        # past_key_values_length
+        past_key_values_length = past_key_values[0][0].shape[2] if past_key_values is not None else 0
+
+        if inputs_embeds is None:
+            inputs_embeds = self.embed_tokens(input_ids)
+
+        attention_mask = self._prepare_decoder_attention_mask(
+            attention_mask, input_shape, inputs_embeds, past_key_values_length
+        )
+
+        # embed positions
+        # TODO this doesn't support past_key_values_length
+        positions = self.embed_positions()
+
+        hidden_states = inputs_embeds + positions
+
+        print("Hidden states after embedding them:", hidden_states.shape)
+
+        # decoder layers
+        all_hidden_states = () if output_hidden_states else None
+        all_self_attns = () if output_attentions else None
+        all_cross_attentions = () if (output_attentions and encoder_hidden_states is not None) else None
+        next_decoder_cache = () if use_cache else None
+
+        # check if head_mask/cross_attn_head_mask has a correct number of layers specified if desired
+        for attn_mask, mask_name in zip([head_mask, cross_attn_head_mask], ["head_mask", "cross_attn_head_mask"]):
+            if attn_mask is not None:
+                if attn_mask.size()[0] != (len(self.layers)):
+                    raise ValueError(
+                        f"The `{mask_name}` should be specified for {len(self.layers)} layers, but it is for {head_mask.size()[0]}."
+                    )
+
+        for idx, decoder_layer in enumerate(self.layers):
+            # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
+            if output_hidden_states:
+                all_hidden_states += (hidden_states,)
+            dropout_probability = random.uniform(0, 1)
+            if self.training and (dropout_probability < self.layerdrop):
+                continue
+
+            past_key_value = past_key_values[idx] if past_key_values is not None else None
+
+            if self.gradient_checkpointing and self.training:
+
+                if use_cache:
+                    logger.warning(
+                        "`use_cache=True` is incompatible with gradient checkpointing. Setting `use_cache=False`..."
+                    )
+                    use_cache = False
+
+                def create_custom_forward(module):
+                    def custom_forward(*inputs):
+                        # None for past_key_value
+                        return module(*inputs, output_attentions, use_cache)
+
+                    return custom_forward
+
+                layer_outputs = torch.utils.checkpoint.checkpoint(
+                    create_custom_forward(decoder_layer),
+                    hidden_states,
+                    attention_mask,
+                    encoder_hidden_states,
+                    head_mask[idx] if head_mask is not None else None,
+                    cross_attn_head_mask[idx] if cross_attn_head_mask is not None else None,
+                    None,
+                )
+            else:
+
+                layer_outputs = decoder_layer(
+                    hidden_states,
+                    attention_mask=attention_mask,
+                    encoder_hidden_states=encoder_hidden_states,
+                    layer_head_mask=(head_mask[idx] if head_mask is not None else None),
+                    cross_attn_layer_head_mask=(
+                        cross_attn_head_mask[idx] if cross_attn_head_mask is not None else None
+                    ),
+                    past_key_value=past_key_value,
+                    output_attentions=output_attentions,
+                    use_cache=use_cache,
+                )
+            hidden_states = layer_outputs[0]
+
+            if use_cache:
+                next_decoder_cache += (layer_outputs[3 if output_attentions else 1],)
+
+            if output_attentions:
+                all_self_attns += (layer_outputs[1],)
+
+                if encoder_hidden_states is not None:
+                    all_cross_attentions += (layer_outputs[2],)
+
+        # add hidden states from the last decoder layer
+        if output_hidden_states:
+            all_hidden_states += (hidden_states,)
+
+        next_cache = next_decoder_cache if use_cache else None
+        if not return_dict:
+            return tuple(
+                v
+                for v in [hidden_states, next_cache, all_hidden_states, all_self_attns, all_cross_attentions]
+                if v is not None
+            )
+        return BaseModelOutputWithPastAndCrossAttentions(
+            last_hidden_state=hidden_states,
+            past_key_values=next_cache,
+            hidden_states=all_hidden_states,
+            attentions=all_self_attns,
+            cross_attentions=all_cross_attentions,
+        )
+
+
 PIX2SEQ_START_DOCSTRING = r"""
     This model is a PyTorch [torch.nn.Module](https://pytorch.org/docs/stable/nn.html#torch.nn.Module) subclass. Use it
     as a regular PyTorch Module and refer to the PyTorch documentation for all matter related to general usage and
@@ -669,6 +960,8 @@ class Pix2SeqModel(Pix2SeqPreTrainedModel):
         
         self.projection = Pix2SeqProjection(config)
 
+        self.decoder = Pix2SeqDecoder(config)
+
         # Initialize weights and apply final processing
         self.post_init()
 
@@ -695,7 +988,16 @@ class Pix2SeqModel(Pix2SeqPreTrainedModel):
     def forward(
         self,
         pixel_values: Optional[torch.Tensor] = None,
+        decoder_input_ids: Optional[torch.LongTensor] = None,
+        decoder_attention_mask: Optional[torch.LongTensor] = None,
         head_mask: Optional[torch.Tensor] = None,
+        decoder_head_mask: Optional[torch.Tensor] = None,
+        cross_attn_head_mask: Optional[torch.Tensor] = None,
+        encoder_outputs: Optional[List[torch.FloatTensor]] = None,
+        past_key_values: Optional[List[torch.FloatTensor]] = None,
+        inputs_embeds: Optional[torch.FloatTensor] = None,
+        decoder_inputs_embeds: Optional[torch.FloatTensor] = None,
+        use_cache: Optional[bool] = None,
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
@@ -730,6 +1032,19 @@ class Pix2SeqModel(Pix2SeqPreTrainedModel):
         sequence_output = self.projection(sequence_output)
 
         print("Shape after projection:", sequence_output.shape)
+
+        decoder_outputs = self.decoder(input_ids=decoder_input_ids,
+            attention_mask=decoder_attention_mask,
+            encoder_hidden_states=encoder_outputs[0],
+            head_mask=decoder_head_mask,
+            cross_attn_head_mask=cross_attn_head_mask,
+            past_key_values=past_key_values,
+            inputs_embeds=decoder_inputs_embeds,
+            use_cache=use_cache,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
 
         if not return_dict:
             head_outputs = (sequence_output,)
