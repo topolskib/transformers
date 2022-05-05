@@ -32,6 +32,15 @@ def rename_key(name, param):
         name = name.replace("model.encoder.stem_ln", "embeddings.patch_embeddings.layer_norm")
     if "model.encoder.stem_ln.beta" in name:
         name = name.replace("model.encoder.stem_ln", "embeddings.patch_embeddings.layer_norm")
+    # encoder projection
+    if "model.proj_ln" in name:
+        name = name.replace("model.proj_ln", "projection.layernorm")
+    if "model.proj_mlp.layernorms.0" in name:
+        name = name.replace("model.proj_mlp.layernorms.0", "projection.projection_mlp.layernorm")
+    if "model.proj_mlp.mlp_layers.0" in name:
+        name = name.replace("model.proj_mlp.mlp_layers.0", "projection.projection_mlp")
+    if "model.proj" in name:
+        name = name.replace("model.proj", "projection.projection")
     # encoder layers
     if "model.encoder.transformer_encoder.enc_layers" in name:
         name = name.replace("model.encoder.transformer_encoder.enc_layers", "encoder.layer")
@@ -111,7 +120,7 @@ def convert_pix2seq_checkpoint(model_name, checkpoint_path, pytorch_dump_folder_
     # Rename keys
     state_dict = {}
     for name, param in tf_vars.items():
-        if "decoder" in name or name.startswith("model/proj"):
+        if "decoder" in name:
             continue
         name, param = rename_key(name, param)
         state_dict[name] = torch.from_numpy(param)

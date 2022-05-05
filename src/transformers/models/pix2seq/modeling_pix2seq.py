@@ -513,21 +513,28 @@ class Pix2SeqProjectionMLP(nn.Module):
     """
     Pix2Seq projection MLP, only used if config.dec_proj_mode == "mlp".
     """
-    def __init__(self, config: Pix2SeqConfig) -> None:
+    def __init__(self, config: Pix2SeqConfig, mlp_ratio=4) -> None:
         super().__init__()
-        self.layernorm = nn.LayerNorm(config.dim_att_dec)
-        self.dense1 = nn.Linear(config.dim_att_dec, config.dim_att_dec)
+        self.layernorm = nn.LayerNorm(config.dim_att_dec, eps=config.layer_norm_eps)
+        self.dense1 = nn.Linear(config.dim_att_dec, config.dim_att_dec * mlp_ratio)
+        self.activation = nn.GELU()
         self.dropout = nn.Dropout()
-        self.dense2 = nn.Linear(config.dim_att_dec, config.dim_att_dec)
+        self.dense2 = nn.Linear(config.dim_att_dec * mlp_ratio, config.dim_att_dec)
         self.drop_path = Pix2SeqDropPath(config.drop_path_rate)
 
     def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
         input = hidden_states
         
         hidden_states = self.layernorm(hidden_states)
+
+        print("First values of hidden states after layernorm:", hidden_states[0,:3,:3])
+
         hidden_states = self.dense1(hidden_states)
+        hidden_states = self.activation(hidden_states)
         hidden_states = self.dropout(hidden_states)
         hidden_states = self.dense2(hidden_states)
+
+        print("First values of hidden states as residual:", hidden_states[0,:3,:3])
 
         hidden_states = input + self.drop_path(hidden_states)
 
@@ -560,6 +567,8 @@ class Pix2SeqProjection(nn.Module):
         hidden_states = self.projection(hidden_states)
         hidden_states = self.layernorm(hidden_states)
 
+        print("First values of hidden states after linear projection + ln:", hidden_states[0,:3,:3])
+
         # Add (optional) positional embedding to encoded visual units.
         if self.config.dec_proj_mode != 'linear':
             position_embeddings = self.position_embeddings().unsqueeze(0)
@@ -569,11 +578,16 @@ class Pix2SeqProjection(nn.Module):
             else:
                 hidden_states = hidden_states + position_embeddings
         
+            print("First values of hidden states after position embeddings:", hidden_states[0,:3,:3])
+            print("Last values of hidden states after position embeddings:", hidden_states[0,-3:,-3:])
+            
             if self.config.dec_proj_mode == 'mlp':
                 hidden_states = self.projection_mlp(hidden_states)
             else:
                 assert self.config.dec_proj_mode == 'linear_p'
 
+        print("First values of hidden states after projection MLP:", hidden_states[0,:3,:3])
+        
         return hidden_states
 
 
@@ -653,7 +667,7 @@ class Pix2SeqModel(Pix2SeqPreTrainedModel):
         self.encoder = Pix2SeqEncoder(config)
         self.layernorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         
-        # self.projection = Pix2SeqProjection(config)
+        self.projection = Pix2SeqProjection(config)
 
         # Initialize weights and apply final processing
         self.post_init()
@@ -713,7 +727,9 @@ class Pix2SeqModel(Pix2SeqPreTrainedModel):
         )
         sequence_output = encoder_outputs[0]
         sequence_output = self.layernorm(sequence_output)
-        # sequence_output = self.projection(sequence_output)
+        sequence_output = self.projection(sequence_output)
+
+        print("Shape after projection:", sequence_output.shape)
 
         if not return_dict:
             head_outputs = (sequence_output,)
