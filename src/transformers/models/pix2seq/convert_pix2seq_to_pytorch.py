@@ -129,11 +129,16 @@ def convert_pix2seq_checkpoint(model_name, checkpoint_path, pytorch_dump_folder_
 
     with torch.no_grad():
         outputs = model(pixel_values)
+    
+    expected_slice = torch.tensor([[-4.3100,  2.0649, -0.2276],
+        [-3.3208,  1.9842,  0.9854],
+        [-3.5163,  2.3272,  0.6971]])
 
-    # TODO assert outputs on cats image
-    last_hidden_state = outputs.last_hidden_state
-    print("Shape of last hidden states:", last_hidden_state.shape)
-    print("First values of last hidden states:", last_hidden_state[0,:3,:3])
+    encoder_last_hidden_state = outputs.encoder_last_hidden_state
+    assert encoder_last_hidden_state.shape == (1,1600,768)
+    assert torch.allclose(encoder_last_hidden_state[0,:3,:3], expected_slice, atol=1e-4)
+
+    print("Everything ok!")
 
     #print(f"Saving model {model_name} to {pytorch_dump_folder_path}")
     #model.save_pretrained(pytorch_dump_folder_path)
