@@ -133,6 +133,7 @@ def convert_pix2seq_checkpoint(model_name, checkpoint_path, pytorch_dump_folder_
     # TODO assert outputs on cats image
     last_hidden_state = outputs.last_hidden_state
     print("Shape of last hidden states:", last_hidden_state.shape)
+    print("First values of last hidden states:", last_hidden_state[0,:3,:3])
 
     #print(f"Saving model {model_name} to {pytorch_dump_folder_path}")
     #model.save_pretrained(pytorch_dump_folder_path)
