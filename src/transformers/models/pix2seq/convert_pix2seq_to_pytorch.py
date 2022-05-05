@@ -50,6 +50,36 @@ def rename_key(name, param):
         name = name.replace("model.decoder.ar_decoder.Soutp_bias", "decoder.output_bias")
     if "model.decoder.output_ln" in name:
         name = name.replace("model.decoder.output_ln", "decoder.layernorm")
+    # decoder layers
+    if "model.decoder.decoder.dec_layers" in name:
+        name = name.replace("model.decoder.decoder.dec_layers", "decoder.layers")
+    if "self_ln" in name:
+        name = name.replace("self_ln", "self_attn_layer_norm")
+    if "cross_ln" in name:
+        name = name.replace("cross_ln", "encoder_attn_layer_norm")
+    if "self_mha._query_dense" in name:
+        name = name.replace("self_mha._query_dense", "self_attn.q_proj")
+    if "self_mha._key_dense" in name:
+        name = name.replace("self_mha._key_dense", "self_attn.k_proj")
+    if "self_mha._value_dense" in name:
+        name = name.replace("self_mha._value_dense", "self_attn.v_proj")
+    if "self_mha._output_dense" in name:
+        name = name.replace("self_mha._output_dense", "self_attn.out_proj")
+    if "cross_mha._query_dense" in name:
+        name = name.replace("cross_mha._query_dense", "encoder_attn.q_proj")
+    if "cross_mha._key_dense" in name:
+        name = name.replace("cross_mha._key_dense", "encoder_attn.k_proj")
+    if "cross_mha._value_dense" in name:
+        name = name.replace("cross_mha._value_dense", "encoder_attn.v_proj")
+    if "cross_mha._output_dense" in name:
+        name = name.replace("cross_mha._output_dense", "encoder_attn.out_proj")
+    if "decoder" in name:
+        if "mlp.mlp_layers.0.dense1" in name:
+            name = name.replace("mlp.mlp_layers.0.dense1", "fc1")
+        if "mlp.mlp_layers.0.dense2" in name:
+            name = name.replace("mlp.mlp_layers.0.dense2", "fc2")
+        if "mlp.layernorms.0" in name:
+            name = name.replace("mlp.layernorms.0", "layernorm")
     # encoder layers
     if "model.encoder.transformer_encoder.enc_layers" in name:
         name = name.replace("model.encoder.transformer_encoder.enc_layers", "encoder.layer")
@@ -76,12 +106,12 @@ def rename_key(name, param):
         name = name.replace("model.encoder.output_ln", "layernorm")
     
     # handle qkv
-    if "attention.output.dense" in name:
+    if "attention.output.dense" in name or "out_proj" in name:
         if "kernel" in name:
             # (12, 64, 768) -> (768, 768) for weights 
             param = np.reshape(param, (param.shape[-1], -1))
 
-    if ("query" in name or "key" in name or "value" in name):
+    if ("query" in name or "key" in name or "value" in name) or ("q_proj" in name or "k_proj" in name or "v_proj" in name):
         # print("Updating param for parameter:", name)
         # print("Old shape of param", param.shape)
         if "kernel" in name:
@@ -129,8 +159,6 @@ def convert_pix2seq_checkpoint(model_name, checkpoint_path, pytorch_dump_folder_
     # Rename keys
     state_dict = {}
     for name, param in tf_vars.items():
-        if name.startswith("model/decoder/decoder"):
-            continue
         name, param = rename_key(name, param)
         state_dict[name] = torch.from_numpy(param)
     
