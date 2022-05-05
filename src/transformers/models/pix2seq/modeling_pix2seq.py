@@ -810,13 +810,12 @@ class Pix2SeqDecoder(Pix2SeqPreTrainedModel):
             attention_mask, input_shape, inputs_embeds, past_key_values_length
         )
 
-        # embed positions
-        # TODO this doesn't support past_key_values_length
-        positions = self.embed_positions()
-
-        hidden_states = inputs_embeds + positions
+        # add position embeddings
+        seq_len = inputs_embeds.shape[1]
+        hidden_states = inputs_embeds + self.embed_positions()[past_key_values_length:past_key_values_length + seq_len]
 
         print("Hidden states after embedding them:", hidden_states.shape)
+        print("First values of inputs_embeds with pos embeddings:", hidden_states[0,0,:3])
 
         # decoder layers
         all_hidden_states = () if output_hidden_states else None
