@@ -258,7 +258,7 @@ class Pix2SeqEmbeddings(nn.Module):
         batch_size, num_channels, height, width = pixel_values.shape
         embeddings = self.patch_embeddings(pixel_values)
 
-        print("Shape of patch embeddings:", embeddings.shape)
+        # print("Shape of patch embeddings:", embeddings.shape)
 
         batch_size, seq_len, _ = embeddings.size()
 
@@ -270,9 +270,9 @@ class Pix2SeqEmbeddings(nn.Module):
         # add positional encoding to each token
         embeddings = embeddings + self.position_embeddings().unsqueeze(0)
 
-        print("First values after position embeddings:", embeddings[0,:3,:3])
-        print("Last values after position embeddings:", embeddings[0,-3:,:3:])
-        print("Sum of embeddings:", embeddings.sum())
+        # print("First values after position embeddings:", embeddings[0,:3,:3])
+        # print("Last values after position embeddings:", embeddings[0,-3:,:3:])
+        # print("Sum of embeddings:", embeddings.sum())
 
         embeddings = self.dropout(embeddings)
 
@@ -298,25 +298,9 @@ class PatchEmbeddings(nn.Module):
     def forward(self, pixel_values: torch.Tensor) -> torch.Tensor:
         batch_size, num_channels, height, width = pixel_values.shape
         
-        print("First values of pixel values:", pixel_values[0,:3,0,0])
-
-        print("Shape of kernel of conv2d layer:", self.projection.weight.data.shape)
-        print("First values of kernel of conv2d layer:", self.projection.weight.data[:3,0,2,0])
-        print("First values of bias of conv2d layer:", self.projection.bias.data[:3])
-        
         embeddings = self.projection(pixel_values)
-
-        # shape (batch_size, hidden_size, num_patches, num_patches)
-        
-        print("Shape of patch embeddings:", embeddings.shape)
-        print("First values of patch embeddings:", embeddings[0,:3,0,0])
-        
         embeddings = embeddings.flatten(2).transpose(1, 2)
-
         embeddings = self.layer_norm(embeddings)
-
-        print("Shape of embeddings after layernorm:", embeddings.shape)
-        print("First values of embeddings after layer norm:", embeddings[0,:3,:3])
 
         return embeddings
 
@@ -632,14 +616,14 @@ class Pix2SeqProjectionMLP(nn.Module):
         
         hidden_states = self.layernorm(hidden_states)
 
-        print("First values of hidden states after layernorm:", hidden_states[0,:3,:3])
+        # print("First values of hidden states after layernorm:", hidden_states[0,:3,:3])
 
         hidden_states = self.dense1(hidden_states)
         hidden_states = self.activation(hidden_states)
         hidden_states = self.dropout(hidden_states)
         hidden_states = self.dense2(hidden_states)
 
-        print("First values of hidden states as residual:", hidden_states[0,:3,:3])
+        # print("First values of hidden states as residual:", hidden_states[0,:3,:3])
 
         hidden_states = residual + self.drop_path(hidden_states)
 
@@ -672,7 +656,7 @@ class Pix2SeqProjection(nn.Module):
         hidden_states = self.projection(hidden_states)
         hidden_states = self.layernorm(hidden_states)
 
-        print("First values of hidden states after linear projection + ln:", hidden_states[0,:3,:3])
+        # print("First values of hidden states after linear projection + ln:", hidden_states[0,:3,:3])
 
         # Add (optional) positional embedding to encoded visual units.
         if self.config.dec_proj_mode != 'linear':
@@ -683,15 +667,15 @@ class Pix2SeqProjection(nn.Module):
             else:
                 hidden_states = hidden_states + position_embeddings
         
-            print("First values of hidden states after position embeddings:", hidden_states[0,:3,:3])
-            print("Last values of hidden states after position embeddings:", hidden_states[0,-3:,-3:])
+            # print("First values of hidden states after position embeddings:", hidden_states[0,:3,:3])
+            # print("Last values of hidden states after position embeddings:", hidden_states[0,-3:,-3:])
             
             if self.config.dec_proj_mode == 'mlp':
                 hidden_states = self.projection_mlp(hidden_states)
             else:
                 assert self.config.dec_proj_mode == 'linear_p'
 
-        print("First values of hidden states after projection MLP:", hidden_states[0,:3,:3])
+        # "First values of hidden states after projection MLP:", hidden_states[0,:3,:3])
         
         return hidden_states
 
@@ -932,8 +916,8 @@ class Pix2SeqDecoderLayer(nn.Module):
 
         hidden_states = self.self_attn_layer_norm(hidden_states)
 
-        if print_values:
-            print("Hidden states after layernorm:", hidden_states[0,:3,:3])
+        # if print_values:
+        #     print("Hidden states after layernorm:", hidden_states[0,:3,:3])
         
         # Self Attention
         # decoder uni-directional self-attention cached key/values tuple is at positions 1,2
@@ -947,8 +931,8 @@ class Pix2SeqDecoderLayer(nn.Module):
             output_attentions=output_attentions,
         )
 
-        if print_values:
-            print("Hidden states after self-attention:", hidden_states[0,:3,:3])
+        # if print_values:
+        #     print("Hidden states after self-attention:", hidden_states[0,:3,:3])
         
         hidden_states = residual + self.drop_path(hidden_states)
 
@@ -956,8 +940,8 @@ class Pix2SeqDecoderLayer(nn.Module):
         residual = hidden_states
         hidden_states = self.encoder_attn_layer_norm(hidden_states)
 
-        if print_values:
-            print("Hidden states after cross-attention layer norm:", hidden_states[0,:3,:3])
+        # if print_values:
+        #     print("Hidden states after cross-attention layer norm:", hidden_states[0,:3,:3])
 
         cross_attn_present_key_value = None
         cross_attn_weights = None
@@ -973,8 +957,8 @@ class Pix2SeqDecoderLayer(nn.Module):
                 output_attentions=output_attentions,
             )
             
-            if print_values:
-                print("Hidden states after cross-attention:", hidden_states[0,:3,:3])
+            # if print_values:
+            #     print("Hidden states after cross-attention:", hidden_states[0,:3,:3])
             
             hidden_states = residual + self.drop_path(hidden_states)
 
@@ -982,15 +966,15 @@ class Pix2SeqDecoderLayer(nn.Module):
             present_key_value = present_key_value + cross_attn_present_key_value
         
         # MLP
-        if print_values:
-            print("Hidden states before MLP:", hidden_states[0,:3,:3])
+        # if print_values:
+        #     print("Hidden states before MLP:", hidden_states[0,:3,:3])
 
         residual = hidden_states
         
         hidden_states = self.layernorm(hidden_states)
 
-        if print_values:
-            print("Hidden states after MLP layernorm:", hidden_states[0,:3,:3])
+        # if print_values:
+        #     print("Hidden states after MLP layernorm:", hidden_states[0,:3,:3])
 
         hidden_states = self.activation_fn(self.fc1(hidden_states))
         hidden_states = self.fc2(hidden_states)
@@ -1105,8 +1089,8 @@ class Pix2SeqDecoder(Pix2SeqPreTrainedModel):
         seq_len = inputs_embeds.shape[1]
         hidden_states = inputs_embeds + self.embed_positions()[past_key_values_length:past_key_values_length + seq_len]
 
-        print("Hidden states after embedding them:", hidden_states.shape)
-        print("First values of inputs_embeds with pos embeddings:", hidden_states[0,0,:3])
+        # print("Hidden states after embedding them:", hidden_states.shape)
+        # print("First values of inputs_embeds with pos embeddings:", hidden_states[0,0,:3])
 
         # decoder layers
         all_hidden_states = () if output_hidden_states else None
@@ -1154,9 +1138,9 @@ class Pix2SeqDecoder(Pix2SeqPreTrainedModel):
                 )
             else:
 
-                if idx == 0:
-                    print(f"Hidden states before layer {idx}", hidden_states[0,:3,:3])
-                    print(f"Encoder hidden states before layer {idx}", encoder_hidden_states[0,:3,:3])
+                # if idx == 0:
+                #     print(f"Hidden states before layer {idx}", hidden_states[0,:3,:3])
+                #     print(f"Encoder hidden states before layer {idx}", encoder_hidden_states[0,:3,:3])
                 
                 layer_outputs = decoder_layer(
                     hidden_states,
@@ -1173,8 +1157,8 @@ class Pix2SeqDecoder(Pix2SeqPreTrainedModel):
                 )
             hidden_states = layer_outputs[0]
 
-            if idx == 0:
-                    print(f"Hidden states after layer {idx}", hidden_states[0,:3,:3])
+            # if idx == 0:
+            #         print(f"Hidden states after layer {idx}", hidden_states[0,:3,:3])
 
             if use_cache:
                 next_decoder_cache += (layer_outputs[3 if output_attentions else 1],)
@@ -1185,7 +1169,7 @@ class Pix2SeqDecoder(Pix2SeqPreTrainedModel):
                 if encoder_hidden_states is not None:
                     all_cross_attentions += (layer_outputs[2],)
 
-        print("Final hidden states of decoder:", hidden_states[0,:3,:3])
+        # print("Final hidden states of decoder:", hidden_states[0,:3,:3])
         
         # add hidden states from the last decoder layer
         if output_hidden_states:
@@ -1330,9 +1314,12 @@ class Pix2SeqModel(Pix2SeqPreTrainedModel):
 
         encoder_hidden_states = encoder_outputs[0]
         if encoder_hidden_states.shape[-1] != self.config.dim_decoder:
+            # project encoder hidden states to match dimension of the decoder
+            # TODO make it more efficient by only computing this once at generation time
             sequence_output = self.layernorm(encoder_outputs[0])
             sequence_output = self.projection(sequence_output)
             encoder_hidden_states = sequence_output
+            print("First values of encoder hidden states:", encoder_hidden_states[0,:3,:3])
         
         decoder_outputs = self.decoder(input_ids=decoder_input_ids,
             attention_mask=decoder_attention_mask,
@@ -1433,11 +1420,11 @@ class Pix2SeqForConditionalGeneration(Pix2SeqPreTrainedModel):
         )
         decoder_outputs = self.output_layernorm(outputs[0])
 
-        print("Decoder outputs after output layernorm:", decoder_outputs[0,:3,:3])
+        # print("Decoder outputs after output layernorm:", decoder_outputs[0,:3,:3])
 
         lm_logits = self.lm_head(decoder_outputs)
 
-        print("First values of final logits:", lm_logits[:,-1,:][0,:3])
+        # print("First values of final logits:", lm_logits[:,-1,:][0,:3])
 
         loss = None
         if labels is not None:
@@ -1464,7 +1451,6 @@ class Pix2SeqForConditionalGeneration(Pix2SeqPreTrainedModel):
         self, input_ids, past=None, attention_mask=None, use_cache=None, encoder_outputs=None, **kwargs
     ):
         decoder_inputs = self.model.decoder.prepare_inputs_for_generation(input_ids, past=past)
-        print("Decoder inputs:", decoder_inputs)
         decoder_attention_mask = decoder_inputs["attention_mask"] if "attention_mask" in decoder_inputs else None
         input_dict = {
             # "attention_mask": attention_mask,
