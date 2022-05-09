@@ -126,7 +126,7 @@ class Pix2SeqConfig(PretrainedConfig):
         use_cache = False,
         tie_word_embeddings=False,
         is_encoder_decoder=True,
-        bos_token_id=0,
+        bos_token_id=10,
         **kwargs
     ):
         super().__init__(is_encoder_decoder=is_encoder_decoder, bos_token_id=bos_token_id, **kwargs)

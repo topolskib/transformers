@@ -25,14 +25,14 @@ def rename_key(name, param):
         name = name.replace("/", ".")
     # stem conv
     if "model.encoder.stem_conv" in name:
-        name = name.replace("model.encoder.stem_conv", "embeddings.patch_embeddings.projection")
+        name = name.replace("model.encoder.stem_conv", "encoder.embeddings.patch_embeddings.projection")
     if "model.encoder.stem_conv.bias" in name:
-        name = name.replace("model.encoder.stem_conv.bias", "embeddings.patch_embeddings.projection")
+        name = name.replace("model.encoder.stem_conv.bias", "encoder.embeddings.patch_embeddings.projection")
     # stem layernorm
     if "model.encoder.stem_ln" in name:
-        name = name.replace("model.encoder.stem_ln", "embeddings.patch_embeddings.layer_norm")
+        name = name.replace("model.encoder.stem_ln", "encoder.embeddings.patch_embeddings.layer_norm")
     if "model.encoder.stem_ln.beta" in name:
-        name = name.replace("model.encoder.stem_ln", "embeddings.patch_embeddings.layer_norm")
+        name = name.replace("model.encoder.stem_ln", "encoder.embeddings.patch_embeddings.layer_norm")
     # encoder projection
     if "model.proj_ln" in name:
         name = name.replace("model.proj_ln", "projection.layernorm")
