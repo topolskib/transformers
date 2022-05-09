@@ -123,7 +123,7 @@ class Pix2SeqConfig(PretrainedConfig):
         num_decoder_layers=6,
         num_attention_heads_decoder=16,
         output_bias = True,
-        use_cache = False,
+        use_cache = True,
         tie_word_embeddings=False,
         is_encoder_decoder=True,
         bos_token_id=10,
