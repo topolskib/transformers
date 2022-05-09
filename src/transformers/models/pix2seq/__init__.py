@@ -29,6 +29,7 @@ if is_torch_available():
         "PIX2SEQ_PRETRAINED_MODEL_ARCHIVE_LIST",
         "Pix2SeqModel",
         "Pix2SeqPreTrainedModel",
+        "Pix2SeqForConditionalGeneration",
     ]
 
 if TYPE_CHECKING:
@@ -37,6 +38,7 @@ if TYPE_CHECKING:
     if is_torch_available():
         from .modeling_pix2seq import (
             PIX2SEQ_PRETRAINED_MODEL_ARCHIVE_LIST,
+            Pix2SeqForConditionalGeneration,
             Pix2SeqModel,
             Pix2SeqPreTrainedModel,
         )
