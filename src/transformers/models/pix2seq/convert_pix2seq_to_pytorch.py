@@ -196,7 +196,7 @@ def convert_pix2seq_checkpoint(model_name, checkpoint_path, pytorch_dump_folder_
 
     print("Everything ok!")
 
-    outputs = model.generate(pixel_values)
+    outputs = model.generate(pixel_values, max_length=3, use_cache=True)
 
     print("Generated ids:", outputs)
 
