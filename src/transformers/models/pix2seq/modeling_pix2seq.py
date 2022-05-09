@@ -19,6 +19,7 @@ import collections.abc
 import math
 import random
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from cachetools import Cache
 
 import torch
 import torch.utils.checkpoint
@@ -744,52 +745,36 @@ class Pix2SeqDecoderAttention(nn.Module):
 
     def forward(
         self,
-        hidden_states: torch.Tensor,
-        key_value_states: Optional[torch.Tensor] = None,
-        past_key_value: Optional[Tuple[torch.Tensor]] = None,
+        queries,
+        keys,
+        values,
+        is_cross_attention = False,
+        # hidden_states: torch.Tensor,
+        # key_value_states: Optional[torch.Tensor] = None,
+        cache: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
         layer_head_mask: Optional[torch.Tensor] = None,
         output_attentions: bool = False,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         """Input shape: Batch x Time x Channel"""
 
-        # if key_value_states are provided this layer is used as a cross-attention layer
-        # for the decoder
-        is_cross_attention = key_value_states is not None
-
-        bsz, tgt_len, _ = hidden_states.size()
+        bsz, tgt_len, _ = queries.size()
 
         # get query proj
-        query_states = self.q_proj(hidden_states) * self.scaling
-        # get key, value proj
-        if is_cross_attention and past_key_value is not None:
-            # reuse k,v, cross_attentions
-            key_states = past_key_value[0]
-            value_states = past_key_value[1]
-        elif is_cross_attention:
-            # cross_attentions
-            key_states = self._shape(self.k_proj(key_value_states), -1, bsz)
-            value_states = self._shape(self.v_proj(key_value_states), -1, bsz)
-        elif past_key_value is not None:
-            # reuse k, v, self_attention
-            key_states = self._shape(self.k_proj(hidden_states), -1, bsz)
-            value_states = self._shape(self.v_proj(hidden_states), -1, bsz)
-            key_states = torch.cat([past_key_value[0], key_states], dim=2)
-            value_states = torch.cat([past_key_value[1], value_states], dim=2)
-        else:
-            # self_attention
-            key_states = self._shape(self.k_proj(hidden_states), -1, bsz)
-            value_states = self._shape(self.v_proj(hidden_states), -1, bsz)
-
-        if self.is_decoder:
-            # if cross_attention save Tuple(torch.Tensor, torch.Tensor) of all cross attention key/value_states.
-            # Further calls to cross_attention layer can then reuse all cross-attention
-            # key/value_states (first "if" case)
-            # if uni-directional self-attention (decoder) save Tuple(torch.Tensor, torch.Tensor) of
-            # all previous decoder key/value_states. Further calls to uni-directional self-attention
-            # can concat previous decoder key/value_states to current projected key/value_states (third "elif" case)
-            # if encoder bi-directional self-attention `past_key_value` is always `None`
-            past_key_value = (key_states, value_states)
+        query_states = self.q_proj(queries) * self.scaling
+        key_states = self._shape(self.k_proj(keys), -1, bsz)
+        value_states = self._shape(self.v_proj(values), -1, bsz)
+        # if is_cross_attention:
+        #     # cross_attentions
+        #     key_states = 
+        #     value_states = 
+        # elif cache is not None:
+        #     # reuse keys and values, self_attention
+        #     key_states = value_states = torch.cat([cache, hidden_states], axis=1)
+        # else:
+        #     # self_attention
+        #     key_states = self._shape(self.k_proj(hidden_states), -1, bsz)
+        #     value_states = self._shape(self.v_proj(hidden_states), -1, bsz)
 
         proj_shape = (bsz * self.num_heads, -1, self.head_dim)
         query_states = self._shape(query_states, tgt_len, bsz).view(*proj_shape)
@@ -850,7 +835,7 @@ class Pix2SeqDecoderAttention(nn.Module):
 
         attn_output = self.out_proj(attn_output)
 
-        return attn_output, attn_weights_reshaped, past_key_value
+        return attn_output, attn_weights_reshaped
 
 
 class Pix2SeqDecoderLayer(nn.Module):
@@ -907,25 +892,37 @@ class Pix2SeqDecoderLayer(nn.Module):
                 `(encoder_attention_heads,)`.
             cross_attn_layer_head_mask (`torch.FloatTensor`): mask for cross-attention heads in a given layer of
                 size `(decoder_attention_heads,)`.
-            past_key_value (`Tuple(torch.FloatTensor)`): cached past key and value projection states
+            past_key_value (`torch.FloatTensor)`): tensor of shape (batch size, seq len, hidden size): cached past hidden states
             output_attentions (`bool`, *optional*):
                 Whether or not to return the attentions tensors of all attention layers. See `attentions` under
                 returned tensors for more detail.
         """
+        print("Shape of hidden states:", hidden_states.shape)
+        
         residual = hidden_states
 
-        hidden_states = self.self_attn_layer_norm(hidden_states)
+        hidden_states = keys = values = self.self_attn_layer_norm(hidden_states)
+
+        # this corresponds to "x_for_cache"
+        present_key_value = hidden_states
+
+        print("Shape of present_key_value:", present_key_value.shape)
 
         # if print_values:
         #     print("Hidden states after layernorm:", hidden_states[0,:3,:3])
+
+        if past_key_value is not None:  
+            # Augment kv_ln with cache in (bsz, c_size, d).
+            # q_size, k_size = tf.shape(x)[1], tf.shape(cache)[1]
+            # mask_self = tf.concat([tf.ones([1, 1, q_size, k_size]), mask_self], -1)
+            keys = values = torch.cat([past_key_value, hidden_states], axis=1)
+            print("Shape of past key value:", past_key_value.shape)
+            print("Shape of keys:", keys.shape)
         
-        # Self Attention
-        # decoder uni-directional self-attention cached key/values tuple is at positions 1,2
-        self_attn_past_key_value = past_key_value[:2] if past_key_value is not None else None
-        # add present self-attn cache to positions 1,2 of present_key_value tuple
-        hidden_states, self_attn_weights, present_key_value = self.self_attn(
-            hidden_states=hidden_states,
-            past_key_value=self_attn_past_key_value,
+        hidden_states, self_attn_weights = self.self_attn(
+            queries=hidden_states,
+            keys=keys,
+            values=values,
             attention_mask=attention_mask,
             layer_head_mask=layer_head_mask,
             output_attentions=output_attentions,
@@ -943,17 +940,14 @@ class Pix2SeqDecoderLayer(nn.Module):
         # if print_values:
         #     print("Hidden states after cross-attention layer norm:", hidden_states[0,:3,:3])
 
-        cross_attn_present_key_value = None
         cross_attn_weights = None
         if encoder_hidden_states is not None:
-            # cross_attn cached key/values tuple is at positions 3,4 of present_key_value tuple
-            cross_attn_past_key_value = past_key_value[-2:] if past_key_value is not None else None
-            hidden_states, cross_attn_weights, cross_attn_present_key_value = self.encoder_attn(
-                hidden_states=hidden_states,
-                key_value_states=encoder_hidden_states,
+            hidden_states, cross_attn_weights = self.encoder_attn(
+                queries=hidden_states,
+                keys=encoder_hidden_states,
+                values=encoder_hidden_states,
                 attention_mask=encoder_attention_mask,
                 layer_head_mask=cross_attn_layer_head_mask,
-                past_key_value=cross_attn_past_key_value,
                 output_attentions=output_attentions,
             )
             
@@ -961,9 +955,6 @@ class Pix2SeqDecoderLayer(nn.Module):
             #     print("Hidden states after cross-attention:", hidden_states[0,:3,:3])
             
             hidden_states = residual + self.drop_path(hidden_states)
-
-            # add cross-attn to positions 3,4 of present_key_value tuple
-            present_key_value = present_key_value + cross_attn_present_key_value
         
         # MLP
         # if print_values:
@@ -986,6 +977,7 @@ class Pix2SeqDecoderLayer(nn.Module):
             outputs += (self_attn_weights, cross_attn_weights)
 
         if use_cache:
+            print("Caching:", present_key_value.shape)
             outputs += (present_key_value,)
 
         return outputs
@@ -996,6 +988,8 @@ class Pix2SeqDecoder(Pix2SeqPreTrainedModel):
     Transformer decoder consisting of *config.num_decoder_layers* layers. Each layer is a [`Pix2SeqDecoderLayer`].
 
     The decoder uses shared input and output embeddings by default.
+
+    Past_key_values: tensor of shape (number of decoder layers, batch size, sequence length, hidden size).
     
     Args:
         config: Pix2SeqConfig
@@ -1056,7 +1050,7 @@ class Pix2SeqDecoder(Pix2SeqPreTrainedModel):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, BaseModelOutputWithPastAndCrossAttentions]:
-
+        
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
@@ -1076,7 +1070,7 @@ class Pix2SeqDecoder(Pix2SeqPreTrainedModel):
             raise ValueError("You have to specify either decoder_input_ids or decoder_inputs_embeds")
 
         # past_key_values_length
-        past_key_values_length = past_key_values[0][0].shape[2] if past_key_values is not None else 0
+        past_key_values_length = past_key_values[0].shape[2] if past_key_values is not None else 0
 
         if inputs_embeds is None:
             inputs_embeds = self.embed_tokens(input_ids)
@@ -1106,10 +1100,15 @@ class Pix2SeqDecoder(Pix2SeqPreTrainedModel):
                         f"The `{mask_name}` should be specified for {len(self.layers)} layers, but it is for {head_mask.size()[0]}."
                     )
 
+        if past_key_values is not None:
+            print("Shape of past key values:", past_key_values.shape)
+            print("Shape of hidden_States:", hidden_states.shape)
+        
         for idx, decoder_layer in enumerate(self.layers):
             if output_hidden_states:
                 all_hidden_states += (hidden_states,)
 
+            # take cache of ith layer
             past_key_value = past_key_values[idx] if past_key_values is not None else None
 
             if self.gradient_checkpointing and self.training:
@@ -1175,7 +1174,14 @@ class Pix2SeqDecoder(Pix2SeqPreTrainedModel):
         if output_hidden_states:
             all_hidden_states += (hidden_states,)
 
-        next_cache = next_decoder_cache if use_cache else None
+        # cache = tensor of shape (number of decoder layers, batch size, seq length, hidden size)
+        next_decoder_cache = torch.stack(next_decoder_cache, dim=0)
+
+        if past_key_values is not None:
+            next_cache = torch.cat([past_key_values, next_decoder_cache], dim=2)
+        else:
+            next_cache = next_decoder_cache
+        print("Cache out:", next_cache.shape)
         if not return_dict:
             return tuple(
                 v
@@ -1448,16 +1454,29 @@ class Pix2SeqForConditionalGeneration(Pix2SeqPreTrainedModel):
         )
 
     def prepare_inputs_for_generation(
-        self, input_ids, past=None, attention_mask=None, use_cache=None, encoder_outputs=None, **kwargs
+        self,
+        decoder_input_ids,
+        past=None,
+        attention_mask=None,
+        head_mask=None,
+        decoder_head_mask=None,
+        cross_attn_head_mask=None,
+        use_cache=None,
+        encoder_outputs=None,
+        **kwargs
     ):
-        decoder_inputs = self.model.decoder.prepare_inputs_for_generation(input_ids, past=past)
-        decoder_attention_mask = decoder_inputs["attention_mask"] if "attention_mask" in decoder_inputs else None
-        input_dict = {
-            # "attention_mask": attention_mask,
-            "decoder_attention_mask": decoder_attention_mask,
-            "decoder_input_ids": decoder_inputs["input_ids"],
+        # cut decoder_input_ids if past is used
+        if past is not None:
+            decoder_input_ids = decoder_input_ids[:, -1:]
+            print("Decoder input ids:", decoder_input_ids)
+
+        return {
+            "pixel_values": None,  # encoder_outputs is defined. pixel_values not needed
             "encoder_outputs": encoder_outputs,
-            # "past_key_values": decoder_inputs["past_key_values"],
-            "use_cache": use_cache,
+            "past_key_values": past,
+            "decoder_input_ids": decoder_input_ids,
+            "head_mask": head_mask,
+            "decoder_head_mask": decoder_head_mask,
+            "cross_attn_head_mask": cross_attn_head_mask,
+            "use_cache": use_cache,  # change this to avoid caching (presumably for debugging)
         }
-        return input_dict
