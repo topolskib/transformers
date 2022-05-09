@@ -522,10 +522,7 @@ class GenerationMixin:
         model_input_name = model_input_name if model_input_name is not None else self.main_input_name
         encoder_kwargs["return_dict"] = True
         encoder_kwargs[model_input_name] = inputs_tensor
-        print("Encoder kwargs:")
-        for k,v in encoder_kwargs.items():
-            if isinstance(v, torch.Tensor):
-                print(k,v.shape)
+
         model_kwargs["encoder_outputs"]: ModelOutput = encoder(**encoder_kwargs)
 
         return model_kwargs
@@ -1660,8 +1657,8 @@ class GenerationMixin:
         cur_len = input_ids.shape[-1]
 
         this_peer_finished = False  # used by synced_gpus only
-        while True:
-
+        step = 0
+        while True:            
             if synced_gpus:
                 # Under synced_gpus the `forward` call must continue until all gpus complete their sequence.
                 # The following logic allows an early break if all peers finished generating their sequence
@@ -1675,8 +1672,8 @@ class GenerationMixin:
             # prepare model inputs
             model_inputs = self.prepare_inputs_for_generation(input_ids, **model_kwargs)
 
-            print("Model inputs:", model_inputs)
-
+            print(f"Shape of encoder outputs at step: {step}:", model_inputs["encoder_outputs"][0].shape)
+            
             # forward pass to get next token
             outputs = self(
                 **model_inputs,
@@ -1738,6 +1735,8 @@ class GenerationMixin:
                     break
                 else:
                     this_peer_finished = True
+
+            step += 1
 
         if return_dict_in_generate:
             if self.config.is_encoder_decoder:
