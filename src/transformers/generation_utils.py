@@ -522,7 +522,10 @@ class GenerationMixin:
         model_input_name = model_input_name if model_input_name is not None else self.main_input_name
         encoder_kwargs["return_dict"] = True
         encoder_kwargs[model_input_name] = inputs_tensor
-        print("Encoder kwargs:", encoder_kwargs)
+        print("Encoder kwargs:")
+        for k,v in encoder_kwargs.items():
+            if isinstance(v, torch.Tensor):
+                print(k,v.shape)
         model_kwargs["encoder_outputs"]: ModelOutput = encoder(**encoder_kwargs)
 
         return model_kwargs
@@ -1668,6 +1671,8 @@ class GenerationMixin:
 
             # prepare model inputs
             model_inputs = self.prepare_inputs_for_generation(input_ids, **model_kwargs)
+
+            print("Model inputs:", model_inputs)
 
             # forward pass to get next token
             outputs = self(
