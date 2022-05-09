@@ -124,9 +124,12 @@ class Pix2SeqConfig(PretrainedConfig):
         num_attention_heads_decoder=16,
         output_bias = True,
         use_cache = False,
+        tie_word_embeddings=False,
+        is_encoder_decoder=True,
+        bos_token_id=0,
         **kwargs
     ):
-        super().__init__(**kwargs)
+        super().__init__(is_encoder_decoder=is_encoder_decoder, bos_token_id=bos_token_id, **kwargs)
 
         self.num_channels = num_channels
         self.image_size = image_size
@@ -154,3 +157,4 @@ class Pix2SeqConfig(PretrainedConfig):
         self.num_attention_heads_decoder = num_attention_heads_decoder
         self.output_bias = output_bias
         self.use_cache = use_cache
+        self.tie_word_embeddings = tie_word_embeddings

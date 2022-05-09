@@ -7,7 +7,8 @@ import torch
 from PIL import Image
 
 import requests
-from transformers import Pix2SeqConfig, Pix2SeqModel, ViTFeatureExtractor
+from transformers import Pix2SeqConfig, ViTFeatureExtractor
+from transformers.models.pix2seq.modeling_pix2seq import Pix2SeqForConditionalGeneration
 
 
 def get_pix2seq_config(model_name):
@@ -47,9 +48,9 @@ def rename_key(name, param):
     if "model.decoder.ar_decoder.Sseq_pos_embedding" in name:
         name = name.replace("model.decoder.ar_decoder.Sseq_pos_embedding", "decoder.embed_positions.embeddings")
     if "model.decoder.ar_decoder.Soutp_bias" in name:
-        name = name.replace("model.decoder.ar_decoder.Soutp_bias", "decoder.output_bias")
+        name = name.replace("model.decoder.ar_decoder.Soutp_bias", "lm_head.bias")
     if "model.decoder.output_ln" in name:
-        name = name.replace("model.decoder.output_ln", "decoder.layernorm")
+        name = name.replace("model.decoder.output_ln", "output_layernorm")
     # decoder layers
     if "model.decoder.decoder.dec_layers" in name:
         name = name.replace("model.decoder.decoder.dec_layers", "decoder.layers")
@@ -136,14 +137,15 @@ def rename_key(name, param):
         name = name.replace("beta", "bias")
 
     # add prefix
-    # name = "pix2seq." + name
+    if (not name.startswith("lm_head")) and ("output_layernorm" not in name):
+        name = "model." + name
 
     return name, param
 
 
 def convert_pix2seq_checkpoint(model_name, checkpoint_path, pytorch_dump_folder_path):
     config = get_pix2seq_config(checkpoint_path)
-    model = Pix2SeqModel(config)
+    model = Pix2SeqForConditionalGeneration(config)
     model.eval()
 
     # Load weights from TF model
@@ -161,6 +163,9 @@ def convert_pix2seq_checkpoint(model_name, checkpoint_path, pytorch_dump_folder_
     for name, param in tf_vars.items():
         name, param = rename_key(name, param)
         state_dict[name] = torch.from_numpy(param)
+    
+    # Set weights of lm head
+    state_dict["lm_head.weight"] = state_dict["model.decoder.embed_tokens.weight"]
     
     model.load_state_dict(state_dict)
     model.eval()
@@ -185,6 +190,9 @@ def convert_pix2seq_checkpoint(model_name, checkpoint_path, pytorch_dump_folder_
     encoder_last_hidden_state = outputs.encoder_last_hidden_state
     assert encoder_last_hidden_state.shape == (1,1600,768)
     assert torch.allclose(encoder_last_hidden_state[0,:3,:3], expected_slice, atol=1e-4)
+
+    expected_slice_logits = torch.tensor([-8.0231, -7.5681, -7.5681])
+    assert torch.allclose(outputs.logits[:,-1,:][0,:3], expected_slice_logits, atol=1e-4)
 
     print("Everything ok!")
 

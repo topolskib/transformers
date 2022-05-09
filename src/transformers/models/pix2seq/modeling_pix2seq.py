@@ -23,9 +23,15 @@ from typing import Dict, List, Optional, Set, Tuple, Union
 import torch
 import torch.utils.checkpoint
 from torch import embedding, nn
+from torch.nn import CrossEntropyLoss
 
 from ...activations import ACT2FN
-from ...modeling_outputs import BaseModelOutput, BaseModelOutputWithPastAndCrossAttentions, Seq2SeqLMOutput
+from ...modeling_outputs import (
+    BaseModelOutput,
+    BaseModelOutputWithPastAndCrossAttentions,
+    Seq2SeqLMOutput,
+    Seq2SeqModelOutput,
+)
 from ...modeling_utils import PreTrainedModel
 from ...pytorch_utils import find_pruneable_heads_and_indices, prune_linear_layer
 from ...utils import add_code_sample_docstrings, add_start_docstrings, add_start_docstrings_to_model_forward, logging
@@ -54,6 +60,22 @@ def to_2tuple(x):
     if isinstance(x, collections.abc.Iterable):
         return x
     return (x, x)
+
+
+def shift_tokens_right(input_ids: torch.Tensor, pad_token_id: int, decoder_start_token_id: int):
+    """
+    Shift input ids one token to the right.
+    """
+    shifted_input_ids = input_ids.new_zeros(input_ids.shape)
+    shifted_input_ids[:, 1:] = input_ids[:, :-1].clone()
+    shifted_input_ids[:, 0] = decoder_start_token_id
+
+    if pad_token_id is None:
+        raise ValueError("self.model.config.pad_token_id has to be defined.")
+    # replace possible -100 values in labels by `pad_token_id`
+    shifted_input_ids.masked_fill_(shifted_input_ids == -100, pad_token_id)
+
+    return shifted_input_ids
 
 
 def _make_causal_mask(input_ids_shape: torch.Size, dtype: torch.dtype, past_key_values_length: int = 0):
@@ -999,8 +1021,6 @@ class Pix2SeqDecoder(Pix2SeqPreTrainedModel):
         self.embed_positions = Pix2SeqSequencePositionEmbeddings(config)
 
         self.layers = nn.ModuleList([Pix2SeqDecoderLayer(config) for _ in range(config.num_decoder_layers)])
-        self.layernorm = nn.LayerNorm(config.dim_decoder)
-        self.output_bias = nn.Parameter(torch.randn(config.vocab_size)) if config.output_bias else None
 
         self.gradient_checkpointing = False
         # Initialize weights and apply final processing
@@ -1224,8 +1244,8 @@ class Pix2SeqModel(Pix2SeqPreTrainedModel):
 
         self.embeddings = Pix2SeqEmbeddings(config)
         self.encoder = Pix2SeqEncoder(config)
-        self.layernorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         
+        self.layernorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.projection = Pix2SeqProjection(config)
 
         self.decoder = Pix2SeqDecoder(config)
@@ -1235,6 +1255,12 @@ class Pix2SeqModel(Pix2SeqPreTrainedModel):
 
     def get_input_embeddings(self) -> PatchEmbeddings:
         return self.embeddings.patch_embeddings
+
+    def get_encoder(self):
+        return self.encoder
+
+    def get_decoder(self):
+        return self.decoder
 
     def _prune_heads(self, heads_to_prune: Dict[int, List[int]]) -> None:
         """
@@ -1315,17 +1341,129 @@ class Pix2SeqModel(Pix2SeqPreTrainedModel):
         )
 
         if not return_dict:
-            head_outputs = (sequence_output,)
-            return head_outputs + encoder_outputs[1:]
+            return decoder_outputs + encoder_outputs
 
-        return Seq2SeqLMOutput(
-            loss=None,
-            logits=None,
-            past_key_values=None,
-            decoder_hidden_states=None,
-            decoder_attentions=None,
-            cross_attentions=None,
+        return Seq2SeqModelOutput(
+            last_hidden_state=decoder_outputs.last_hidden_state,
+            past_key_values=decoder_outputs.past_key_values,
+            decoder_hidden_states=decoder_outputs.hidden_states,
+            decoder_attentions=decoder_outputs.attentions,
+            cross_attentions=decoder_outputs.cross_attentions,
             encoder_last_hidden_state=encoder_outputs.last_hidden_state,
             encoder_hidden_states=encoder_outputs.hidden_states,
             encoder_attentions=encoder_outputs.attentions,
         )
+
+
+class Pix2SeqForConditionalGeneration(Pix2SeqPreTrainedModel):
+    def __init__(self, config: Pix2SeqConfig):
+        super().__init__(config)
+        self.config = config
+
+        self.model = Pix2SeqModel(config)
+        self.output_layernorm = nn.LayerNorm(config.dim_decoder)
+        self.lm_head = nn.Linear(config.dim_decoder, config.vocab_size)
+
+        # Initialize weights and apply final processing
+        self.post_init()
+
+    def get_output_embeddings(self):
+        return self.lm_head
+
+    def set_output_embeddings(self, new_embeddings):
+        self.lm_head = new_embeddings
+
+    def get_encoder(self):
+        return self.model.get_encoder()
+
+    def get_decoder(self):
+        return self.model.get_decoder()
+    
+    def forward(
+        self,
+        pixel_values: Optional[torch.Tensor] = None,
+        decoder_input_ids: Optional[torch.LongTensor] = None,
+        decoder_attention_mask: Optional[torch.LongTensor] = None,
+        head_mask: Optional[torch.Tensor] = None,
+        decoder_head_mask: Optional[torch.Tensor] = None,
+        cross_attn_head_mask: Optional[torch.Tensor] = None,
+        encoder_outputs: Optional[List[torch.FloatTensor]] = None,
+        past_key_values: Optional[List[torch.FloatTensor]] = None,
+        inputs_embeds: Optional[torch.FloatTensor] = None,
+        decoder_inputs_embeds: Optional[torch.FloatTensor] = None,
+        use_cache: Optional[bool] = None,
+        labels: Optional[torch.LongTensor] = None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+    ):
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        if labels is not None:
+            if use_cache:
+                logger.warning("The `use_cache` argument is changed to `False` since `labels` is provided.")
+            use_cache = False
+            if decoder_input_ids is None and decoder_inputs_embeds is None:
+                decoder_input_ids = shift_tokens_right(
+                    labels, self.config.pad_token_id, self.config.decoder_start_token_id
+                )
+
+        outputs = self.model(
+            pixel_values,
+            decoder_input_ids=decoder_input_ids,
+            encoder_outputs=encoder_outputs,
+            decoder_attention_mask=decoder_attention_mask,
+            head_mask=head_mask,
+            decoder_head_mask=decoder_head_mask,
+            cross_attn_head_mask=cross_attn_head_mask,
+            past_key_values=past_key_values,
+            inputs_embeds=inputs_embeds,
+            decoder_inputs_embeds=decoder_inputs_embeds,
+            use_cache=use_cache,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+        decoder_outputs = self.output_layernorm(outputs[0])
+
+        print("Decoder outputs after output layernorm:", decoder_outputs[0,:3,:3])
+
+        lm_logits = self.lm_head(decoder_outputs)
+
+        print("First values of final logits:", lm_logits[:,-1,:][0,:3])
+
+        loss = None
+        if labels is not None:
+            loss_fct = CrossEntropyLoss(ignore_index=-100)
+            loss = loss_fct(lm_logits.view(-1, lm_logits.size(-1)), labels.view(-1))
+
+        if not return_dict:
+            output = (lm_logits,) + outputs[1:]
+            return ((loss,) + output) if loss is not None else output
+
+        return Seq2SeqLMOutput(
+            loss=loss,
+            logits=lm_logits,
+            past_key_values=outputs.past_key_values,
+            decoder_hidden_states=outputs.decoder_hidden_states,
+            decoder_attentions=outputs.decoder_attentions,
+            cross_attentions=outputs.cross_attentions,
+            encoder_last_hidden_state=outputs.encoder_last_hidden_state,
+            encoder_hidden_states=outputs.encoder_hidden_states,
+            encoder_attentions=outputs.encoder_attentions,
+        )
+
+    def prepare_inputs_for_generation(
+        self, input_ids, past=None, attention_mask=None, use_cache=None, encoder_outputs=None, **kwargs
+    ):
+        decoder_inputs = self.decoder.prepare_inputs_for_generation(input_ids, past=past)
+        decoder_attention_mask = decoder_inputs["attention_mask"] if "attention_mask" in decoder_inputs else None
+        input_dict = {
+            "attention_mask": attention_mask,
+            "decoder_attention_mask": decoder_attention_mask,
+            "decoder_input_ids": decoder_inputs["input_ids"],
+            "encoder_outputs": encoder_outputs,
+            "past_key_values": decoder_inputs["past_key_values"],
+            "use_cache": use_cache,
+        }
+        return input_dict

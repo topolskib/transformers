@@ -1364,6 +1364,7 @@ else:
             "PIX2SEQ_PRETRAINED_MODEL_ARCHIVE_LIST",
             "Pix2SeqModel",
             "Pix2SeqPreTrainedModel",
+            "Pix2SeqForConditionalGeneration",
         ]
     )
     _import_structure["models.plbart"].extend(
@@ -3712,7 +3713,12 @@ if TYPE_CHECKING:
             PerceiverModel,
             PerceiverPreTrainedModel,
         )
-        from .models.pix2seq import PIX2SEQ_PRETRAINED_MODEL_ARCHIVE_LIST, Pix2SeqModel, Pix2SeqPreTrainedModel
+        from .models.pix2seq import (
+            PIX2SEQ_PRETRAINED_MODEL_ARCHIVE_LIST,
+            Pix2SeqForConditionalGeneration,
+            Pix2SeqModel,
+            Pix2SeqPreTrainedModel,
+        )
         from .models.plbart import (
             PLBART_PRETRAINED_MODEL_ARCHIVE_LIST,
             PLBartForCausalLM,

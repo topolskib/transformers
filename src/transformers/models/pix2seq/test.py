@@ -1,6 +1,10 @@
-from transformers import Pix2SeqConfig, Pix2SeqModel
+from transformers import Pix2SeqConfig, Pix2SeqForConditionalGeneration
+import torch
 
-model = Pix2SeqModel(Pix2SeqConfig())
+model = Pix2SeqForConditionalGeneration(Pix2SeqConfig())
 
-for name, param in model.named_parameters():
-    print(name, param.shape)
+prompt = torch.tensor([[10]])
+
+outputs = model.generate(prompt)
+
+print("Outputs:", outputs)
