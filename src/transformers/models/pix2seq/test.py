@@ -1,5 +1,7 @@
-from transformers import Pix2SeqConfig, Pix2SeqForConditionalGeneration
 import torch
+
+from transformers import Pix2SeqConfig, Pix2SeqForConditionalGeneration
+
 
 model = Pix2SeqForConditionalGeneration(Pix2SeqConfig())
 
