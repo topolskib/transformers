@@ -18,7 +18,7 @@
 import collections.abc
 import math
 import random
-from typing import Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import torch
 import torch.utils.checkpoint
@@ -257,6 +257,8 @@ class Pix2SeqEmbeddings(nn.Module):
     def forward(self, pixel_values: torch.Tensor) -> torch.Tensor:
         batch_size, num_channels, height, width = pixel_values.shape
         embeddings = self.patch_embeddings(pixel_values)
+
+        print("Shape of patch embeddings:", embeddings.shape)
 
         batch_size, seq_len, _ = embeddings.size()
 
@@ -517,17 +519,20 @@ class Pix2SeqLayer(nn.Module):
         return outputs
 
 
-# Copied from transformers.models.vit.modeling_vit.ViTEncoder with ViT->Pix2Seq
 class Pix2SeqEncoder(nn.Module):
     def __init__(self, config: Pix2SeqConfig) -> None:
         super().__init__()
         self.config = config
+        
+        self.embeddings = Pix2SeqEmbeddings(config)
+        
         self.layer = nn.ModuleList([Pix2SeqLayer(config) for _ in range(config.num_hidden_layers)])
         self.gradient_checkpointing = False
 
     def forward(
         self,
-        hidden_states: torch.Tensor,
+        pixel_values: torch.Tensor,
+        hidden_states: Optional[torch.Tensor] = None,
         head_mask: Optional[torch.Tensor] = None,
         output_attentions: bool = False,
         output_hidden_states: bool = False,
@@ -536,6 +541,9 @@ class Pix2SeqEncoder(nn.Module):
         all_hidden_states = () if output_hidden_states else None
         all_self_attentions = () if output_attentions else None
 
+        if hidden_states is None:
+            hidden_states = self.embeddings(pixel_values)
+        
         for i, layer_module in enumerate(self.layer):
             if output_hidden_states:
                 all_hidden_states = all_hidden_states + (hidden_states,)
@@ -1242,9 +1250,8 @@ class Pix2SeqModel(Pix2SeqPreTrainedModel):
         super().__init__(config)
         self.config = config
 
-        self.embeddings = Pix2SeqEmbeddings(config)
         self.encoder = Pix2SeqEncoder(config)
-        
+
         self.layernorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.projection = Pix2SeqProjection(config)
 
@@ -1252,9 +1259,6 @@ class Pix2SeqModel(Pix2SeqPreTrainedModel):
 
         # Initialize weights and apply final processing
         self.post_init()
-
-    def get_input_embeddings(self) -> PatchEmbeddings:
-        return self.embeddings.patch_embeddings
 
     def get_encoder(self):
         return self.encoder
@@ -1302,8 +1306,9 @@ class Pix2SeqModel(Pix2SeqPreTrainedModel):
         )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
-        if pixel_values is None:
-            raise ValueError("You have to specify pixel_values")
+        if encoder_outputs is None:
+            if pixel_values is None:
+                raise ValueError("You have to specify pixel_values")
 
         # Prepare head mask if needed
         # 1.0 in head_mask indicate we keep the head
@@ -1312,24 +1317,26 @@ class Pix2SeqModel(Pix2SeqPreTrainedModel):
         # and head_mask is converted to shape [num_hidden_layers x batch x num_heads x seq_length x seq_length]
         head_mask = self.get_head_mask(head_mask, self.config.num_hidden_layers)
 
-        embedding_output = self.embeddings(pixel_values)
+        if encoder_outputs is None:
+            encoder_outputs = self.encoder(
+                pixel_values,
+                head_mask=head_mask,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+            )
+        elif isinstance(encoder_outputs, tuple):
+            encoder_outputs = BaseModelOutput(*encoder_outputs)
 
-        encoder_outputs = self.encoder(
-            embedding_output,
-            head_mask=head_mask,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
-        )
-        sequence_output = encoder_outputs[0]
-        sequence_output = self.layernorm(sequence_output)
-        sequence_output = self.projection(sequence_output)
-
-        print("Shape after projection:", sequence_output.shape)
-
+        encoder_hidden_states = encoder_outputs[0]
+        if encoder_hidden_states.shape[-1] != self.config.dim_decoder:
+            sequence_output = self.layernorm(encoder_outputs[0])
+            sequence_output = self.projection(sequence_output)
+            encoder_hidden_states = sequence_output
+        
         decoder_outputs = self.decoder(input_ids=decoder_input_ids,
             attention_mask=decoder_attention_mask,
-            encoder_hidden_states=sequence_output,
+            encoder_hidden_states=encoder_hidden_states,
             head_mask=decoder_head_mask,
             cross_attn_head_mask=cross_attn_head_mask,
             past_key_values=past_key_values,
@@ -1456,14 +1463,15 @@ class Pix2SeqForConditionalGeneration(Pix2SeqPreTrainedModel):
     def prepare_inputs_for_generation(
         self, input_ids, past=None, attention_mask=None, use_cache=None, encoder_outputs=None, **kwargs
     ):
-        decoder_inputs = self.decoder.prepare_inputs_for_generation(input_ids, past=past)
+        decoder_inputs = self.model.decoder.prepare_inputs_for_generation(input_ids, past=past)
+        print("Decoder inputs:", decoder_inputs)
         decoder_attention_mask = decoder_inputs["attention_mask"] if "attention_mask" in decoder_inputs else None
         input_dict = {
-            "attention_mask": attention_mask,
+            # "attention_mask": attention_mask,
             "decoder_attention_mask": decoder_attention_mask,
             "decoder_input_ids": decoder_inputs["input_ids"],
             "encoder_outputs": encoder_outputs,
-            "past_key_values": decoder_inputs["past_key_values"],
+            # "past_key_values": decoder_inputs["past_key_values"],
             "use_cache": use_cache,
         }
         return input_dict
