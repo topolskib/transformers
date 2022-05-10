@@ -896,9 +896,7 @@ class Pix2SeqDecoderLayer(nn.Module):
             output_attentions (`bool`, *optional*):
                 Whether or not to return the attentions tensors of all attention layers. See `attentions` under
                 returned tensors for more detail.
-        """
-        print("Shape of hidden states:", hidden_states.shape)
-        
+        """        
         residual = hidden_states
 
         hidden_states = keys = values = self.self_attn_layer_norm(hidden_states)
@@ -906,7 +904,7 @@ class Pix2SeqDecoderLayer(nn.Module):
         # this corresponds to "x_for_cache"
         present_key_value = hidden_states
 
-        print("Shape of present_key_value:", present_key_value.shape)
+        # print("Shape of present_key_value:", present_key_value.shape)
 
         # if print_values:
         #     print("Hidden states after layernorm:", hidden_states[0,:3,:3])
@@ -916,8 +914,8 @@ class Pix2SeqDecoderLayer(nn.Module):
             # q_size, k_size = tf.shape(x)[1], tf.shape(cache)[1]
             # mask_self = tf.concat([tf.ones([1, 1, q_size, k_size]), mask_self], -1)
             keys = values = torch.cat([past_key_value, hidden_states], axis=1)
-            print("Shape of past key value:", past_key_value.shape)
-            print("Shape of keys:", keys.shape)
+            #  print("Shape of past key value:", past_key_value.shape)
+            # print("Shape of keys:", keys.shape)
         
         hidden_states, self_attn_weights = self.self_attn(
             queries=hidden_states,
@@ -977,7 +975,7 @@ class Pix2SeqDecoderLayer(nn.Module):
             outputs += (self_attn_weights, cross_attn_weights)
 
         if use_cache:
-            print("Caching:", present_key_value.shape)
+            # print("Caching:", present_key_value.shape)
             outputs += (present_key_value,)
 
         return outputs
@@ -1070,11 +1068,11 @@ class Pix2SeqDecoder(Pix2SeqPreTrainedModel):
             raise ValueError("You have to specify either decoder_input_ids or decoder_inputs_embeds")
 
         # past_key_values_length
-        past_key_values_length = past_key_values[0].shape[2] if past_key_values is not None else 0
+        past_key_values_length = past_key_values.shape[2] if past_key_values is not None else 0
 
         if inputs_embeds is None:
             inputs_embeds = self.embed_tokens(input_ids)
-
+        
         attention_mask = self._prepare_decoder_attention_mask(
             attention_mask, input_shape, inputs_embeds, past_key_values_length
         )
@@ -1082,6 +1080,11 @@ class Pix2SeqDecoder(Pix2SeqPreTrainedModel):
         # add position embeddings
         seq_len = inputs_embeds.shape[1]
         hidden_states = inputs_embeds + self.embed_positions()[past_key_values_length:past_key_values_length + seq_len]
+
+        print("Decoder input ID:", input_ids)
+        print("Past key values length:", past_key_values_length)
+        print("Shape of inputs_embeds:", hidden_states.shape)
+        print("First values of inputs_embeds:", hidden_states[0,:3,:3])
 
         # print("Hidden states after embedding them:", hidden_states.shape)
         # print("First values of inputs_embeds with pos embeddings:", hidden_states[0,0,:3])
@@ -1102,7 +1105,7 @@ class Pix2SeqDecoder(Pix2SeqPreTrainedModel):
 
         if past_key_values is not None:
             print("Shape of past key values:", past_key_values.shape)
-            print("Shape of hidden_States:", hidden_states.shape)
+            print("Shape of hidden_states:", hidden_states.shape)
         
         for idx, decoder_layer in enumerate(self.layers):
             if output_hidden_states:
@@ -1325,7 +1328,6 @@ class Pix2SeqModel(Pix2SeqPreTrainedModel):
             sequence_output = self.layernorm(encoder_outputs[0])
             sequence_output = self.projection(sequence_output)
             encoder_hidden_states = sequence_output
-            print("First values of encoder hidden states:", encoder_hidden_states[0,:3,:3])
         
         decoder_outputs = self.decoder(input_ids=decoder_input_ids,
             attention_mask=decoder_attention_mask,
@@ -1424,13 +1426,13 @@ class Pix2SeqForConditionalGeneration(Pix2SeqPreTrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
+        print("First values of decoder outputs:", outputs[0][0,:3,:3])
+        
         decoder_outputs = self.output_layernorm(outputs[0])
-
-        # print("Decoder outputs after output layernorm:", decoder_outputs[0,:3,:3])
 
         lm_logits = self.lm_head(decoder_outputs)
 
-        # print("First values of final logits:", lm_logits[:,-1,:][0,:3])
+        print("First values of final logits:", lm_logits[:,-1,:][0,:3])
 
         loss = None
         if labels is not None:
