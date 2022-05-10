@@ -4,7 +4,6 @@ import os
 import numpy as np
 import tensorflow as tf
 import torch
-from PIL import Image
 
 import requests
 from transformers import Pix2SeqConfig, ViTFeatureExtractor

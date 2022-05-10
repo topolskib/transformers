@@ -19,12 +19,13 @@ import collections.abc
 import math
 import random
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
-from cachetools import Cache
 
 import torch
 import torch.utils.checkpoint
 from torch import embedding, nn
 from torch.nn import CrossEntropyLoss
+
+from cachetools import Cache
 
 from ...activations import ACT2FN
 from ...modeling_outputs import (
