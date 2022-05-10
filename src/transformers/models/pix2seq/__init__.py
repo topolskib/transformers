@@ -17,31 +17,58 @@
 # limitations under the License.
 from typing import TYPE_CHECKING
 
-from ...utils import _LazyModule, is_torch_available
+from ...utils import OptionalDependencyNotAvailable, _LazyModule, is_torch_available, is_vision_available
 
 
 _import_structure = {
-    "configuration_pix2seq": ["PIX2SEQ_PRETRAINED_CONFIG_ARCHIVE_MAP", "Pix2SeqConfig", "Pix2SeqOnnxConfig"],
+    "configuration_pix2seq": ["PIX2SEQ_PRETRAINED_CONFIG_ARCHIVE_MAP", "Pix2SeqConfig"],
 }
 
-if is_torch_available():
+try:
+    if not is_vision_available():
+        raise OptionalDependencyNotAvailable()
+except OptionalDependencyNotAvailable:
+    pass
+else:
+    _import_structure["feature_extraction_pix2seq"] = ["Pix2SeqFeatureExtractor"]
+
+try:
+    if not is_torch_available():
+        raise OptionalDependencyNotAvailable()
+except OptionalDependencyNotAvailable:
+    pass
+else:
     _import_structure["modeling_pix2seq"] = [
         "PIX2SEQ_PRETRAINED_MODEL_ARCHIVE_LIST",
         "Pix2SeqModel",
         "Pix2SeqPreTrainedModel",
         "Pix2SeqForConditionalGeneration",
     ]
+    
 
 if TYPE_CHECKING:
-    from .configuration_pix2seq import PIX2SEQ_PRETRAINED_CONFIG_ARCHIVE_MAP, Pix2SeqConfig, Pix2SeqOnnxConfig
+    from .configuration_pix2seq import PIX2SEQ_PRETRAINED_CONFIG_ARCHIVE_MAP, Pix2SeqConfig
 
-    if is_torch_available():
+    try:
+        if not is_vision_available():
+            raise OptionalDependencyNotAvailable()
+    except OptionalDependencyNotAvailable:
+        pass
+    else:
+        from .feature_extraction_pix2seq import Pix2SeqFeatureExtractor
+
+    try:
+        if not is_torch_available():
+            raise OptionalDependencyNotAvailable()
+    except OptionalDependencyNotAvailable:
+        pass
+    else:
         from .modeling_pix2seq import (
             PIX2SEQ_PRETRAINED_MODEL_ARCHIVE_LIST,
             Pix2SeqForConditionalGeneration,
             Pix2SeqModel,
             Pix2SeqPreTrainedModel,
-        )
+        )        
 
 else:
     import sys
