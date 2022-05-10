@@ -196,9 +196,13 @@ def convert_pix2seq_checkpoint(model_name, checkpoint_path, pytorch_dump_folder_
 
     print("Everything ok!")
 
-    outputs = model.generate(pixel_values, max_length=50, use_cache=True)
+    # In the original code, the max length is set to config.max_instances_per_image_test * 5 + 1,
+    # with max_instances_per_image_test = 10 in the demo Colab notebook
 
-    print("Generated ids:", outputs)
+    outputs = model.generate(pixel_values, max_length=51, use_cache=True, output_scores=True, return_dict_in_generate=True)
+
+    print("Generated ids:", outputs.sequences)
+    print("Shape of scores:", torch.cat(outputs.scores, dim=0).unsqueeze(0).shape)
 
     #print(f"Saving model {model_name} to {pytorch_dump_folder_path}")
     #model.save_pretrained(pytorch_dump_folder_path)

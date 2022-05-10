@@ -901,13 +901,8 @@ class Pix2SeqDecoderLayer(nn.Module):
 
         hidden_states = keys = values = self.self_attn_layer_norm(hidden_states)
 
-        # this corresponds to "x_for_cache"
+        # this corresponds to "x_for_cache" in the original implementation
         present_key_value = hidden_states
-
-        # print("Shape of present_key_value:", present_key_value.shape)
-
-        # if print_values:
-        #     print("Hidden states after layernorm:", hidden_states[0,:3,:3])
 
         if past_key_value is not None:  
             # Augment kv_ln with cache in (bsz, c_size, d).
