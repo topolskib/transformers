@@ -44,7 +44,7 @@ else:
         "Pix2SeqPreTrainedModel",
         "Pix2SeqForConditionalGeneration",
     ]
-    
+
 
 if TYPE_CHECKING:
     from .configuration_pix2seq import PIX2SEQ_PRETRAINED_CONFIG_ARCHIVE_MAP, Pix2SeqConfig
@@ -68,7 +68,7 @@ if TYPE_CHECKING:
             Pix2SeqForConditionalGeneration,
             Pix2SeqModel,
             Pix2SeqPreTrainedModel,
-        )        
+        )
 
 else:
     import sys

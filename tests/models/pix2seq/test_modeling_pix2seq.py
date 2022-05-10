@@ -218,7 +218,9 @@ def prepare_img():
 class Pix2SeqModelIntegrationTest(unittest.TestCase):
     @cached_property
     def default_feature_extractor(self):
-        return ViTFeatureExtractor.from_pretrained("google/pix2seq-base-patch16-224") if is_vision_available() else None
+        return (
+            ViTFeatureExtractor.from_pretrained("google/pix2seq-base-patch16-224") if is_vision_available() else None
+        )
 
     @slow
     def test_inference_image_classification_head(self):

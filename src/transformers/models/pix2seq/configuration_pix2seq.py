@@ -25,7 +25,6 @@ PIX2SEQ_PRETRAINED_CONFIG_ARCHIVE_MAP = {
 }
 
 
-
 class Pix2SeqConfig(PretrainedConfig):
     r"""
     This is the configuration class to store the configuration of a [`Pix2SeqModel`]. It is used to instantiate an
@@ -117,8 +116,8 @@ class Pix2SeqConfig(PretrainedConfig):
         max_position_embeddings=512,
         num_decoder_layers=6,
         num_attention_heads_decoder=16,
-        output_bias = True,
-        use_cache = True,
+        output_bias=True,
+        use_cache=True,
         tie_word_embeddings=False,
         is_encoder_decoder=True,
         bos_token_id=10,

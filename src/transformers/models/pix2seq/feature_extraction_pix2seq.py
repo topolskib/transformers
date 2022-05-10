@@ -17,6 +17,9 @@
 from typing import Optional, Union
 
 import numpy as np
+
+# TODO add dependency check
+import torch
 from PIL import Image
 
 from ...feature_extraction_utils import BatchFeature, FeatureExtractionMixin
@@ -31,6 +34,42 @@ from ...utils import TensorType, logging
 
 
 logger = logging.get_logger(__name__)
+
+BASE_VOCAB_SHIFT = 100
+
+
+def dequantize(boxes, bins):
+    """Dequantization of discrete tokens of coordinates in [0, bins-1]."""
+    boxes = boxes.float()
+    boxes = boxes / (bins - 1)
+    return boxes
+
+
+def seq_to_bbox(seq, quantization_bins, seq_format="yxyx_name"):
+    """Returns [0, 1] normalized yxyx bbox from token sequence."""
+
+    # [batch, 5*num_instances]
+    assert seq.shape.rank == 2, seq.shape.as_list()
+    # [batch, num_instances, 1]
+    if seq_format.startswith("name"):
+        ymin = torch.unsqueeze(seq[:, 1::5], -1)
+        xmin = torch.unsqueeze(seq[:, 2::5], -1)
+        ymax = torch.unsqueeze(seq[:, 3::5], -1)
+        xmax = torch.unsqueeze(seq[:, 4::5], -1)
+    else:
+        ymin = torch.unsqueeze(seq[:, 0::5], -1)
+        xmin = torch.unsqueeze(seq[:, 1::5], -1)
+        ymax = torch.unsqueeze(seq[:, 2::5], -1)
+        xmax = torch.unsqueeze(seq[:, 3::5], -1)
+    if seq_format in ["name_cycxhw", "cycxhw_name"]:
+        ycnt, xcnt, ysize, xsize = ymin, xmin, ymax, xmax
+        ymin = ycnt - ysize // 2
+        xmin = xcnt - xsize // 2
+        ymax = ycnt + ysize // 2
+        xmax = xcnt + xsize // 2
+    quantized_box = torch.cat([ymin, xmin, ymax, xmax], dim=-1)
+    quantized_box = dequantize(quantized_box, quantization_bins)
+    return torch.minimum(torch.maximum(quantized_box, 0), 1)
 
 
 class Pix2SeqFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMixin):
@@ -148,5 +187,35 @@ class Pix2SeqFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMixi
 
         return encoded_inputs
 
-    def postprocess():
-        return -1
+    def decode_object_seq_to_bbox(self, logits, pred_seq, quantization_bins, coord_vocab_shift):
+        """Decode objects (label & bbox) for seq from `build_response_seq_from_bbox`.
+
+        Assume yxyxc format with truncation at the end for any uneven extra tokens. Replace class tokens with argmax
+        instead of sampling.
+
+        Args:
+            logits: `float` output logits in shape of (bsz, max_seq_len, vocab_size).
+            pred_seq: `int` pred sequence in shape of (bsz, max_seq_len).
+            quantization_bins: `int` for bins.
+            coord_vocab_shift: `int`, shifting coordinates by a specified integer.
+
+        Returns:
+            pred_class: `int` of shape (bsz, max_instances_per_image). pred_bbox: `float` of shape (bsz,
+            max_instances_per_image, 4). pred_score: `float` of shape (bsz, max_instances_per_image).
+        """
+        _, seqlen, vocab_size = logits.shape
+
+        if seqlen % 5 != 0:  # truncate out the last few tokens.
+            pred_seq = pred_seq[..., : -(seqlen % 5)]
+            logits = logits[..., : -(seqlen % 5), :]
+
+        pred_class_p = torch.softmax(logits)[:, 4::5]  # (bsz, instances, vocab_size)
+        mask_s1 = [0.0] * BASE_VOCAB_SHIFT  # reserved.
+        mask_s2 = [1.0] * (coord_vocab_shift - BASE_VOCAB_SHIFT)  # labels.
+        mask_s3 = [0] * (vocab_size - coord_vocab_shift)  # coordinates and others.
+        mask = torch.tensor(mask_s1 + mask_s2 + mask_s3)
+        pred_class = torch.argmax(pred_class_p * mask[None, None, :], -1)
+        pred_score = torch.sum(pred_class_p * torch.nn.functional.one_hot(pred_class, vocab_size), -1)
+        pred_class = torch.maximum(pred_class - BASE_VOCAB_SHIFT, 0)
+        pred_bbox = seq_to_bbox(pred_seq - coord_vocab_shift, quantization_bins)
+        return pred_class, pred_bbox, pred_score
