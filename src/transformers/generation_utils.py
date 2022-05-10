@@ -1114,7 +1114,7 @@ class GenerationMixin:
         >>> outputs = model.generate(input_ids)
         >>> tokenizer.batch_decode(outputs, skip_special_tokens=True)
         ['Paris ist eines der dichtesten besiedelten Gebiete Europas.']
-        ```"""        
+        ```"""
         # 1. Set generation parameters if not already defined
         bos_token_id = bos_token_id if bos_token_id is not None else self.config.bos_token_id
         num_beams = num_beams if num_beams is not None else self.config.num_beams
@@ -1655,9 +1655,9 @@ class GenerationMixin:
 
         this_peer_finished = False  # used by synced_gpus only
         step = 0
-        while True:            
+        while True:
             print("------STEP--------", step)
-            
+
             if synced_gpus:
                 # Under synced_gpus the `forward` call must continue until all gpus complete their sequence.
                 # The following logic allows an early break if all peers finished generating their sequence
@@ -1670,11 +1670,11 @@ class GenerationMixin:
 
             # prepare model inputs
             model_inputs = self.prepare_inputs_for_generation(input_ids, **model_kwargs)
-            
+
             if model_inputs["past_key_values"] is not None:
                 print("Using cache of shape:", model_inputs["past_key_values"].shape)
                 print("Decoder input ids:", model_inputs["decoder_input_ids"])
-            
+
             # forward pass to get next token
             outputs = self(
                 **model_inputs,
@@ -1722,7 +1722,7 @@ class GenerationMixin:
             # important: we fix the next token of step = 0
             if step == 0:
                 next_tokens = torch.tensor([1113])
-            
+
             # update generated ids, model inputs, and length for next step
             input_ids = torch.cat([input_ids, next_tokens[:, None]], dim=-1)
             model_kwargs = self._update_model_kwargs_for_generation(

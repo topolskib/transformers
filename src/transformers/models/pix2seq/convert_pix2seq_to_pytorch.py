@@ -5,8 +5,7 @@ import numpy as np
 import tensorflow as tf
 import torch
 
-import requests
-from transformers import Pix2SeqConfig, ViTFeatureExtractor
+from transformers import Pix2SeqConfig
 from transformers.models.pix2seq.modeling_pix2seq import Pix2SeqForConditionalGeneration
 
 
@@ -19,7 +18,7 @@ def get_pix2seq_config(model_name):
 def rename_key(name, param):
     # general renamings
     if "/.ATTRIBUTES/VARIABLE_VALUE" in name:
-        name = name.replace("/.ATTRIBUTES/VARIABLE_VALUE", "") 
+        name = name.replace("/.ATTRIBUTES/VARIABLE_VALUE", "")
     if "/" in name:
         name = name.replace("/", ".")
     # stem conv
@@ -104,24 +103,26 @@ def rename_key(name, param):
     # output layer norm
     if "model.encoder.output_ln" in name:
         name = name.replace("model.encoder.output_ln", "layernorm")
-    
+
     # handle qkv
     if "attention.output.dense" in name or "out_proj" in name:
         if "kernel" in name:
-            # (12, 64, 768) -> (768, 768) for weights 
+            # (12, 64, 768) -> (768, 768) for weights
             param = np.reshape(param, (param.shape[-1], -1))
 
-    if ("query" in name or "key" in name or "value" in name) or ("q_proj" in name or "k_proj" in name or "v_proj" in name):
+    if ("query" in name or "key" in name or "value" in name) or (
+        "q_proj" in name or "k_proj" in name or "v_proj" in name
+    ):
         # print("Updating param for parameter:", name)
         # print("Old shape of param", param.shape)
         if "kernel" in name:
-            # (768, 12, 64) -> (768, 768) for weights, or 
+            # (768, 12, 64) -> (768, 768) for weights, or
             param = np.reshape(param, (param.shape[0], -1))
         elif "bias" in name:
             # (12, 64) -> (768,) for biases
             param = param.flatten()
         # print("New shape of param:", param.shape)
-    
+
     # rename kernel, gamma and beta (+ important: transpose if kernel!)
     if "kernel" in name:
         name = name.replace("kernel", "weight")
@@ -162,49 +163,47 @@ def convert_pix2seq_checkpoint(model_name, checkpoint_path, pytorch_dump_folder_
     for name, param in tf_vars.items():
         name, param = rename_key(name, param)
         state_dict[name] = torch.from_numpy(param)
-    
+
     # Set weights of lm head
     state_dict["lm_head.weight"] = state_dict["model.decoder.embed_tokens.weight"]
-    
+
     model.load_state_dict(state_dict)
     model.eval()
 
-    url = "http://images.cocodataset.org/val2017/000000039769.jpg"
-
-    with open('/home/niels/checkpoints/pix2seq/pixel_values.npy', 'rb') as f:
+    with open("/home/niels/checkpoints/pix2seq/pixel_values.npy", "rb") as f:
         pixel_values = np.load(f)
         pixel_values = torch.from_numpy(pixel_values)
         pixel_values = pixel_values.permute(0, 3, 1, 2)
         print("Shape of pixel values:", pixel_values.shape)
 
     prompt = torch.tensor([[10]])
-    
+
     with torch.no_grad():
         outputs = model(pixel_values, decoder_input_ids=prompt)
-    
-    expected_slice = torch.tensor([[-4.3100,  2.0649, -0.2276],
-        [-3.3208,  1.9842,  0.9854],
-        [-3.5163,  2.3272,  0.6971]])
+
+    expected_slice = torch.tensor([[-4.3100, 2.0649, -0.2276], [-3.3208, 1.9842, 0.9854], [-3.5163, 2.3272, 0.6971]])
 
     encoder_last_hidden_state = outputs.encoder_last_hidden_state
-    assert encoder_last_hidden_state.shape == (1,1600,768)
-    assert torch.allclose(encoder_last_hidden_state[0,:3,:3], expected_slice, atol=1e-4)
+    assert encoder_last_hidden_state.shape == (1, 1600, 768)
+    assert torch.allclose(encoder_last_hidden_state[0, :3, :3], expected_slice, atol=1e-4)
 
     expected_slice_logits = torch.tensor([-8.0231, -7.5681, -7.5681])
-    assert torch.allclose(outputs.logits[:,-1,:][0,:3], expected_slice_logits, atol=1e-4)
+    assert torch.allclose(outputs.logits[:, -1, :][0, :3], expected_slice_logits, atol=1e-4)
 
     print("Everything ok!")
 
     # In the original code, the max length is set to config.max_instances_per_image_test * 5 + 1,
     # with max_instances_per_image_test = 10 in the demo Colab notebook
 
-    outputs = model.generate(pixel_values, max_length=51, use_cache=True, output_scores=True, return_dict_in_generate=True)
+    outputs = model.generate(
+        pixel_values, max_length=51, use_cache=True, output_scores=True, return_dict_in_generate=True
+    )
 
     print("Generated ids:", outputs.sequences)
     print("Shape of scores:", torch.cat(outputs.scores, dim=0).unsqueeze(0).shape)
 
-    #print(f"Saving model {model_name} to {pytorch_dump_folder_path}")
-    #model.save_pretrained(pytorch_dump_folder_path)
+    # print(f"Saving model {model_name} to {pytorch_dump_folder_path}")
+    # model.save_pretrained(pytorch_dump_folder_path)
 
     # print(f"Saving feature extractor to {pytorch_dump_folder_path}")
     # feature_extractor.save_pretrained(pytorch_dump_folder_path)

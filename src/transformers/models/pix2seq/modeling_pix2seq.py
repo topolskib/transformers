@@ -17,15 +17,12 @@
 
 import collections.abc
 import math
-import random
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Dict, List, Optional, Set, Tuple, Union
 
 import torch
 import torch.utils.checkpoint
-from torch import embedding, nn
+from torch import nn
 from torch.nn import CrossEntropyLoss
-
-from cachetools import Cache
 
 from ...activations import ACT2FN
 from ...modeling_outputs import (
@@ -110,8 +107,8 @@ def _expand_mask(mask: torch.Tensor, dtype: torch.dtype, tgt_len: Optional[int] 
 
 
 def get_angles(pos, i, dim):
-  angle_rates = 1 / torch.pow(10000., (2 * (i//2).float()) / dim)
-  return pos.float() * angle_rates.float()
+    angle_rates = 1 / torch.pow(10000.0, (2 * (i // 2).float()) / dim)
+    return pos.float() * angle_rates.float()
 
 
 def positional_encoding(coords, dim):
@@ -119,13 +116,11 @@ def positional_encoding(coords, dim):
     Args:
         coords:
             Coordinates in (batch_size, dimension)
-            
-        Returns: 
+
+        Returns:
             Position embeddings of shape (bsz, size, dim).
     """
-    angle_rads = get_angles(coords.unsqueeze(-1),
-                            torch.arange(start=0, end=dim)[None, None, :],
-                            dim)
+    angle_rads = get_angles(coords.unsqueeze(-1), torch.arange(start=0, end=dim)[None, None, :], dim)
 
     # apply sin to even indices in the array; 2i
     angle_rads1 = torch.sin(angle_rads[:, :, 0::2])
@@ -140,15 +135,16 @@ def positional_encoding(coords, dim):
 
 def get_1d_position_codes(seqlen, out_dim, normalization_max=6.2831852):
     """Get 1d positional embedding with sin/cos codes.
-    
+
     Args:
         seqlen:
             An `int` specifying the length of the sequence.
         out_dim:
             An `int` specifying the output dimension of the encoding.
         normalization_max:
-            Normalize coordinates between [0, normalization_max]. If None, raw coordinates from 0 to seqlen will be used.
-    
+            Normalize coordinates between [0, normalization_max]. If None, raw coordinates from 0 to seqlen will be
+            used.
+
     Returns:
         positional code of shape (1, seqlen, out_dim)
     """
@@ -161,34 +157,35 @@ def get_1d_position_codes(seqlen, out_dim, normalization_max=6.2831852):
 
 def get_2d_position_codes(height, width, out_dim, normalization_max=6.2831852):
     """Get 2d positional embedding with sin/cos codes.
-    
+
     Args:
         height:
             An `int` specifying the height of the 2d image / feature map.
         width:
             An `int` specifying the width of the 2d image / feature map.
-        out_dim: 
+        out_dim:
             An `int` specifying the output dimension of the encoding. Must be divisible by 2.
-        normalization_max: 
-            ?ormalize coordinates between [0, normalization_max]. If None, raw coordinates from 0 to height/width will be used.
-    
+        normalization_max:
+            ?ormalize coordinates between [0, normalization_max]. If None, raw coordinates from 0 to height/width will
+            be used.
+
     Returns:
         positional code of shape (1, height, width, out_dim)
     """
     y_coords = torch.arange(start=0, end=height, dtype=torch.float)
     if normalization_max is not None:
         y_coords = y_coords / (height - 1) * normalization_max
-    y_coords = positional_encoding(y_coords, out_dim//2)
+    y_coords = positional_encoding(y_coords, out_dim // 2)
     y_coords = y_coords.unsqueeze(2)
     y_coords = torch.cat([y_coords, torch.zeros_like(y_coords)], -1)
 
     x_coords = torch.arange(start=0, end=width, dtype=torch.float)
     if normalization_max is not None:
         x_coords = x_coords / (width - 1) * normalization_max
-    x_coords = positional_encoding(x_coords, out_dim//2)
+    x_coords = positional_encoding(x_coords, out_dim // 2)
     x_coords = x_coords.unsqueeze(1)
     x_coords = torch.cat([torch.zeros_like(x_coords), x_coords], -1)
-    
+
     return y_coords + x_coords
 
 
@@ -196,16 +193,16 @@ class Pix2SeqPatchPositionEmbeddings(nn.Module):
     """
     Position embeddings to be added to the patch tokens.
     """
+
     def __init__(self, config: Pix2SeqConfig, dim):
         super().__init__()
-        
+
         n_rows = n_cols = config.image_size // config.patch_size
-        
-        if config.positional_encoding == 'learned':
+
+        if config.positional_encoding == "learned":
             self.embeddings = nn.Parameter(torch.randn(n_rows * n_cols, dim))
-        elif config.positional_encoding == 'sin_cos':
-            sin_cos = get_2d_position_codes(
-                n_rows, n_cols, dim, normalization_max=6.2831852)
+        elif config.positional_encoding == "sin_cos":
+            sin_cos = get_2d_position_codes(n_rows, n_cols, dim, normalization_max=6.2831852)
             self.embeddings = torch.reshape(sin_cos, [n_rows * n_cols, dim])
         else:
             raise ValueError("Unknown positional encoding:", config.positional_encoding)
@@ -218,14 +215,15 @@ class Pix2SeqSequencePositionEmbeddings(nn.Module):
     """
     Position embeddings to be added to the text tokens.
     """
+
     def __init__(self, config: Pix2SeqConfig):
         super().__init__()
-        
+
         dim = config.dim_decoder
-        
-        if config.positional_encoding_decoder == 'learned':
+
+        if config.positional_encoding_decoder == "learned":
             self.embeddings = nn.Parameter(torch.randn(config.max_position_embeddings, dim))
-        elif config.positional_encoding_decoder == 'sin_cos':
+        elif config.positional_encoding_decoder == "sin_cos":
             sin_cos = get_1d_position_codes(config.max_position_embeddings, dim, normalization_max=6.2831852)
             self.embeddings = torch.reshape(sin_cos, [config.max_position_embeddings, dim])
         else:
@@ -294,12 +292,14 @@ class PatchEmbeddings(nn.Module):
         embed_dim: int = 768,
     ):
         super().__init__()
-        self.projection = nn.Conv2d(num_channels, embed_dim, kernel_size=patch_size, stride=patch_size, padding="valid")
+        self.projection = nn.Conv2d(
+            num_channels, embed_dim, kernel_size=patch_size, stride=patch_size, padding="valid"
+        )
         self.layer_norm = nn.LayerNorm(embed_dim)
 
     def forward(self, pixel_values: torch.Tensor) -> torch.Tensor:
         batch_size, num_channels, height, width = pixel_values.shape
-        
+
         embeddings = self.projection(pixel_values)
         embeddings = embeddings.flatten(2).transpose(1, 2)
         embeddings = self.layer_norm(embeddings)
@@ -509,9 +509,9 @@ class Pix2SeqEncoder(nn.Module):
     def __init__(self, config: Pix2SeqConfig) -> None:
         super().__init__()
         self.config = config
-        
+
         self.embeddings = Pix2SeqEmbeddings(config)
-        
+
         self.layer = nn.ModuleList([Pix2SeqLayer(config) for _ in range(config.num_hidden_layers)])
         self.gradient_checkpointing = False
 
@@ -529,7 +529,7 @@ class Pix2SeqEncoder(nn.Module):
 
         if hidden_states is None:
             hidden_states = self.embeddings(pixel_values)
-        
+
         for i, layer_module in enumerate(self.layer):
             if output_hidden_states:
                 all_hidden_states = all_hidden_states + (hidden_states,)
@@ -596,7 +596,7 @@ class Pix2SeqDropPath(nn.Module):
         super().__init__()
         self.drop_prob = drop_prob
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return drop_path(x, self.drop_prob, self.training)
 
 
@@ -604,6 +604,7 @@ class Pix2SeqProjectionMLP(nn.Module):
     """
     Pix2Seq projection MLP, only used if config.dec_proj_mode == "mlp".
     """
+
     def __init__(self, config: Pix2SeqConfig, mlp_ratio=4) -> None:
         super().__init__()
         self.layernorm = nn.LayerNorm(config.dim_decoder, eps=config.layer_norm_eps)
@@ -615,7 +616,7 @@ class Pix2SeqProjectionMLP(nn.Module):
 
     def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
         residual = hidden_states
-        
+
         hidden_states = self.layernorm(hidden_states)
 
         # print("First values of hidden states after layernorm:", hidden_states[0,:3,:3])
@@ -641,15 +642,15 @@ class Pix2SeqProjection(nn.Module):
     - linear_p (linear layer + position embeddings)
     - mlp (position embeddings + MLP)
     """
-    
+
     def __init__(self, config: Pix2SeqConfig) -> None:
         super().__init__()
         self.projection = nn.Linear(config.hidden_size, config.dim_decoder)
         self.layernorm = nn.LayerNorm(config.dim_decoder)
-        
-        if config.dec_proj_mode in ['linear_p', 'mlp']:
+
+        if config.dec_proj_mode in ["linear_p", "mlp"]:
             self.position_embeddings = Pix2SeqPatchPositionEmbeddings(config, dim=config.dim_decoder)
-        if config.dec_proj_mode == 'mlp':
+        if config.dec_proj_mode == "mlp":
             self.projection_mlp = Pix2SeqProjectionMLP(config)
 
         self.config = config
@@ -661,24 +662,25 @@ class Pix2SeqProjection(nn.Module):
         # print("First values of hidden states after linear projection + ln:", hidden_states[0,:3,:3])
 
         # Add (optional) positional embedding to encoded visual units.
-        if self.config.dec_proj_mode != 'linear':
+        if self.config.dec_proj_mode != "linear":
             position_embeddings = self.position_embeddings().unsqueeze(0)
             if self.config.use_cls_token:
                 hidden_states = hidden_states + torch.cat(
-                    [torch.zeros_like(position_embeddings[:, :1]), position_embeddings], 1)
+                    [torch.zeros_like(position_embeddings[:, :1]), position_embeddings], 1
+                )
             else:
                 hidden_states = hidden_states + position_embeddings
-        
+
             # print("First values of hidden states after position embeddings:", hidden_states[0,:3,:3])
             # print("Last values of hidden states after position embeddings:", hidden_states[0,-3:,-3:])
-            
-            if self.config.dec_proj_mode == 'mlp':
+
+            if self.config.dec_proj_mode == "mlp":
                 hidden_states = self.projection_mlp(hidden_states)
             else:
-                assert self.config.dec_proj_mode == 'linear_p'
+                assert self.config.dec_proj_mode == "linear_p"
 
         # "First values of hidden states after projection MLP:", hidden_states[0,:3,:3])
-        
+
         return hidden_states
 
 
@@ -749,7 +751,7 @@ class Pix2SeqDecoderAttention(nn.Module):
         queries,
         keys,
         values,
-        is_cross_attention = False,
+        is_cross_attention=False,
         # hidden_states: torch.Tensor,
         # key_value_states: Optional[torch.Tensor] = None,
         cache: Optional[torch.Tensor] = None,
@@ -767,8 +769,8 @@ class Pix2SeqDecoderAttention(nn.Module):
         value_states = self._shape(self.v_proj(values), -1, bsz)
         # if is_cross_attention:
         #     # cross_attentions
-        #     key_states = 
-        #     value_states = 
+        #     key_states =
+        #     value_states =
         # elif cache is not None:
         #     # reuse keys and values, self_attention
         #     key_states = value_states = torch.cat([cache, hidden_states], axis=1)
@@ -893,11 +895,12 @@ class Pix2SeqDecoderLayer(nn.Module):
                 `(encoder_attention_heads,)`.
             cross_attn_layer_head_mask (`torch.FloatTensor`): mask for cross-attention heads in a given layer of
                 size `(decoder_attention_heads,)`.
-            past_key_value (`torch.FloatTensor)`): tensor of shape (batch size, seq len, hidden size): cached past hidden states
+            past_key_value (`torch.FloatTensor)`):
+                tensor of shape (batch size, seq len, hidden size): cached past hidden states
             output_attentions (`bool`, *optional*):
                 Whether or not to return the attentions tensors of all attention layers. See `attentions` under
                 returned tensors for more detail.
-        """        
+        """
         residual = hidden_states
 
         hidden_states = keys = values = self.self_attn_layer_norm(hidden_states)
@@ -905,14 +908,14 @@ class Pix2SeqDecoderLayer(nn.Module):
         # this corresponds to "x_for_cache" in the original implementation
         present_key_value = hidden_states
 
-        if past_key_value is not None:  
+        if past_key_value is not None:
             # Augment kv_ln with cache in (bsz, c_size, d).
             # q_size, k_size = tf.shape(x)[1], tf.shape(cache)[1]
             # mask_self = tf.concat([tf.ones([1, 1, q_size, k_size]), mask_self], -1)
             keys = values = torch.cat([past_key_value, hidden_states], axis=1)
             #  print("Shape of past key value:", past_key_value.shape)
             # print("Shape of keys:", keys.shape)
-        
+
         hidden_states, self_attn_weights = self.self_attn(
             queries=hidden_states,
             keys=keys,
@@ -924,7 +927,7 @@ class Pix2SeqDecoderLayer(nn.Module):
 
         # if print_values:
         #     print("Hidden states after self-attention:", hidden_states[0,:3,:3])
-        
+
         hidden_states = residual + self.drop_path(hidden_states)
 
         # Cross-Attention Block
@@ -944,18 +947,18 @@ class Pix2SeqDecoderLayer(nn.Module):
                 layer_head_mask=cross_attn_layer_head_mask,
                 output_attentions=output_attentions,
             )
-            
+
             # if print_values:
             #     print("Hidden states after cross-attention:", hidden_states[0,:3,:3])
-            
+
             hidden_states = residual + self.drop_path(hidden_states)
-        
+
         # MLP
         # if print_values:
         #     print("Hidden states before MLP:", hidden_states[0,:3,:3])
 
         residual = hidden_states
-        
+
         hidden_states = self.layernorm(hidden_states)
 
         # if print_values:
@@ -984,11 +987,12 @@ class Pix2SeqDecoder(Pix2SeqPreTrainedModel):
     The decoder uses shared input and output embeddings by default.
 
     Past_key_values: tensor of shape (number of decoder layers, batch size, sequence length, hidden size).
-    
+
     Args:
         config: Pix2SeqConfig
         embed_tokens (nn.Embedding): optional output embedding.
     """
+
     def __init__(self, config: Pix2SeqConfig, embed_tokens: Optional[nn.Embedding] = None):
         super().__init__(config)
         self.padding_idx = config.pad_token_id
@@ -1011,7 +1015,7 @@ class Pix2SeqDecoder(Pix2SeqPreTrainedModel):
 
     def set_input_embeddings(self, value):
         self.embed_tokens = value
-    
+
     def _prepare_decoder_attention_mask(self, attention_mask, input_shape, inputs_embeds, past_key_values_length):
         # create causal mask
         # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
@@ -1029,7 +1033,7 @@ class Pix2SeqDecoder(Pix2SeqPreTrainedModel):
             )
 
         return combined_attention_mask
-    
+
     def forward(
         self,
         input_ids: torch.LongTensor = None,
@@ -1044,7 +1048,7 @@ class Pix2SeqDecoder(Pix2SeqPreTrainedModel):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, BaseModelOutputWithPastAndCrossAttentions]:
-        
+
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
@@ -1068,19 +1072,21 @@ class Pix2SeqDecoder(Pix2SeqPreTrainedModel):
 
         if inputs_embeds is None:
             inputs_embeds = self.embed_tokens(input_ids)
-        
+
         attention_mask = self._prepare_decoder_attention_mask(
             attention_mask, input_shape, inputs_embeds, past_key_values_length
         )
 
         # add position embeddings
         seq_len = inputs_embeds.shape[1]
-        hidden_states = inputs_embeds + self.embed_positions()[past_key_values_length:past_key_values_length + seq_len]
+        hidden_states = (
+            inputs_embeds + self.embed_positions()[past_key_values_length : past_key_values_length + seq_len]
+        )
 
         print("Decoder input ID:", input_ids)
         print("Past key values length:", past_key_values_length)
         print("Shape of inputs_embeds:", hidden_states.shape)
-        print("First values of inputs_embeds:", hidden_states[0,:3,:3])
+        print("First values of inputs_embeds:", hidden_states[0, :3, :3])
 
         # print("Hidden states after embedding them:", hidden_states.shape)
         # print("First values of inputs_embeds with pos embeddings:", hidden_states[0,0,:3])
@@ -1102,7 +1108,7 @@ class Pix2SeqDecoder(Pix2SeqPreTrainedModel):
         if past_key_values is not None:
             print("Shape of past key values:", past_key_values.shape)
             print("Shape of hidden_states:", hidden_states.shape)
-        
+
         for idx, decoder_layer in enumerate(self.layers):
             if output_hidden_states:
                 all_hidden_states += (hidden_states,)
@@ -1139,7 +1145,7 @@ class Pix2SeqDecoder(Pix2SeqPreTrainedModel):
                 # if idx == 0:
                 #     print(f"Hidden states before layer {idx}", hidden_states[0,:3,:3])
                 #     print(f"Encoder hidden states before layer {idx}", encoder_hidden_states[0,:3,:3])
-                
+
                 layer_outputs = decoder_layer(
                     hidden_states,
                     attention_mask=attention_mask,
@@ -1151,7 +1157,7 @@ class Pix2SeqDecoder(Pix2SeqPreTrainedModel):
                     past_key_value=past_key_value,
                     output_attentions=output_attentions,
                     use_cache=use_cache,
-                    print_values=idx==0,
+                    print_values=idx == 0,
                 )
             hidden_states = layer_outputs[0]
 
@@ -1168,7 +1174,7 @@ class Pix2SeqDecoder(Pix2SeqPreTrainedModel):
                     all_cross_attentions += (layer_outputs[2],)
 
         # print("Final hidden states of decoder:", hidden_states[0,:3,:3])
-        
+
         # add hidden states from the last decoder layer
         if output_hidden_states:
             all_hidden_states += (hidden_states,)
@@ -1324,8 +1330,9 @@ class Pix2SeqModel(Pix2SeqPreTrainedModel):
             sequence_output = self.layernorm(encoder_outputs[0])
             sequence_output = self.projection(sequence_output)
             encoder_hidden_states = sequence_output
-        
-        decoder_outputs = self.decoder(input_ids=decoder_input_ids,
+
+        decoder_outputs = self.decoder(
+            input_ids=decoder_input_ids,
             attention_mask=decoder_attention_mask,
             encoder_hidden_states=encoder_hidden_states,
             head_mask=decoder_head_mask,
@@ -1376,7 +1383,7 @@ class Pix2SeqForConditionalGeneration(Pix2SeqPreTrainedModel):
 
     def get_decoder(self):
         return self.model.get_decoder()
-    
+
     def forward(
         self,
         pixel_values: Optional[torch.Tensor] = None,
@@ -1422,13 +1429,13 @@ class Pix2SeqForConditionalGeneration(Pix2SeqPreTrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
-        print("First values of decoder outputs:", outputs[0][0,:3,:3])
-        
+        print("First values of decoder outputs:", outputs[0][0, :3, :3])
+
         decoder_outputs = self.output_layernorm(outputs[0])
 
         lm_logits = self.lm_head(decoder_outputs)
 
-        print("First values of final logits:", lm_logits[:,-1,:][0,:3])
+        print("First values of final logits:", lm_logits[:, -1, :][0, :3])
 
         loss = None
         if labels is not None:
