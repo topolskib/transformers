@@ -49,7 +49,7 @@ def seq_to_bbox(seq, quantization_bins, seq_format="yxyx_name"):
     """Returns [0, 1] normalized yxyx bbox from token sequence."""
 
     # [batch, 5*num_instances]
-    assert seq.shape.rank == 2, seq.shape.as_list()
+    assert seq.ndim == 2, seq.shape.as_list()
     # [batch, num_instances, 1]
     if seq_format.startswith("name"):
         ymin = torch.unsqueeze(seq[:, 1::5], -1)
@@ -69,7 +69,7 @@ def seq_to_bbox(seq, quantization_bins, seq_format="yxyx_name"):
         xmax = xcnt + xsize // 2
     quantized_box = torch.cat([ymin, xmin, ymax, xmax], dim=-1)
     quantized_box = dequantize(quantized_box, quantization_bins)
-    return torch.minimum(torch.maximum(quantized_box, 0), 1)
+    return torch.minimum(torch.maximum(quantized_box, torch.tensor(0)), torch.tensor(1))
 
 
 class Pix2SeqFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMixin):
@@ -209,13 +209,20 @@ class Pix2SeqFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMixi
             pred_seq = pred_seq[..., : -(seqlen % 5)]
             logits = logits[..., : -(seqlen % 5), :]
 
-        pred_class_p = torch.softmax(logits)[:, 4::5]  # (bsz, instances, vocab_size)
+        pred_class_p = torch.softmax(logits, dim=-1)[:, 4::5]  # (bsz, instances, vocab_size)
+
+        print("Shape of pred_class_p:", pred_class_p.shape)
+
         mask_s1 = [0.0] * BASE_VOCAB_SHIFT  # reserved.
         mask_s2 = [1.0] * (coord_vocab_shift - BASE_VOCAB_SHIFT)  # labels.
         mask_s3 = [0] * (vocab_size - coord_vocab_shift)  # coordinates and others.
         mask = torch.tensor(mask_s1 + mask_s2 + mask_s3)
         pred_class = torch.argmax(pred_class_p * mask[None, None, :], -1)
+
+        print("Shape of pred_class:", pred_class.shape)
+
         pred_score = torch.sum(pred_class_p * torch.nn.functional.one_hot(pred_class, vocab_size), -1)
-        pred_class = torch.maximum(pred_class - BASE_VOCAB_SHIFT, 0)
+        pred_class = torch.maximum(pred_class - BASE_VOCAB_SHIFT, torch.tensor(0))
         pred_bbox = seq_to_bbox(pred_seq - coord_vocab_shift, quantization_bins)
+        
         return pred_class, pred_bbox, pred_score
