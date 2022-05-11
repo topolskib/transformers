@@ -31,6 +31,7 @@ from ...modeling_outputs import (
     Seq2SeqModelOutput,
 )
 from ...modeling_utils import PreTrainedModel
+from ...pytorch_utils import torch_int_div
 from ...utils import add_code_sample_docstrings, add_start_docstrings, add_start_docstrings_to_model_forward, logging
 from .configuration_pix2seq import Pix2SeqConfig
 
@@ -39,7 +40,7 @@ logger = logging.get_logger(__name__)
 
 # General docstring
 _CONFIG_FOR_DOC = "Pix2SeqConfig"
-_FEAT_EXTRACTOR_FOR_DOC = "ViTFeatureExtractor"
+_FEAT_EXTRACTOR_FOR_DOC = "Pix2SeqFeatureExtractor"
 
 # Base docstring
 _CHECKPOINT_FOR_DOC = "google/pix2seq-vit-base"
@@ -105,7 +106,7 @@ def _expand_mask(mask: torch.Tensor, dtype: torch.dtype, tgt_len: Optional[int] 
 
 
 def get_angles(pos, i, dim):
-    angle_rates = 1 / torch.pow(10000.0, (2 * (i // 2).float()) / dim)
+    angle_rates = 1 / torch.pow(10000.0, (2 * (torch_int_div(i, 2)).float()) / dim)
     return pos.float() * angle_rates.float()
 
 
@@ -234,7 +235,6 @@ class Pix2SeqSequencePositionEmbeddings(nn.Module):
 class Pix2SeqEmbeddings(nn.Module):
     """
     Construct the CLS token, position and patch embeddings.
-
     """
 
     def __init__(self, config: Pix2SeqConfig) -> None:
@@ -280,7 +280,6 @@ class Pix2SeqEmbeddings(nn.Module):
 class PatchEmbeddings(nn.Module):
     """
     Image to Patch Embedding.
-
     """
 
     def __init__(
@@ -489,14 +488,10 @@ class Pix2SeqProjectionMLP(nn.Module):
 
         hidden_states = self.layernorm(hidden_states)
 
-        # print("First values of hidden states after layernorm:", hidden_states[0,:3,:3])
-
         hidden_states = self.dense1(hidden_states)
         hidden_states = self.activation(hidden_states)
         hidden_states = self.dropout(hidden_states)
         hidden_states = self.dense2(hidden_states)
-
-        # print("First values of hidden states as residual:", hidden_states[0,:3,:3])
 
         hidden_states = residual + self.drop_path(hidden_states)
 
@@ -529,8 +524,6 @@ class Pix2SeqProjection(nn.Module):
         hidden_states = self.projection(hidden_states)
         hidden_states = self.layernorm(hidden_states)
 
-        # print("First values of hidden states after linear projection + ln:", hidden_states[0,:3,:3])
-
         # Add (optional) positional embedding to encoded visual units.
         if self.config.dec_proj_mode != "linear":
             position_embeddings = self.position_embeddings().unsqueeze(0)
@@ -541,15 +534,10 @@ class Pix2SeqProjection(nn.Module):
             else:
                 hidden_states = hidden_states + position_embeddings
 
-            # print("First values of hidden states after position embeddings:", hidden_states[0,:3,:3])
-            # print("Last values of hidden states after position embeddings:", hidden_states[0,-3:,-3:])
-
             if self.config.dec_proj_mode == "mlp":
                 hidden_states = self.projection_mlp(hidden_states)
             else:
                 assert self.config.dec_proj_mode == "linear_p"
-
-        # "First values of hidden states after projection MLP:", hidden_states[0,:3,:3])
 
         return hidden_states
 
