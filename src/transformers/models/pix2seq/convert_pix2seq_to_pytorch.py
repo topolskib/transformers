@@ -178,6 +178,8 @@ def convert_pix2seq_checkpoint(model_name, checkpoint_path, pytorch_dump_folder_
     print("Generated ids:", outputs.sequences)
     print("Shape of scores:", torch.cat(outputs.scores, dim=0).unsqueeze(0).shape)
 
+    model.push_to_hub("nielsr/pix2seq-simple")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
