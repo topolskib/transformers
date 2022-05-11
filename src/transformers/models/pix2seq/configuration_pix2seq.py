@@ -39,9 +39,9 @@ class Pix2SeqConfig(PretrainedConfig):
     Args:
         hidden_size (`int`, *optional*, defaults to 768):
             Dimensionality of the encoder layers and the pooler layer.
-        num_hidden_layers (`int`, *optional*, defaults to 12):
+        num_encoder_layers (`int`, *optional*, defaults to 12):
             Number of hidden layers in the Transformer encoder.
-        num_attention_heads (`int`, *optional*, defaults to 12):
+        num_attention_heads_encoder (`int`, *optional*, defaults to 12):
             Number of attention heads for each attention layer in the Transformer encoder.
         intermediate_size (`int`, *optional*, defaults to 3072):
             Dimensionality of the "intermediate" (i.e., feed-forward) layer in the Transformer encoder.
@@ -97,8 +97,8 @@ class Pix2SeqConfig(PretrainedConfig):
         image_size=640,
         patch_size=16,
         hidden_size=768,
-        num_hidden_layers=12,
-        num_attention_heads=12,
+        num_encoder_layers=12,
+        num_attention_heads_encoder=12,
         intermediate_size=3072,
         hidden_act="gelu",
         hidden_dropout_prob=0.0,
@@ -129,8 +129,8 @@ class Pix2SeqConfig(PretrainedConfig):
         self.image_size = image_size
         self.patch_size = patch_size
         self.hidden_size = hidden_size
-        self.num_hidden_layers = num_hidden_layers
-        self.num_attention_heads = num_attention_heads
+        self.num_encoder_layers = num_encoder_layers
+        self.num_attention_heads_encoder = num_attention_heads_encoder
         self.intermediate_size = intermediate_size
         self.hidden_act = hidden_act
         self.hidden_dropout_prob = hidden_dropout_prob
