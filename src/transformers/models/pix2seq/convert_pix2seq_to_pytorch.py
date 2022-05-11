@@ -56,72 +56,48 @@ def rename_key(name, param):
         name = name.replace("self_ln", "self_attn_layer_norm")
     if "cross_ln" in name:
         name = name.replace("cross_ln", "encoder_attn_layer_norm")
-    if "self_mha._query_dense" in name:
-        name = name.replace("self_mha._query_dense", "self_attn.q_proj")
-    if "self_mha._key_dense" in name:
-        name = name.replace("self_mha._key_dense", "self_attn.k_proj")
-    if "self_mha._value_dense" in name:
-        name = name.replace("self_mha._value_dense", "self_attn.v_proj")
-    if "self_mha._output_dense" in name:
-        name = name.replace("self_mha._output_dense", "self_attn.out_proj")
-    if "cross_mha._query_dense" in name:
-        name = name.replace("cross_mha._query_dense", "encoder_attn.q_proj")
-    if "cross_mha._key_dense" in name:
-        name = name.replace("cross_mha._key_dense", "encoder_attn.k_proj")
-    if "cross_mha._value_dense" in name:
-        name = name.replace("cross_mha._value_dense", "encoder_attn.v_proj")
-    if "cross_mha._output_dense" in name:
-        name = name.replace("cross_mha._output_dense", "encoder_attn.out_proj")
-    if "decoder" in name:
-        if "mlp.mlp_layers.0.dense1" in name:
-            name = name.replace("mlp.mlp_layers.0.dense1", "fc1")
-        if "mlp.mlp_layers.0.dense2" in name:
-            name = name.replace("mlp.mlp_layers.0.dense2", "fc2")
-        if "mlp.layernorms.0" in name:
-            name = name.replace("mlp.layernorms.0", "layernorm")
+    if "self_mha" in name:
+        name = name.replace("self_mha", "self_attn")
+    if "cross_mha" in name:
+        name = name.replace("cross_mha", "encoder_attn")
+    if "_query_dense" in name:
+        name = name.replace("_query_dense", "q_proj")
+    if "_key_dense" in name:
+        name = name.replace("_key_dense", "k_proj")
+    if "_value_dense" in name:
+        name = name.replace("_value_dense", "v_proj")
+    if "_output_dense" in name:
+        name = name.replace("_output_dense", "out_proj")
+    if "mlp.mlp_layers.0.dense1" in name:
+        name = name.replace("mlp.mlp_layers.0.dense1", "fc1")
+    if "mlp.mlp_layers.0.dense2" in name:
+        name = name.replace("mlp.mlp_layers.0.dense2", "fc2")
+    if "mlp.layernorms.0" in name:
+        name = name.replace("mlp.layernorms.0", "layernorm")
     # encoder layers
     if "model.encoder.transformer_encoder.enc_layers" in name:
         name = name.replace("model.encoder.transformer_encoder.enc_layers", "encoder.layer")
     if "mha_ln" in name:
         name = name.replace("mha_ln", "layernorm_before")
-    if "mha._output_dense" in name:
-        name = name.replace("mha._output_dense", "attention.output.dense")
     if "mha" in name:
-        name = name.replace("mha", "attention.attention")
-    if "_query_dense" in name:
-        name = name.replace("_query_dense", "query")
-    if "_key_dense" in name:
-        name = name.replace("_key_dense", "key")
-    if "_value_dense" in name:
-        name = name.replace("_value_dense", "value")
-    if "mlp.mlp_layers.0.dense1" in name:
-        name = name.replace("mlp.mlp_layers.0.dense1", "intermediate.dense")
-    if "mlp.mlp_layers.0.dense2" in name:
-        name = name.replace("mlp.mlp_layers.0.dense2", "output.dense")
-    if "mlp.layernorms.0" in name:
-        name = name.replace("mlp.layernorms.0", "layernorm_after")
+        name = name.replace("mha", "self_attn")
     # output layer norm
     if "model.encoder.output_ln" in name:
         name = name.replace("model.encoder.output_ln", "layernorm")
 
     # handle qkv
-    if "attention.output.dense" in name or "out_proj" in name:
+    if "out_proj" in name:
         if "kernel" in name:
             # (12, 64, 768) -> (768, 768) for weights
             param = np.reshape(param, (param.shape[-1], -1))
 
-    if ("query" in name or "key" in name or "value" in name) or (
-        "q_proj" in name or "k_proj" in name or "v_proj" in name
-    ):
-        # print("Updating param for parameter:", name)
-        # print("Old shape of param", param.shape)
+    if "q_proj" in name or "k_proj" in name or "v_proj" in name:
         if "kernel" in name:
             # (768, 12, 64) -> (768, 768) for weights, or
             param = np.reshape(param, (param.shape[0], -1))
         elif "bias" in name:
             # (12, 64) -> (768,) for biases
             param = param.flatten()
-        # print("New shape of param:", param.shape)
 
     # rename kernel, gamma and beta (+ important: transpose if kernel!)
     if "kernel" in name:
@@ -181,13 +157,13 @@ def convert_pix2seq_checkpoint(model_name, checkpoint_path, pytorch_dump_folder_
     with torch.no_grad():
         outputs = model(pixel_values, decoder_input_ids=prompt)
 
-    expected_slice = torch.tensor([[-4.3100, 2.0649, -0.2276], [-3.3208, 1.9842, 0.9854], [-3.5163, 2.3272, 0.6971]])
+    expected_slice = torch.tensor([[-4.3100, 2.0648, -0.2276], [-3.3209, 1.9841, 0.9853], [-3.5164, 2.3270, 0.6971]])
 
     encoder_last_hidden_state = outputs.encoder_last_hidden_state
     assert encoder_last_hidden_state.shape == (1, 1600, 768)
     assert torch.allclose(encoder_last_hidden_state[0, :3, :3], expected_slice, atol=1e-4)
 
-    expected_slice_logits = torch.tensor([-8.0231, -7.5681, -7.5681])
+    expected_slice_logits = torch.tensor([-8.0233, -7.5682, -7.5682])
     assert torch.allclose(outputs.logits[:, -1, :][0, :3], expected_slice_logits, atol=1e-4)
 
     print("Everything ok!")
@@ -201,12 +177,6 @@ def convert_pix2seq_checkpoint(model_name, checkpoint_path, pytorch_dump_folder_
 
     print("Generated ids:", outputs.sequences)
     print("Shape of scores:", torch.cat(outputs.scores, dim=0).unsqueeze(0).shape)
-
-    # print(f"Saving model {model_name} to {pytorch_dump_folder_path}")
-    # model.save_pretrained(pytorch_dump_folder_path)
-
-    # print(f"Saving feature extractor to {pytorch_dump_folder_path}")
-    # feature_extractor.save_pretrained(pytorch_dump_folder_path)
 
 
 if __name__ == "__main__":

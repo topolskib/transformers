@@ -16,8 +16,7 @@
 
 
 import collections.abc
-import math
-from typing import Dict, List, Optional, Set, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import torch
 import torch.utils.checkpoint
@@ -32,7 +31,6 @@ from ...modeling_outputs import (
     Seq2SeqModelOutput,
 )
 from ...modeling_utils import PreTrainedModel
-from ...pytorch_utils import find_pruneable_heads_and_indices, prune_linear_layer
 from ...utils import add_code_sample_docstrings, add_start_docstrings, add_start_docstrings_to_model_forward, logging
 from .configuration_pix2seq import Pix2SeqConfig
 
@@ -307,200 +305,70 @@ class PatchEmbeddings(nn.Module):
         return embeddings
 
 
-# Copied from transformers.models.vit.modeling_vit.ViTSelfAttention with ViT->Pix2Seq
-class Pix2SeqSelfAttention(nn.Module):
+class Pix2SeqEncoderLayer(nn.Module):
     def __init__(self, config: Pix2SeqConfig) -> None:
         super().__init__()
-        if config.hidden_size % config.num_attention_heads != 0 and not hasattr(config, "embedding_size"):
-            raise ValueError(
-                f"The hidden size {config.hidden_size,} is not a multiple of the number of attention "
-                f"heads {config.num_attention_heads}."
-            )
-
-        self.num_attention_heads = config.num_attention_heads
-        self.attention_head_size = int(config.hidden_size / config.num_attention_heads)
-        self.all_head_size = self.num_attention_heads * self.attention_head_size
-
-        self.query = nn.Linear(config.hidden_size, self.all_head_size, bias=config.qkv_bias)
-        self.key = nn.Linear(config.hidden_size, self.all_head_size, bias=config.qkv_bias)
-        self.value = nn.Linear(config.hidden_size, self.all_head_size, bias=config.qkv_bias)
-
-        self.dropout = nn.Dropout(config.attention_probs_dropout_prob)
-
-    def transpose_for_scores(self, x: torch.Tensor) -> torch.Tensor:
-        new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
-        x = x.view(*new_x_shape)
-        return x.permute(0, 2, 1, 3)
-
-    def forward(
-        self, hidden_states, head_mask: Optional[torch.Tensor] = None, output_attentions: bool = False
-    ) -> Union[Tuple[torch.Tensor, torch.Tensor], Tuple[torch.Tensor]]:
-        mixed_query_layer = self.query(hidden_states)
-
-        key_layer = self.transpose_for_scores(self.key(hidden_states))
-        value_layer = self.transpose_for_scores(self.value(hidden_states))
-        query_layer = self.transpose_for_scores(mixed_query_layer)
-
-        # Take the dot product between "query" and "key" to get the raw attention scores.
-        attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
-
-        attention_scores = attention_scores / math.sqrt(self.attention_head_size)
-
-        # Normalize the attention scores to probabilities.
-        attention_probs = nn.functional.softmax(attention_scores, dim=-1)
-
-        # This is actually dropping out entire tokens to attend to, which might
-        # seem a bit unusual, but is taken from the original Transformer paper.
-        attention_probs = self.dropout(attention_probs)
-
-        # Mask heads if we want to
-        if head_mask is not None:
-            attention_probs = attention_probs * head_mask
-
-        context_layer = torch.matmul(attention_probs, value_layer)
-
-        context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
-        new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
-        context_layer = context_layer.view(*new_context_layer_shape)
-
-        outputs = (context_layer, attention_probs) if output_attentions else (context_layer,)
-
-        return outputs
-
-
-# Copied from transformers.models.vit.modeling_vit.ViTSelfOutput with ViT->Pix2Seq
-class Pix2SeqSelfOutput(nn.Module):
-    """
-    The residual connection is defined in Pix2SeqLayer instead of here (as is the case with other models), due to the
-    layernorm applied before each block.
-    """
-
-    def __init__(self, config: Pix2SeqConfig) -> None:
-        super().__init__()
-        self.dense = nn.Linear(config.hidden_size, config.hidden_size)
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
-
-    def forward(self, hidden_states: torch.Tensor, input_tensor: torch.Tensor) -> torch.Tensor:
-
-        hidden_states = self.dense(hidden_states)
-        hidden_states = self.dropout(hidden_states)
-
-        return hidden_states
-
-
-# Copied from transformers.models.vit.modeling_vit.ViTAttention with ViT->Pix2Seq
-class Pix2SeqAttention(nn.Module):
-    def __init__(self, config: Pix2SeqConfig) -> None:
-        super().__init__()
-        self.attention = Pix2SeqSelfAttention(config)
-        self.output = Pix2SeqSelfOutput(config)
-        self.pruned_heads = set()
-
-    def prune_heads(self, heads: Set[int]) -> None:
-        if len(heads) == 0:
-            return
-        heads, index = find_pruneable_heads_and_indices(
-            heads, self.attention.num_attention_heads, self.attention.attention_head_size, self.pruned_heads
+        self.embed_dim = config.hidden_size
+        self.layernorm_before = nn.LayerNorm(self.embed_dim)
+        self.self_attn = Pix2SeqAttention(
+            embed_dim=self.embed_dim,
+            num_heads=config.num_attention_heads_encoder,
+            dropout=config.attention_probs_dropout_prob,
         )
+        self.drop_path = Pix2SeqDropPath(config.drop_path_rate)
 
-        # Prune linear layers
-        self.attention.query = prune_linear_layer(self.attention.query, index)
-        self.attention.key = prune_linear_layer(self.attention.key, index)
-        self.attention.value = prune_linear_layer(self.attention.value, index)
-        self.output.dense = prune_linear_layer(self.output.dense, index, dim=1)
-
-        # Update hyper params and store pruned heads
-        self.attention.num_attention_heads = self.attention.num_attention_heads - len(heads)
-        self.attention.all_head_size = self.attention.attention_head_size * self.attention.num_attention_heads
-        self.pruned_heads = self.pruned_heads.union(heads)
+        # MLP
+        self.layernorm = nn.LayerNorm(self.embed_dim)
+        self.fc1 = nn.Linear(self.embed_dim, 4 * self.embed_dim)
+        self.activation_fn = ACT2FN[config.hidden_act]
+        self.fc2 = nn.Linear(self.embed_dim * 4, self.embed_dim)
 
     def forward(
         self,
-        hidden_states: torch.Tensor,
-        head_mask: Optional[torch.Tensor] = None,
-        output_attentions: bool = False,
-    ) -> Union[Tuple[torch.Tensor, torch.Tensor], Tuple[torch.Tensor]]:
-        self_outputs = self.attention(hidden_states, head_mask, output_attentions)
+        hidden_states: torch.FloatTensor,
+        layer_head_mask: torch.FloatTensor,
+        output_attentions: Optional[bool] = False,
+    ) -> Tuple[torch.FloatTensor, Optional[torch.FloatTensor]]:
+        """
+        Args:
+            hidden_states (`torch.FloatTensor`): input to the layer of shape `(seq_len, batch, embed_dim)`
+            layer_head_mask (`torch.FloatTensor`): mask for attention heads in a given layer of size
+                `(num_attention_heads_encoder,)`.
+            output_attentions (`bool`, *optional*):
+                Whether or not to return the attentions tensors of all attention layers. See `attentions` under
+                returned tensors for more detail.
+        """
+        residual = hidden_states
 
-        attention_output = self.output(self_outputs[0], hidden_states)
+        hidden_states = self.layernorm_before(hidden_states)
 
-        outputs = (attention_output,) + self_outputs[1:]  # add attentions if we output them
-        return outputs
-
-
-# Copied from transformers.models.vit.modeling_vit.ViTIntermediate with ViT->Pix2Seq
-class Pix2SeqIntermediate(nn.Module):
-    def __init__(self, config: Pix2SeqConfig) -> None:
-        super().__init__()
-        self.dense = nn.Linear(config.hidden_size, config.intermediate_size)
-        if isinstance(config.hidden_act, str):
-            self.intermediate_act_fn = ACT2FN[config.hidden_act]
-        else:
-            self.intermediate_act_fn = config.hidden_act
-
-    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
-
-        hidden_states = self.dense(hidden_states)
-        hidden_states = self.intermediate_act_fn(hidden_states)
-
-        return hidden_states
-
-
-# Copied from transformers.models.vit.modeling_vit.ViTOutput with ViT->Pix2Seq
-class Pix2SeqOutput(nn.Module):
-    def __init__(self, config: Pix2SeqConfig) -> None:
-        super().__init__()
-        self.dense = nn.Linear(config.intermediate_size, config.hidden_size)
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
-
-    def forward(self, hidden_states: torch.Tensor, input_tensor: torch.Tensor) -> torch.Tensor:
-        hidden_states = self.dense(hidden_states)
-        hidden_states = self.dropout(hidden_states)
-
-        hidden_states = hidden_states + input_tensor
-
-        return hidden_states
-
-
-# Copied from transformers.models.vit.modeling_vit.ViTLayer with ViT->Pix2Seq
-class Pix2SeqLayer(nn.Module):
-    """This corresponds to the Block class in the timm implementation."""
-
-    def __init__(self, config: Pix2SeqConfig) -> None:
-        super().__init__()
-        self.chunk_size_feed_forward = config.chunk_size_feed_forward
-        self.seq_len_dim = 1
-        self.attention = Pix2SeqAttention(config)
-        self.intermediate = Pix2SeqIntermediate(config)
-        self.output = Pix2SeqOutput(config)
-        self.layernorm_before = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
-        self.layernorm_after = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
-
-    def forward(
-        self,
-        hidden_states: torch.Tensor,
-        head_mask: Optional[torch.Tensor] = None,
-        output_attentions: bool = False,
-    ) -> Union[Tuple[torch.Tensor, torch.Tensor], Tuple[torch.Tensor]]:
-        self_attention_outputs = self.attention(
-            self.layernorm_before(hidden_states),  # in Pix2Seq, layernorm is applied before self-attention
-            head_mask,
+        hidden_states, attn_weights = self.self_attn(
+            queries=hidden_states,
+            keys=hidden_states,
+            values=hidden_states,
+            layer_head_mask=layer_head_mask,
             output_attentions=output_attentions,
         )
-        attention_output = self_attention_outputs[0]
-        outputs = self_attention_outputs[1:]  # add self attentions if we output attention weights
+        hidden_states = residual + self.drop_path(hidden_states)
 
-        # first residual connection
-        hidden_states = attention_output + hidden_states
+        # MLP
+        residual = hidden_states
 
-        # in Pix2Seq, layernorm is also applied after self-attention
-        layer_output = self.layernorm_after(hidden_states)
-        layer_output = self.intermediate(layer_output)
+        hidden_states = self.layernorm(hidden_states)
+        hidden_states = self.activation_fn(self.fc1(hidden_states))
+        hidden_states = self.fc2(hidden_states)
+        hidden_states = residual + self.drop_path(hidden_states)
 
-        # second residual connection is done here
-        layer_output = self.output(layer_output, hidden_states)
+        if hidden_states.dtype == torch.float16 and (
+            torch.isinf(hidden_states).any() or torch.isnan(hidden_states).any()
+        ):
+            clamp_value = torch.finfo(hidden_states.dtype).max - 1000
+            hidden_states = torch.clamp(hidden_states, min=-clamp_value, max=clamp_value)
 
-        outputs = (layer_output,) + outputs
+        outputs = (hidden_states,)
+
+        if output_attentions:
+            outputs += (attn_weights,)
 
         return outputs
 
@@ -512,7 +380,7 @@ class Pix2SeqEncoder(nn.Module):
 
         self.embeddings = Pix2SeqEmbeddings(config)
 
-        self.layer = nn.ModuleList([Pix2SeqLayer(config) for _ in range(config.num_hidden_layers)])
+        self.layer = nn.ModuleList([Pix2SeqEncoderLayer(config) for _ in range(config.num_encoder_layers)])
         self.gradient_checkpointing = False
 
     def forward(
@@ -547,10 +415,12 @@ class Pix2SeqEncoder(nn.Module):
                 layer_outputs = torch.utils.checkpoint.checkpoint(
                     create_custom_forward(layer_module),
                     hidden_states,
-                    layer_head_mask,
+                    layer_head_mask=layer_head_mask,
                 )
             else:
-                layer_outputs = layer_module(hidden_states, layer_head_mask, output_attentions)
+                layer_outputs = layer_module(
+                    hidden_states, layer_head_mask=layer_head_mask, output_attentions=output_attentions
+                )
 
             hidden_states = layer_outputs[0]
 
@@ -713,8 +583,8 @@ class Pix2SeqPreTrainedModel(PreTrainedModel):
             module.gradient_checkpointing = value
 
 
-class Pix2SeqDecoderAttention(nn.Module):
-    """Multi-headed attention from 'Attention Is All You Need' paper (only used in decoder of Pix2Seq for now)"""
+class Pix2SeqAttention(nn.Module):
+    """Multi-headed attention from 'Attention Is All You Need' paper"""
 
     def __init__(
         self,
@@ -751,10 +621,6 @@ class Pix2SeqDecoderAttention(nn.Module):
         queries,
         keys,
         values,
-        is_cross_attention=False,
-        # hidden_states: torch.Tensor,
-        # key_value_states: Optional[torch.Tensor] = None,
-        cache: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
         layer_head_mask: Optional[torch.Tensor] = None,
         output_attentions: bool = False,
@@ -767,17 +633,6 @@ class Pix2SeqDecoderAttention(nn.Module):
         query_states = self.q_proj(queries) * self.scaling
         key_states = self._shape(self.k_proj(keys), -1, bsz)
         value_states = self._shape(self.v_proj(values), -1, bsz)
-        # if is_cross_attention:
-        #     # cross_attentions
-        #     key_states =
-        #     value_states =
-        # elif cache is not None:
-        #     # reuse keys and values, self_attention
-        #     key_states = value_states = torch.cat([cache, hidden_states], axis=1)
-        # else:
-        #     # self_attention
-        #     key_states = self._shape(self.k_proj(hidden_states), -1, bsz)
-        #     value_states = self._shape(self.v_proj(hidden_states), -1, bsz)
 
         proj_shape = (bsz * self.num_heads, -1, self.head_dim)
         query_states = self._shape(query_states, tgt_len, bsz).view(*proj_shape)
@@ -846,7 +701,7 @@ class Pix2SeqDecoderLayer(nn.Module):
         super().__init__()
         self.embed_dim = config.dim_decoder
 
-        self.self_attn = Pix2SeqDecoderAttention(
+        self.self_attn = Pix2SeqAttention(
             embed_dim=self.embed_dim,
             num_heads=config.num_attention_heads_decoder,
             dropout=config.attention_probs_dropout_prob,
@@ -855,7 +710,7 @@ class Pix2SeqDecoderLayer(nn.Module):
 
         self.self_attn_layer_norm = nn.LayerNorm(self.embed_dim)
         self.drop_path = Pix2SeqDropPath(config.drop_path_rate)
-        self.encoder_attn = Pix2SeqDecoderAttention(
+        self.encoder_attn = Pix2SeqAttention(
             self.embed_dim,
             config.num_attention_heads_decoder,
             dropout=config.attention_probs_dropout_prob,
@@ -892,7 +747,7 @@ class Pix2SeqDecoderLayer(nn.Module):
             encoder_attention_mask (`torch.FloatTensor`): encoder attention mask of size
                 `(batch, 1, tgt_len, src_len)` where padding elements are indicated by very large negative values.
             layer_head_mask (`torch.FloatTensor`): mask for attention heads in a given layer of size
-                `(encoder_attention_heads,)`.
+                `(num_attention_heads_encoder,)`.
             cross_attn_layer_head_mask (`torch.FloatTensor`): mask for cross-attention heads in a given layer of
                 size `(decoder_attention_heads,)`.
             past_key_value (`torch.FloatTensor)`):
@@ -1308,9 +1163,9 @@ class Pix2SeqModel(Pix2SeqPreTrainedModel):
         # Prepare head mask if needed
         # 1.0 in head_mask indicate we keep the head
         # attention_probs has shape bsz x n_heads x N x N
-        # input head_mask has shape [num_heads] or [num_hidden_layers x num_heads]
-        # and head_mask is converted to shape [num_hidden_layers x batch x num_heads x seq_length x seq_length]
-        head_mask = self.get_head_mask(head_mask, self.config.num_hidden_layers)
+        # input head_mask has shape [num_heads] or [num_encoder_layers x num_heads]
+        # and head_mask is converted to shape [num_encoder_layers x batch x num_heads x seq_length x seq_length]
+        head_mask = self.get_head_mask(head_mask, self.config.num_encoder_layers)
 
         if encoder_outputs is None:
             encoder_outputs = self.encoder(
