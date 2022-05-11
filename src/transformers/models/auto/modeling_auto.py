@@ -343,6 +343,7 @@ MODEL_FOR_INSTANCE_SEGMENTATION_MAPPING_NAMES = OrderedDict(
 MODEL_FOR_VISION_2_SEQ_MAPPING_NAMES = OrderedDict(
     [
         ("vision-encoder-decoder", "VisionEncoderDecoderModel"),
+        ("pix2seq", "Pix2SeqForConditionalGeneration"),
     ]
 )
 
