@@ -23,13 +23,7 @@ import torch
 from PIL import Image
 
 from ...feature_extraction_utils import BatchFeature, FeatureExtractionMixin
-from ...image_utils import (
-    IMAGENET_STANDARD_MEAN,
-    IMAGENET_STANDARD_STD,
-    ImageFeatureExtractionMixin,
-    ImageInput,
-    is_torch_tensor,
-)
+from ...image_utils import ImageFeatureExtractionMixin, ImageInput, is_torch_tensor
 from ...utils import TensorType, logging
 
 
@@ -90,12 +84,8 @@ class Pix2SeqFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMixi
             An optional resampling filter. This can be one of `PIL.Image.NEAREST`, `PIL.Image.BOX`,
             `PIL.Image.BILINEAR`, `PIL.Image.HAMMING`, `PIL.Image.BICUBIC` or `PIL.Image.LANCZOS`. Only has an effect
             if `do_resize` is set to `True`.
-        do_normalize (`bool`, *optional*, defaults to `True`):
-            Whether or not to normalize the input with mean and standard deviation.
-        image_mean (`List[int]`, *optional*, defaults to `[0.5, 0.5, 0.5]`):
-            The sequence of means for each channel, to be used when normalizing images.
-        image_std (`List[int]`, *optional*, defaults to `[0.5, 0.5, 0.5]`):
-            The sequence of standard deviations for each channel, to be used when normalizing images.
+        do_rescale (`bool`, *optional*, defaults to `True`):
+             Whether or not to apply the scaling factor (to make pixel values floats between 0. and 1.).
         quantization_bins (`int`, *optional*, defaults to `1000`):
             Bins.
         coord_vocab_shift (`int`, *optional*, defaults to `1000`):
@@ -109,9 +99,7 @@ class Pix2SeqFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMixi
         do_resize=True,
         size=640,
         resample=Image.BILINEAR,
-        do_normalize=True,
-        image_mean=None,
-        image_std=None,
+        do_rescale=True,
         quantization_bins=1000,
         coord_vocab_shift=1000,
         **kwargs
@@ -120,9 +108,7 @@ class Pix2SeqFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMixi
         self.do_resize = do_resize
         self.size = size
         self.resample = resample
-        self.do_normalize = do_normalize
-        self.image_mean = image_mean if image_mean is not None else IMAGENET_STANDARD_MEAN
-        self.image_std = image_std if image_std is not None else IMAGENET_STANDARD_STD
+        self.do_rescale = do_rescale
         self.quantization_bins = quantization_bins
         self.coord_vocab_shift = coord_vocab_shift
 
@@ -209,13 +195,14 @@ class Pix2SeqFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMixi
         if not is_batched:
             images = [images]
 
-        # transformations (resizing + normalization)
+        # transformations (resizing + rescaling)
         if self.do_resize and self.size is not None:
-            images = [
-                self._resize(image=image, size_longer_side=self.size, resample=self.resample) for image in images
-            ]
-        if self.do_normalize:
-            images = [self.normalize(image=image, mean=self.image_mean, std=self.image_std) for image in images]
+            # images = [
+            #     self._resize(image=image, size_longer_side=self.size, resample=self.resample) for image in images
+            # ]
+            images = [self.resize(image=image, size=self.size, resample=self.resample) for image in images]
+        if self.do_rescale:
+            images = [self.to_numpy_array(image=image) for image in images]
 
         # return as BatchFeature
         data = {"pixel_values": images}
