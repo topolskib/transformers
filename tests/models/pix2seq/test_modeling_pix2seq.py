@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2021 The HuggingFace Inc. team. All rights reserved.
+# Copyright 2022 The HuggingFace Inc. team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,10 +27,9 @@ from ...test_modeling_common import ModelTesterMixin, floats_tensor, ids_tensor
 
 
 if is_torch_available():
-    import torch
     from torch import nn
 
-    from transformers import Pix2SeqForImageClassification, Pix2SeqForMaskedImageModeling, Pix2SeqModel
+    from transformers import Pix2SeqForConditionalGeneration, Pix2SeqModel
     from transformers.models.pix2seq.modeling_pix2seq import PIX2SEQ_PRETRAINED_MODEL_ARCHIVE_LIST
 
 
@@ -120,14 +119,6 @@ class Pix2SeqModelTester:
         result = model(pixel_values)
         self.parent.assertEqual(result.last_hidden_state.shape, (self.batch_size, self.seq_length, self.hidden_size))
 
-    def create_and_check_for_image_classification(self, config, pixel_values, labels):
-        config.num_labels = self.type_sequence_label_size
-        model = Pix2SeqForImageClassification(config)
-        model.to(torch_device)
-        model.eval()
-        result = model(pixel_values, labels=labels)
-        self.parent.assertEqual(result.logits.shape, (self.batch_size, self.type_sequence_label_size))
-
     def prepare_config_and_inputs_for_common(self):
         config_and_inputs = self.prepare_config_and_inputs()
         (
@@ -149,8 +140,7 @@ class Pix2SeqModelTest(ModelTesterMixin, unittest.TestCase):
     all_model_classes = (
         (
             Pix2SeqModel,
-            Pix2SeqForImageClassification,
-            Pix2SeqForMaskedImageModeling,
+            Pix2SeqForConditionalGeneration,
         )
         if is_torch_available()
         else ()
@@ -223,21 +213,5 @@ class Pix2SeqModelIntegrationTest(unittest.TestCase):
         )
 
     @slow
-    def test_inference_image_classification_head(self):
-        model = Pix2SeqForImageClassification.from_pretrained("google/pix2seq-base-patch16-224").to(torch_device)
-
-        feature_extractor = self.default_feature_extractor
-        image = prepare_img()
-        inputs = feature_extractor(images=image, return_tensors="pt").to(torch_device)
-
-        # forward pass
-        with torch.no_grad():
-            outputs = model(**inputs)
-
-        # verify the logits
-        expected_shape = torch.Size((1, 1000))
-        self.assertEqual(outputs.logits.shape, expected_shape)
-
-        expected_slice = torch.tensor([-0.2744, 0.8215, -0.0836]).to(torch_device)
-
-        self.assertTrue(torch.allclose(outputs.logits[0, :3], expected_slice, atol=1e-4))
+    def test_inference_language_modeling_head(self):
+        raise NotImplementedError("")

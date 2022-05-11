@@ -82,7 +82,7 @@ class Pix2SeqFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMixi
     Args:
         do_resize (`bool`, *optional*, defaults to `True`):
             Whether to resize the input to a certain `size`.
-        size (`int` or `Tuple(int)`, *optional*, defaults to 224):
+        size (`int` or `Tuple(int)`, *optional*, defaults to 640):
             Resize the input to the given size. If a tuple is provided, it should be (width, height). If only an
             integer is provided, then the input will be resized to (size, size). Only has an effect if `do_resize` is
             set to `True`.
@@ -92,10 +92,14 @@ class Pix2SeqFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMixi
             if `do_resize` is set to `True`.
         do_normalize (`bool`, *optional*, defaults to `True`):
             Whether or not to normalize the input with mean and standard deviation.
-        image_mean (`List[int]`, defaults to `[0.5, 0.5, 0.5]`):
+        image_mean (`List[int]`, *optional*, defaults to `[0.5, 0.5, 0.5]`):
             The sequence of means for each channel, to be used when normalizing images.
-        image_std (`List[int]`, defaults to `[0.5, 0.5, 0.5]`):
+        image_std (`List[int]`, *optional*, defaults to `[0.5, 0.5, 0.5]`):
             The sequence of standard deviations for each channel, to be used when normalizing images.
+        quantization_bins (`int`, *optional*, defaults to `1000`):
+            Bins.
+        coord_vocab_shift (`int`, *optional*, defaults to `1000`):
+            Shift coordinates by this number.
     """
 
     model_input_names = ["pixel_values"]
@@ -103,11 +107,13 @@ class Pix2SeqFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMixi
     def __init__(
         self,
         do_resize=True,
-        size=224,
+        size=640,
         resample=Image.BILINEAR,
         do_normalize=True,
         image_mean=None,
         image_std=None,
+        quantization_bins=1000,
+        coord_vocab_shift=1000,
         **kwargs
     ):
         super().__init__(**kwargs)
@@ -117,6 +123,34 @@ class Pix2SeqFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMixi
         self.do_normalize = do_normalize
         self.image_mean = image_mean if image_mean is not None else IMAGENET_STANDARD_MEAN
         self.image_std = image_std if image_std is not None else IMAGENET_STANDARD_STD
+        self.quantization_bins = quantization_bins
+        self.coord_vocab_shift = coord_vocab_shift
+
+    def _resize(self, image, size_longer_side, resample=Image.BILINEAR):
+        """Resize the image while preserving aspect ratio.
+
+        Args:
+            image: image.
+            size_longer_side: size for the longer side of the image.
+            resample: resampling method.
+
+        Returns:
+            resized image.
+        """
+        if not isinstance(image, Image.Image):
+            image = self.to_pil_image(image)
+
+        w, h = image.size
+
+        if w > h:
+            original_width = size_longer_side
+            original_height = int(size_longer_side * h / w)
+
+        else:
+            original_height = size_longer_side
+            original_width = int(size_longer_side * w / h)
+
+        return self.resize(image, (original_height, original_width), resample=resample)
 
     def __call__(
         self, images: ImageInput, return_tensors: Optional[Union[str, TensorType]] = None, **kwargs
@@ -177,7 +211,9 @@ class Pix2SeqFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMixi
 
         # transformations (resizing + normalization)
         if self.do_resize and self.size is not None:
-            images = [self.resize(image=image, size=self.size, resample=self.resample) for image in images]
+            images = [
+                self._resize(image=image, size_longer_side=self.size, resample=self.resample) for image in images
+            ]
         if self.do_normalize:
             images = [self.normalize(image=image, mean=self.image_mean, std=self.image_std) for image in images]
 
@@ -187,7 +223,7 @@ class Pix2SeqFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMixi
 
         return encoded_inputs
 
-    def decode_object_seq_to_bbox(self, logits, pred_seq, quantization_bins, coord_vocab_shift):
+    def decode_object_seq_to_bbox(self, logits, pred_seq):
         """Decode objects (label & bbox) for seq from `build_response_seq_from_bbox`.
 
         Assume yxyxc format with truncation at the end for any uneven extra tokens. Replace class tokens with argmax
@@ -196,8 +232,6 @@ class Pix2SeqFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMixi
         Args:
             logits: `float` output logits in shape of (bsz, max_seq_len, vocab_size).
             pred_seq: `int` pred sequence in shape of (bsz, max_seq_len).
-            quantization_bins: `int` for bins.
-            coord_vocab_shift: `int`, shifting coordinates by a specified integer.
 
         Returns:
             pred_class: `int` of shape (bsz, max_instances_per_image). pred_bbox: `float` of shape (bsz,
@@ -211,18 +245,14 @@ class Pix2SeqFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMixi
 
         pred_class_p = torch.softmax(logits, dim=-1)[:, 4::5]  # (bsz, instances, vocab_size)
 
-        print("Shape of pred_class_p:", pred_class_p.shape)
-
         mask_s1 = [0.0] * BASE_VOCAB_SHIFT  # reserved.
-        mask_s2 = [1.0] * (coord_vocab_shift - BASE_VOCAB_SHIFT)  # labels.
-        mask_s3 = [0] * (vocab_size - coord_vocab_shift)  # coordinates and others.
+        mask_s2 = [1.0] * (self.coord_vocab_shift - BASE_VOCAB_SHIFT)  # labels.
+        mask_s3 = [0] * (vocab_size - self.coord_vocab_shift)  # coordinates and others.
         mask = torch.tensor(mask_s1 + mask_s2 + mask_s3)
         pred_class = torch.argmax(pred_class_p * mask[None, None, :], -1)
 
-        print("Shape of pred_class:", pred_class.shape)
-
         pred_score = torch.sum(pred_class_p * torch.nn.functional.one_hot(pred_class, vocab_size), -1)
         pred_class = torch.maximum(pred_class - BASE_VOCAB_SHIFT, torch.tensor(0))
-        pred_bbox = seq_to_bbox(pred_seq - coord_vocab_shift, quantization_bins)
-        
+        pred_bbox = seq_to_bbox(pred_seq - self.coord_vocab_shift, self.quantization_bins)
+
         return pred_class, pred_bbox, pred_score
