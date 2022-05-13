@@ -1282,6 +1282,12 @@ class Pix2SeqForConditionalGeneration(Pix2SeqPreTrainedModel):
 
         loss = None
         if labels is not None:
+            # TODO Assign lower weights for ending/padding tokens.
+            # PADDING_TOKEN = 0
+            # token_weights = torch.where(
+            #     labels == PADDING_TOKEN, token_weights + self.config.eos_token_weight, token_weights
+            # )
+
             loss_fct = CrossEntropyLoss(ignore_index=-100)
             loss = loss_fct(lm_logits.view(-1, lm_logits.size(-1)), labels.view(-1))
 

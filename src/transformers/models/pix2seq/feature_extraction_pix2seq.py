@@ -14,22 +14,37 @@
 # limitations under the License.
 """Feature extractor class for Pix2Seq."""
 
+import copy
+import functools
+import operator
 from typing import Optional, Union
 
 import numpy as np
-
-# TODO add dependency check
-import torch
 from PIL import Image
 
 from ...feature_extraction_utils import BatchFeature, FeatureExtractionMixin
 from ...image_utils import ImageFeatureExtractionMixin, ImageInput, is_torch_tensor
-from ...utils import TensorType, logging
+from ...utils import TensorType, is_torch_available, logging
 
+
+if is_torch_available():
+    import torch
 
 logger = logging.get_logger(__name__)
 
+FAKE_CLASS_TOKEN = 30
 BASE_VOCAB_SHIFT = 100
+
+
+def uniform_tensor(shape, r1=0, r2=1):
+    return (r1 - r2) * torch.rand(*shape) + r2
+
+
+def quantize(coordinates, bins):
+    """Quantization of (normalized) coordinates in [0, 1]."""
+    coordinates = torch.round(coordinates * (bins - 1)).long()
+    coordinates = torch.clamp(coordinates, min=0, max=bins - 1)
+    return coordinates
 
 
 def dequantize(boxes, bins):
@@ -37,6 +52,27 @@ def dequantize(boxes, bins):
     boxes = boxes.float()
     boxes = boxes / (bins - 1)
     return boxes
+
+
+def shape_as_list(t):
+    # Assumes rank of `t` is statically known.
+    shape = list(t.shape)
+    dynamic_shape = t.shape
+    return [shape[i] if shape[i] is not None else dynamic_shape[i] for i in range(len(shape))]
+
+
+def flatten_non_batch_dims(t, out_rank):
+    """Merge last few dims to have out_rank."""
+    if t.ndim == out_rank:
+        return t
+    if t.ndim < out_rank:
+        raise ValueError("Tensor has rank %d. Expected at least %d" % (t.ndim, out_rank))
+    shape_list = shape_as_list(t)
+    split = out_rank - 1
+    inner_dims = shape_list[:split]
+    new_last_dim = functools.reduce(operator.mul, shape_list[split:])
+    out_shape = inner_dims + [new_last_dim]
+    return torch.reshape(t, out_shape)
 
 
 def seq_to_bbox(seq, quantization_bins, seq_format="yxyx_name"):
@@ -209,6 +245,71 @@ class Pix2SeqFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMixi
         encoded_inputs = BatchFeature(data=data, tensor_type=return_tensors)
 
         return encoded_inputs
+
+    def build_response_seq_from_bbox(self, bbox, label, noise_bbox_weight=1.0, class_label_corruption="rand_cls"):
+        """
+        Build target seq from bounding bboxes for object detection. Objects are serialized using the format of yxyxc.
+
+        Args:
+            bbox: `float` bounding box of shape (bsz, n, 4).
+            label: `int` label of shape (bsz, n).
+            quantization_bins: `int`.
+            noise_bbox_weight: `float` on the token weights for noise bboxes.
+            coord_vocab_shift: `int`, shifting coordinates by a specified integer.
+            class_label_corruption: `string` specifying how labels are corrupted for the
+            input_seq.
+        Returns:
+            discrete sequences with shape (bsz, seqlen).
+        """
+        # Bbox and label quantization.
+        is_padding = torch.unsqueeze(torch.eq(label, 0), -1)
+        quantized_bbox = quantize(bbox, self.quantization_bins)
+        quantized_bbox = quantized_bbox + self.coord_vocab_shift
+        quantized_bbox = torch.where(is_padding, torch.zeros_like(quantized_bbox), quantized_bbox)
+        new_label = torch.unsqueeze(label + BASE_VOCAB_SHIFT, -1)
+        new_label = torch.where(is_padding, torch.zeros_like(new_label), new_label)
+        lb_shape = list(new_label.shape)
+
+        # Bbox and label serialization.
+        response_seq = torch.cat([quantized_bbox, new_label], dim=-1)
+        response_seq = flatten_non_batch_dims(response_seq, 2)
+        rand_cls = BASE_VOCAB_SHIFT + uniform_tensor(lb_shape, 0, self.coord_vocab_shift - BASE_VOCAB_SHIFT).type(
+            new_label.dtype
+        )
+        fake_cls = FAKE_CLASS_TOKEN + torch.zeros_like(new_label)
+        rand_n_fake_cls = torch.where(uniform_tensor(lb_shape) > 0.5, rand_cls, fake_cls)
+        real_n_fake_cls = torch.where(uniform_tensor(lb_shape) > 0.5, new_label, fake_cls)
+        real_n_rand_n_fake_cls = torch.where(uniform_tensor(lb_shape) > 0.5, new_label, rand_n_fake_cls)
+        label_mapping = {
+            "none": new_label,
+            "rand_cls": rand_cls,
+            "real_n_fake_cls": real_n_fake_cls,
+            "rand_n_fake_cls": rand_n_fake_cls,
+            "real_n_rand_n_fake_cls": real_n_rand_n_fake_cls,
+        }
+        new_label_m = label_mapping[class_label_corruption]
+        new_label_m = torch.where(is_padding, torch.zeros_like(new_label_m), new_label_m)
+        response_seq_class_m = torch.cat([quantized_bbox, new_label_m], dim=-1)
+        response_seq_class_m = flatten_non_batch_dims(response_seq_class_m, 2)
+
+        # Get token weights.
+        is_real = torch.ne(new_label, FAKE_CLASS_TOKEN).float()
+        bbox_weight = is_real.repeat([1, 1, 4])
+        label_weight = is_real + (1.0 - is_real) * noise_bbox_weight
+        token_weights = torch.cat([bbox_weight, label_weight], -1)
+        token_weights = flatten_non_batch_dims(token_weights, 2)
+
+        return response_seq, response_seq_class_m, token_weights
+
+    def pad_to_max_len(self, data, max_len, dim):
+        """Pad the data tensor to max length on dim."""
+
+        shape = shape_as_list(data)
+        padding_shape, new_shape = copy.copy(shape), copy.copy(shape)
+        padding_shape[dim] = max_len - padding_shape[dim]
+        new_shape[dim] = max_len
+        paddings = torch.zeros(padding_shape, dtype=data.dtype)
+        return torch.reshape(torch.cat([data, paddings], axis=dim), new_shape)
 
     def decode_object_seq_to_bbox(self, logits, pred_seq):
         """Decode objects (label & bbox) for seq from `build_response_seq_from_bbox`.

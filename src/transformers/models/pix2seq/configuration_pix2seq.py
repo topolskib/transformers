@@ -74,16 +74,22 @@ class Pix2SeqConfig(PretrainedConfig):
             The number of layers in the decoder.
         num_attention_heads_decoder (`int`, *optional*, defaults to `16`):
             The number of attention heads in the decoder.
+        pad_token_id (`int`, *optional*, defaults to `0`):
+            Id of the padding token.
+        decoder_start_token_id (`int`, *optional*, defaults to `10`):
+            Id of the first token to be fed to the decoder.
+        eos_token_weight (`int`, *optional*, defaults to `0.1`):
+            Weight of the end-of-sequence (EOS)/padding token in the loss calculation.
 
     Example:
 
     ```python
     >>> from transformers import Pix2SeqModel, Pix2SeqConfig
 
-    >>> # Initializing a Pix2Seq pix2seq-base-patch16-224 style configuration
+    >>> # Initializing a Pix2Seq pix2seq-vit-base style configuration
     >>> configuration = Pix2SeqConfig()
 
-    >>> # Initializing a model from the pix2seq-base-patch16-224 style configuration
+    >>> # Initializing a model from the pix2seq-vit-base style configuration
     >>> model = Pix2SeqModel(configuration)
 
     >>> # Accessing the model configuration
@@ -120,10 +126,17 @@ class Pix2SeqConfig(PretrainedConfig):
         use_cache=True,
         tie_word_embeddings=False,
         is_encoder_decoder=True,
-        bos_token_id=10,
+        pad_token_id=0,
+        decoder_start_token_id=10,
+        eos_token_weight=0.1,
         **kwargs
     ):
-        super().__init__(is_encoder_decoder=is_encoder_decoder, bos_token_id=bos_token_id, **kwargs)
+        super().__init__(
+            is_encoder_decoder=is_encoder_decoder,
+            pad_token_id=pad_token_id,
+            decoder_start_token_id=decoder_start_token_id,
+            **kwargs,
+        )
 
         self.num_channels = num_channels
         self.image_size = image_size
@@ -152,3 +165,4 @@ class Pix2SeqConfig(PretrainedConfig):
         self.output_bias = output_bias
         self.use_cache = use_cache
         self.tie_word_embeddings = tie_word_embeddings
+        self.eos_token_weight = eos_token_weight

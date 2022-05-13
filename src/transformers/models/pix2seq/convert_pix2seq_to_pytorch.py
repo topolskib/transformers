@@ -138,6 +138,7 @@ def convert_pix2seq_checkpoint(model_name, checkpoint_path, pytorch_dump_folder_
     state_dict = {}
     for name, param in tf_vars.items():
         name, param = rename_key(name, param)
+        print("New name:", name)
         state_dict[name] = torch.from_numpy(param)
 
     # Set weights of lm head
@@ -178,8 +179,6 @@ def convert_pix2seq_checkpoint(model_name, checkpoint_path, pytorch_dump_folder_
     print("Generated ids:", outputs.sequences)
     print("Shape of scores:", torch.cat(outputs.scores, dim=0).unsqueeze(0).shape)
 
-    model.push_to_hub("nielsr/pix2seq-simple")
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -193,7 +192,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--checkpoint_path",
         type=str,
-        default="/home/niels/checkpoints/pix2seq/ckpt-112728.index",
+        default="/home/niels/checkpoints/pix2seq/ckpt-112728",
         help="Path to the Pix2Seq checkpoint you'd like to convert.",
     )
     parser.add_argument(
