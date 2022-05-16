@@ -258,6 +258,7 @@ class Pix2SeqFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMixi
             coord_vocab_shift: `int`, shifting coordinates by a specified integer.
             class_label_corruption: `string` specifying how labels are corrupted for the
             input_seq.
+
         Returns:
             discrete sequences with shape (bsz, seqlen).
         """
