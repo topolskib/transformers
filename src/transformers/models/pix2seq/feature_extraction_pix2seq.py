@@ -111,15 +111,15 @@ class Pix2SeqFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMixi
 
     Args:
         do_resize (`bool`, *optional*, defaults to `True`):
-            Whether to resize the input to a certain `size`.
-        size (`int` or `Tuple(int)`, *optional*, defaults to 640):
-            Resize the input to the given size. If a tuple is provided, it should be (width, height). If only an
-            integer is provided, then the input will be resized to (size, size). Only has an effect if `do_resize` is
-            set to `True`.
+            Whether to resize the longer side of the input to a certain `size` (keeping the aspect ratio).
+        size (`int` *optional*, defaults to 640):
+            Resize the longer side of the input to the given size. Only has an effect if `do_resize` is set to `True`.
         resample (`int`, *optional*, defaults to `PIL.Image.BILINEAR`):
             An optional resampling filter. This can be one of `PIL.Image.NEAREST`, `PIL.Image.BOX`,
             `PIL.Image.BILINEAR`, `PIL.Image.HAMMING`, `PIL.Image.BICUBIC` or `PIL.Image.LANCZOS`. Only has an effect
             if `do_resize` is set to `True`.
+        do_pad (`bool`, *optional*, defaults to `True`):
+            Whether to pad the input to the same square `size`.
         do_rescale (`bool`, *optional*, defaults to `True`):
              Whether or not to apply the scaling factor (to make pixel values floats between 0. and 1.).
         quantization_bins (`int`, *optional*, defaults to `1000`):
@@ -135,6 +135,7 @@ class Pix2SeqFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMixi
         do_resize=True,
         size=640,
         resample=Image.BILINEAR,
+        do_pad=True,
         do_rescale=True,
         quantization_bins=1000,
         coord_vocab_shift=1000,
@@ -144,35 +145,67 @@ class Pix2SeqFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMixi
         self.do_resize = do_resize
         self.size = size
         self.resample = resample
+        self.do_pad = do_pad
         self.do_rescale = do_rescale
         self.quantization_bins = quantization_bins
         self.coord_vocab_shift = coord_vocab_shift
 
     def _resize(self, image, size_longer_side, resample=Image.BILINEAR):
-        """Resize the image while preserving aspect ratio.
+        """Resize the longer side of the image while preserving the aspect ratio.
 
         Args:
-            image: image.
-            size_longer_side: size for the longer side of the image.
-            resample: resampling method.
+            image: (`PIL.Image.Image` or `np.ndarray` or `torch.Tensor`):
+                The image to be resized.
+            size_longer_side (`int`)
+                Size for the longer side of the image.
+            resample (`int`, *optional*, defaults to `PIL.Image.BILINEAR`):
+                The filter to use for resampling.
 
         Returns:
-            resized image.
+            `PIL.Image.Image`: The resized image.
         """
+        self._ensure_format_supported(image)
+
         if not isinstance(image, Image.Image):
             image = self.to_pil_image(image)
 
-        w, h = image.size
+        width, height = image.size
 
-        if w > h:
+        if width > height:
             original_width = size_longer_side
-            original_height = int(size_longer_side * h / w)
+            original_height = int(size_longer_side * height / width)
 
         else:
             original_height = size_longer_side
-            original_width = int(size_longer_side * w / h)
+            original_width = int(size_longer_side * width / height)
 
-        return self.resize(image, (original_height, original_width), resample=resample)
+        return self.resize(image, (original_width, original_height), resample=resample)
+
+    def pad_to_square(self, image, size):
+        """
+        Pad image to square size (size, size, 3).
+
+        Args:
+            image (`PIL.Image.Image` or `np.ndarray` or `torch.Tensor`):
+                The image to be padded.
+            size (`int`):
+                Size to pad image to.
+
+        Returns:
+            `np.ndarray`: The padded image as a NumPy array.
+        """
+        self._ensure_format_supported(image)
+
+        if not isinstance(image, Image.Image):
+            image = self.to_pil_image(image)
+
+        width, height = image.size
+
+        result = np.zeros((size, size, 3))
+        result[:height, :width, :] = image
+        result = result.astype(np.uint8)
+
+        return result
 
     def __call__(
         self, images: ImageInput, return_tensors: Optional[Union[str, TensorType]] = None, **kwargs
@@ -231,12 +264,13 @@ class Pix2SeqFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMixi
         if not is_batched:
             images = [images]
 
-        # transformations (resizing + rescaling)
+        # transformations (resizing + padding + rescaling)
         if self.do_resize and self.size is not None:
-            # images = [
-            #     self._resize(image=image, size_longer_side=self.size, resample=self.resample) for image in images
-            # ]
-            images = [self.resize(image=image, size=self.size, resample=self.resample) for image in images]
+            images = [
+                self._resize(image=image, size_longer_side=self.size, resample=self.resample) for image in images
+            ]
+        if self.do_pad and self.size is not None:
+            images = [self.pad_to_square(image, size=self.size) for image in images]
         if self.do_rescale:
             images = [self.to_numpy_array(image=image) for image in images]
 
@@ -246,9 +280,9 @@ class Pix2SeqFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMixi
 
         return encoded_inputs
 
-    def build_response_seq_from_bbox(self, bbox, label, noise_bbox_weight=1.0, class_label_corruption="rand_cls"):
+    def encode(self, bbox, label, noise_bbox_weight=1.0, class_label_corruption="rand_cls"):
         """
-        Build target seq from bounding bboxes for object detection. Objects are serialized using the format of yxyxc.
+        Encode tensors of boxes and class labels into target sequences for object detection. Objects are serialized using the format of yxyxc.
 
         Args:
             bbox: `float` bounding box of shape (bsz, n, 4).
@@ -312,8 +346,8 @@ class Pix2SeqFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMixi
         paddings = torch.zeros(padding_shape, dtype=data.dtype)
         return torch.reshape(torch.cat([data, paddings], axis=dim), new_shape)
 
-    def decode_object_seq_to_bbox(self, logits, pred_seq):
-        """Decode objects (label & bbox) for seq from `build_response_seq_from_bbox`.
+    def decode(self, logits, pred_seq):
+        """Decode objects (label & bbox) for a (batch of) sequence of integers.
 
         Assume yxyxc format with truncation at the end for any uneven extra tokens. Replace class tokens with argmax
         instead of sampling.
