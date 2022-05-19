@@ -123,9 +123,9 @@ class Pix2SeqFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMixi
         do_rescale (`bool`, *optional*, defaults to `True`):
              Whether or not to apply the scaling factor (to make pixel values floats between 0. and 1.).
         quantization_bins (`int`, *optional*, defaults to `1000`):
-            Bins.
+            Number of bins to quantize bounding box coordinates.
         coord_vocab_shift (`int`, *optional*, defaults to `1000`):
-            Shift coordinates by this number.
+            Number by which to shift coordinates.
     """
 
     model_input_names = ["pixel_values"]
@@ -347,15 +347,17 @@ class Pix2SeqFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMixi
         return torch.reshape(torch.cat([data, paddings], axis=dim), new_shape)
 
     def decode(self, logits, pred_seq):
-        """Decode objects (label & bbox) for a (batch of) sequence of integers.
+        """Decode objects (class labels, bounding boxes and scores) for a batch of sequence of integers.
 
         Assume yxyxc format with truncation at the end for any uneven extra tokens. Replace class tokens with argmax
         instead of sampling.
 
         Args:
-            logits: `float` output logits in shape of (bsz, max_seq_len, vocab_size).
-            pred_seq: `int` pred sequence in shape of (bsz, max_seq_len).
-
+            logits: (`torch.FloatTensor` of shape `(batch_size, max_seq_len, vocab_size)`):
+                Output logits.
+            pred_seq (`torch.LongTensor` of shape of `(batch_size, max_seq_len)`):
+                Predicted sequence(s).
+        
         Returns:
             pred_class: `int` of shape (bsz, max_instances_per_image). pred_bbox: `float` of shape (bsz,
             max_instances_per_image, 4). pred_score: `float` of shape (bsz, max_instances_per_image).
