@@ -175,6 +175,7 @@ _import_structure = {
     "models.conditional_detr": ["CONDITIONAL_DETR_PRETRAINED_CONFIG_ARCHIVE_MAP", "ConditionalDetrConfig"],
     "models.convbert": ["CONVBERT_PRETRAINED_CONFIG_ARCHIVE_MAP", "ConvBertConfig", "ConvBertTokenizer"],
     "models.convnext": ["CONVNEXT_PRETRAINED_CONFIG_ARCHIVE_MAP", "ConvNextConfig"],
+    "models.convnext_maskrcnn": ["CONVNEXTMASKRCNN_PRETRAINED_CONFIG_ARCHIVE_MAP", "ConvNextMaskRCNNConfig"],
     "models.cpm": [],
     "models.ctrl": ["CTRL_PRETRAINED_CONFIG_ARCHIVE_MAP", "CTRLConfig", "CTRLTokenizer"],
     "models.cvt": ["CVT_PRETRAINED_CONFIG_ARCHIVE_MAP", "CvtConfig"],
@@ -1103,6 +1104,14 @@ else:
             "ConvNextForImageClassification",
             "ConvNextModel",
             "ConvNextPreTrainedModel",
+        ]
+    )
+    _import_structure["models.convnext_maskrcnn"].extend(
+        [
+            "CONVNEXTMASKRCNN_PRETRAINED_MODEL_ARCHIVE_LIST",
+            "ConvNextMaskRCNNModel",
+            "ConvNextMaskRCNNPreTrainedModel",
+            "ConvNextMaskRCNNForObjectDetection",
         ]
     )
     _import_structure["models.ctrl"].extend(
@@ -3227,6 +3236,7 @@ if TYPE_CHECKING:
     from .models.conditional_detr import CONDITIONAL_DETR_PRETRAINED_CONFIG_ARCHIVE_MAP, ConditionalDetrConfig
     from .models.convbert import CONVBERT_PRETRAINED_CONFIG_ARCHIVE_MAP, ConvBertConfig, ConvBertTokenizer
     from .models.convnext import CONVNEXT_PRETRAINED_CONFIG_ARCHIVE_MAP, ConvNextConfig
+    from .models.convnext_maskrcnn import CONVNEXTMASKRCNN_PRETRAINED_CONFIG_ARCHIVE_MAP, ConvNextMaskRCNNConfig
     from .models.ctrl import CTRL_PRETRAINED_CONFIG_ARCHIVE_MAP, CTRLConfig, CTRLTokenizer
     from .models.cvt import CVT_PRETRAINED_CONFIG_ARCHIVE_MAP, CvtConfig
     from .models.data2vec import (
@@ -4014,6 +4024,12 @@ if TYPE_CHECKING:
             ConvNextForImageClassification,
             ConvNextModel,
             ConvNextPreTrainedModel,
+        )
+        from .models.convnext_maskrcnn import (
+            CONVNEXTMASKRCNN_PRETRAINED_MODEL_ARCHIVE_LIST,
+            ConvNextMaskRCNNForObjectDetection,
+            ConvNextMaskRCNNModel,
+            ConvNextMaskRCNNPreTrainedModel,
         )
         from .models.ctrl import (
             CTRL_PRETRAINED_MODEL_ARCHIVE_LIST,

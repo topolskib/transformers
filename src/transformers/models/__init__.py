@@ -41,6 +41,7 @@ from . import (
     conditional_detr,
     convbert,
     convnext,
+    convnext_maskrcnn,
     cpm,
     ctrl,
     cvt,
