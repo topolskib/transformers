@@ -39,6 +39,7 @@ from . import (
     clip,
     convbert,
     convnext,
+    convnext_maskrcnn,
     cpm,
     ctrl,
     cvt,
