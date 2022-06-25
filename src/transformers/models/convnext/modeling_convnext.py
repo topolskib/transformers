@@ -109,10 +109,9 @@ class ConvNextLayerNorm(nn.Module):
         if self.data_format == "channels_last":
             x = torch.nn.functional.layer_norm(x, self.normalized_shape, self.weight, self.bias, self.eps)
         elif self.data_format == "channels_first":
-            u = x.mean(1, keepdim=True)
-            s = (x - u).pow(2).mean(1, keepdim=True)
-            x = (x - u) / torch.sqrt(s + self.eps)
-            x = self.weight[:, None, None] * x + self.bias[:, None, None]
+            x = x.permute(0, 2, 3, 1)
+            x = torch.nn.functional.layer_norm(x, self.normalized_shape, self.weight, self.bias, self.eps)
+            x = x.permute(0, 3, 1, 2)
         return x
 
 
@@ -245,11 +244,11 @@ class ConvNextEncoder(nn.Module):
     ) -> Union[Tuple, BaseModelOutputWithNoAttention]:
         all_hidden_states = () if output_hidden_states else None
 
-        for i, layer_module in enumerate(self.stages):
+        for i, stage_module in enumerate(self.stages):
             if output_hidden_states:
                 all_hidden_states = all_hidden_states + (hidden_states,)
 
-            hidden_states = layer_module(hidden_states)
+            hidden_states = stage_module(hidden_states)
 
         if output_hidden_states:
             all_hidden_states = all_hidden_states + (hidden_states,)
