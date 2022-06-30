@@ -663,28 +663,6 @@ else:
         ]
     )
 
-try:
-    if not is_scatter_available():
-        raise OptionalDependencyNotAvailable()
-except OptionalDependencyNotAvailable:
-    from .utils import dummy_scatter_objects
-
-    _import_structure["utils.dummy_scatter_objects"] = [
-        name for name in dir(dummy_scatter_objects) if not name.startswith("_")
-    ]
-else:
-    _import_structure["models.tapas"].extend(
-        [
-            "TAPAS_PRETRAINED_MODEL_ARCHIVE_LIST",
-            "TapasForMaskedLM",
-            "TapasForQuestionAnswering",
-            "TapasForSequenceClassification",
-            "TapasModel",
-            "TapasPreTrainedModel",
-            "load_tf_weights_in_tapas",
-        ]
-    )
-
 
 # PyTorch-backed objects
 try:
@@ -1702,6 +1680,17 @@ else:
             "SwinForMaskedImageModeling",
             "SwinModel",
             "SwinPreTrainedModel",
+        ]
+    )
+    _import_structure["models.tapas"].extend(
+        [
+            "TAPAS_PRETRAINED_MODEL_ARCHIVE_LIST",
+            "TapasForMaskedLM",
+            "TapasForQuestionAnswering",
+            "TapasForSequenceClassification",
+            "TapasModel",
+            "TapasPreTrainedModel",
+            "load_tf_weights_in_tapas",
         ]
     )
     _import_structure["models.t5"].extend(
@@ -3279,22 +3268,6 @@ if TYPE_CHECKING:
         )
 
     try:
-        if not is_scatter_available():
-            raise OptionalDependencyNotAvailable()
-    except OptionalDependencyNotAvailable:
-        from .utils.dummy_scatter_objects import *
-    else:
-        from .models.tapas import (
-            TAPAS_PRETRAINED_MODEL_ARCHIVE_LIST,
-            TapasForMaskedLM,
-            TapasForQuestionAnswering,
-            TapasForSequenceClassification,
-            TapasModel,
-            TapasPreTrainedModel,
-            load_tf_weights_in_tapas,
-        )
-
-    try:
         if not is_torch_available():
             raise OptionalDependencyNotAvailable()
     except OptionalDependencyNotAvailable:
@@ -4143,6 +4116,15 @@ if TYPE_CHECKING:
             T5Model,
             T5PreTrainedModel,
             load_tf_weights_in_t5,
+        )
+        from .models.tapas import (
+            TAPAS_PRETRAINED_MODEL_ARCHIVE_LIST,
+            TapasForMaskedLM,
+            TapasForQuestionAnswering,
+            TapasForSequenceClassification,
+            TapasModel,
+            TapasPreTrainedModel,
+            load_tf_weights_in_tapas,
         )
         from .models.trajectory_transformer import (
             TRAJECTORY_TRANSFORMER_PRETRAINED_MODEL_ARCHIVE_LIST,
