@@ -21,6 +21,7 @@ import argparse
 import json
 from pathlib import Path
 
+import numpy as np
 import torch
 import torchvision.transforms as T
 from PIL import Image
@@ -131,7 +132,15 @@ def convert_convnext_maskrcnn_checkpoint(checkpoint_path, pytorch_dump_folder_pa
 
     pixel_values = transform(image).unsqueeze(0)
 
-    outputs = model(pixel_values, output_hidden_states=True)
+    img_metas = [
+        dict(
+            img_shape=(800, 1067, 3),
+            scale_factor=np.array([1.6671875, 1.6666666, 1.6671875, 1.6666666], dtype=np.float32),
+            ori_shape=(480, 640, 3),
+        )
+    ]
+
+    outputs = model(pixel_values, img_metas=img_metas, output_hidden_states=True)
 
     # for i in outputs.hidden_states[1:]:
     #     print(i.shape)
