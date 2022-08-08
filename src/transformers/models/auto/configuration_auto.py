@@ -294,7 +294,7 @@ MODEL_NAMES_MAPPING = OrderedDict(
         ("codegen", "CodeGen"),
         ("convbert", "ConvBERT"),
         ("convnext", "ConvNeXT"),
-        ("convnext_maskrcnn", "ConvNextMaskRCNNMaskRCNN"),
+        ("convnext_maskrcnn", "ConvNeXt MaskRCNN"),
         ("cpm", "CPM"),
         ("ctrl", "CTRL"),
         ("cvt", "CvT"),
