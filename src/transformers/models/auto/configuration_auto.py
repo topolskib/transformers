@@ -321,7 +321,7 @@ MODEL_NAMES_MAPPING = OrderedDict(
         ("conditional_detr", "Conditional DETR"),
         ("convbert", "ConvBERT"),
         ("convnext", "ConvNeXT"),
-        ("convnext_maskrcnn", "ConvNextMaskRCNNMaskRCNN"),
+        ("convnext_maskrcnn", "ConvNeXt MaskRCNN"),
         ("cpm", "CPM"),
         ("ctrl", "CTRL"),
         ("cvt", "CvT"),
