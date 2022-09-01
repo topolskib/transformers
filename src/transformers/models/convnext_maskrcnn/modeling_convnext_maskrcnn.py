@@ -329,6 +329,165 @@ def delta2bbox(
     return bboxes
 
 
+def dynamic_clip_for_onnx(x1, y1, x2, y2, max_shape):
+    """Clip boxes dynamically for onnx.
+    Since torch.clamp cannot have dynamic `min` and `max`, we scale the
+      boxes by 1/max_shape and clamp in the range [0, 1].
+    Args:
+        x1 (Tensor): The x1 for bounding boxes.
+        y1 (Tensor): The y1 for bounding boxes.
+        x2 (Tensor): The x2 for bounding boxes.
+        y2 (Tensor): The y2 for bounding boxes.
+        max_shape (Tensor or torch.Size): The (H,W) of original image.
+    Returns:
+        tuple(Tensor): The clipped x1, y1, x2, y2.
+    """
+    assert isinstance(max_shape, torch.Tensor), "`max_shape` should be tensor of (h,w) for onnx"
+
+    # scale by 1/max_shape
+    x1 = x1 / max_shape[1]
+    y1 = y1 / max_shape[0]
+    x2 = x2 / max_shape[1]
+    y2 = y2 / max_shape[0]
+
+    # clamp [0, 1]
+    x1 = torch.clamp(x1, 0, 1)
+    y1 = torch.clamp(y1, 0, 1)
+    x2 = torch.clamp(x2, 0, 1)
+    y2 = torch.clamp(y2, 0, 1)
+
+    # scale back
+    x1 = x1 * max_shape[1]
+    y1 = y1 * max_shape[0]
+    x2 = x2 * max_shape[1]
+    y2 = y2 * max_shape[0]
+    return x1, y1, x2, y2
+
+
+def onnx_delta2bbox(
+    rois,
+    deltas,
+    means=(0.0, 0.0, 0.0, 0.0),
+    stds=(1.0, 1.0, 1.0, 1.0),
+    max_shape=None,
+    wh_ratio_clip=16 / 1000,
+    clip_border=True,
+    add_ctr_clamp=False,
+    ctr_clamp=32,
+):
+    """Apply deltas to shift/scale base boxes.
+    Typically the rois are anchor or proposed bounding boxes and the deltas are
+    network outputs used to shift/scale those boxes.
+    This is the inverse function of :func:`bbox2delta`.
+    Args:
+        rois (Tensor): Boxes to be transformed. Has shape (N, 4) or (B, N, 4)
+        deltas (Tensor): Encoded offsets with respect to each roi.
+            Has shape (B, N, num_classes * 4) or (B, N, 4) or
+            (N, num_classes * 4) or (N, 4). Note N = num_anchors * W * H
+            when rois is a grid of anchors.Offset encoding follows [1]_.
+        means (Sequence[float]): Denormalizing means for delta coordinates.
+            Default (0., 0., 0., 0.).
+        stds (Sequence[float]): Denormalizing standard deviation for delta
+            coordinates. Default (1., 1., 1., 1.).
+        max_shape (Sequence[int] or torch.Tensor or Sequence[
+            Sequence[int]],optional): Maximum bounds for boxes, specifies
+            (H, W, C) or (H, W). If rois shape is (B, N, 4), then
+            the max_shape should be a Sequence[Sequence[int]]
+            and the length of max_shape should also be B. Default None.
+        wh_ratio_clip (float): Maximum aspect ratio for boxes.
+            Default 16 / 1000.
+        clip_border (bool, optional): Whether clip the objects outside the
+            border of the image. Default True.
+        add_ctr_clamp (bool): Whether to add center clamp, when added, the
+            predicted box is clamped is its center is too far away from
+            the original anchor's center. Only used by YOLOF. Default False.
+        ctr_clamp (int): the maximum pixel shift to clamp. Only used by YOLOF.
+            Default 32.
+    Returns:
+        Tensor: Boxes with shape (B, N, num_classes * 4) or (B, N, 4) or
+           (N, num_classes * 4) or (N, 4), where 4 represent
+           tl_x, tl_y, br_x, br_y.
+    References:
+        .. [1] https://arxiv.org/abs/1311.2524
+    Example:
+        >>> rois = torch.Tensor([[ 0.,  0.,  1.,  1.],
+        >>>                      [ 0.,  0.,  1.,  1.],
+        >>>                      [ 0.,  0.,  1.,  1.],
+        >>>                      [ 5.,  5.,  5.,  5.]])
+        >>> deltas = torch.Tensor([[  0.,   0.,   0.,   0.],
+        >>>                        [  1.,   1.,   1.,   1.],
+        >>>                        [  0.,   0.,   2.,  -1.],
+        >>>                        [ 0.7, -1.9, -0.5,  0.3]])
+        >>> delta2bbox(rois, deltas, max_shape=(32, 32, 3))
+        tensor([[0.0000, 0.0000, 1.0000, 1.0000],
+                [0.1409, 0.1409, 2.8591, 2.8591],
+                [0.0000, 0.3161, 4.1945, 0.6839],
+                [5.0000, 5.0000, 5.0000, 5.0000]])
+    """
+    means = deltas.new_tensor(means).view(1, -1).repeat(1, deltas.size(-1) // 4)
+    stds = deltas.new_tensor(stds).view(1, -1).repeat(1, deltas.size(-1) // 4)
+    denorm_deltas = deltas * stds + means
+    dx = denorm_deltas[..., 0::4]
+    dy = denorm_deltas[..., 1::4]
+    dw = denorm_deltas[..., 2::4]
+    dh = denorm_deltas[..., 3::4]
+
+    x1, y1 = rois[..., 0], rois[..., 1]
+    x2, y2 = rois[..., 2], rois[..., 3]
+    # Compute center of each roi
+    px = ((x1 + x2) * 0.5).unsqueeze(-1).expand_as(dx)
+    py = ((y1 + y2) * 0.5).unsqueeze(-1).expand_as(dy)
+    # Compute width/height of each roi
+    pw = (x2 - x1).unsqueeze(-1).expand_as(dw)
+    ph = (y2 - y1).unsqueeze(-1).expand_as(dh)
+
+    dx_width = pw * dx
+    dy_height = ph * dy
+
+    max_ratio = np.abs(np.log(wh_ratio_clip))
+    if add_ctr_clamp:
+        dx_width = torch.clamp(dx_width, max=ctr_clamp, min=-ctr_clamp)
+        dy_height = torch.clamp(dy_height, max=ctr_clamp, min=-ctr_clamp)
+        dw = torch.clamp(dw, max=max_ratio)
+        dh = torch.clamp(dh, max=max_ratio)
+    else:
+        dw = dw.clamp(min=-max_ratio, max=max_ratio)
+        dh = dh.clamp(min=-max_ratio, max=max_ratio)
+    # Use exp(network energy) to enlarge/shrink each roi
+    gw = pw * dw.exp()
+    gh = ph * dh.exp()
+    # Use network energy to shift the center of each roi
+    gx = px + dx_width
+    gy = py + dy_height
+    # Convert center-xy/width/height to top-left, bottom-right
+    x1 = gx - gw * 0.5
+    y1 = gy - gh * 0.5
+    x2 = gx + gw * 0.5
+    y2 = gy + gh * 0.5
+
+    bboxes = torch.stack([x1, y1, x2, y2], dim=-1).view(deltas.size())
+
+    if clip_border and max_shape is not None:
+        # clip bboxes with dynamic `min` and `max` for onnx
+        if torch.onnx.is_in_onnx_export():
+            x1, y1, x2, y2 = dynamic_clip_for_onnx(x1, y1, x2, y2, max_shape)
+            bboxes = torch.stack([x1, y1, x2, y2], dim=-1).view(deltas.size())
+            return bboxes
+        if not isinstance(max_shape, torch.Tensor):
+            max_shape = x1.new_tensor(max_shape)
+        max_shape = max_shape[..., :2].type_as(x1)
+        if max_shape.ndim == 2:
+            assert bboxes.ndim == 3
+            assert max_shape.size(0) == bboxes.size(0)
+
+        min_xy = x1.new_tensor(0)
+        max_xy = torch.cat([max_shape] * (deltas.size(-1) // 2), dim=-1).flip(-1).unsqueeze(-2)
+        bboxes = torch.where(bboxes < min_xy, min_xy, bboxes)
+        bboxes = torch.where(bboxes > max_xy, max_xy, bboxes)
+
+    return bboxes
+
+
 ArrayType = Union[torch.Tensor, np.ndarray]
 
 
@@ -481,6 +640,8 @@ def batched_nms(
             scores = scores[:max_num]
 
     boxes = torch.cat([boxes, scores[:, None]], -1)
+    print("Shape of selected indices:", keep.shape)
+    print("Selected indices:", keep)
     return boxes, keep
 
 
@@ -503,6 +664,9 @@ def multiclass_nms(multi_bboxes, multi_scores, score_thr, nms_cfg, max_num=-1, s
         tuple: (dets, labels, indices (optional)), tensors of shape (k, 5),
             (k), and (k). Dets are boxes with scores. Labels are 0-based.
     """
+    print("Shape of boxes just before NMS:", multi_bboxes.shape)
+    print("Shape of scores just before NMS:", multi_scores.shape)
+
     num_classes = multi_scores.size(1) - 1
     # exclude background category
     if multi_bboxes.shape[1] > 4:
@@ -556,6 +720,9 @@ def multiclass_nms(multi_bboxes, multi_scores, score_thr, nms_cfg, max_num=-1, s
     if max_num > 0:
         dets = dets[:max_num]
         keep = keep[:max_num]
+
+    print("Detections after NMS:", dets.shape)
+    print("Labels after NMS:", labels[keep].shape)
 
     if return_inds:
         return dets, labels[keep], inds[keep]
@@ -1206,12 +1373,11 @@ class ConvNextMaskRCNNDeltaXYWHBBoxCoder(nn.Module):
                 Encoded offsets with respect to each roi. Has shape (B, N, num_classes * 4) or (B, N, 4) or (N,
                 num_classes * 4) or (N, 4). Note N = num_anchors * W * H when rois is a grid of anchors.Offset encoding
                 follows [1]_.
-            max_shape (Sequence[int] or torch.Tensor or Sequence[
-               Sequence[int]],optional): Maximum bounds for boxes, specifies (H, W, C) or (H, W). If bboxes shape is
-               (B, N, 4), then the max_shape should be a Sequence[Sequence[int]] and the length of max_shape should
-               also be B.
-            wh_ratio_clip (float, optional): The allowed ratio between
-                width and height.
+            max_shape (Sequence[int] or torch.Tensor or Sequence[Sequence[int]],optional):
+                Maximum bounds for boxes, specifies (H, W, C) or (H, W). If bboxes shape is (B, N, 4), then the
+                max_shape should be a Sequence[Sequence[int]] and the length of max_shape should also be B.
+            wh_ratio_clip (float, optional):
+                The allowed ratio between width and height.
 
         Returns:
             torch.Tensor: Decoded boxes.
@@ -1235,27 +1401,27 @@ class ConvNextMaskRCNNDeltaXYWHBBoxCoder(nn.Module):
                 self.ctr_clamp,
             )
         else:
-            if pred_bboxes.ndim == 3 and not torch.onnx.is_in_onnx_export():
-                # TODO: remove this deprecation
-                warnings.warn(
-                    "DeprecationWarning: onnx_delta2bbox is deprecated "
-                    "in the case of batch decoding and non-ONNX, "
-                    "please use “delta2bbox” instead. In order to improve "
-                    "the decoding speed, the batch function will no "
-                    "longer be supported. "
-                )
-            raise NotImplementedError("ONNX is not yet supported")
-            # decoded_bboxes = onnx_delta2bbox(
-            #     bboxes,
-            #     pred_bboxes,
-            #     self.means,
-            #     self.stds,
-            #     max_shape,
-            #     wh_ratio_clip,
-            #     self.clip_border,
-            #     self.add_ctr_clamp,
-            #     self.ctr_clamp,
-            # )
+            # if pred_bboxes.ndim == 3 and not torch.onnx.is_in_onnx_export():
+            #     # TODO: remove this deprecation
+            #     warnings.warn(
+            #         "DeprecationWarning: onnx_delta2bbox is deprecated "
+            #         "in the case of batch decoding and non-ONNX, "
+            #         "please use “delta2bbox” instead. In order to improve "
+            #         "the decoding speed, the batch function will no "
+            #         "longer be supported. "
+            #     )
+            # raise NotImplementedError("ONNX is not yet supported")
+            decoded_bboxes = onnx_delta2bbox(
+                bboxes,
+                pred_bboxes,
+                self.means,
+                self.stds,
+                max_shape,
+                wh_ratio_clip,
+                self.clip_border,
+                self.add_ctr_clamp,
+                self.ctr_clamp,
+            )
 
         return decoded_bboxes
 
@@ -2754,9 +2920,6 @@ class ConvNextMaskRNNShared2FCBBoxHead(nn.Module):
             scale_factor = bboxes.new_tensor(scale_factor)
             bboxes = (bboxes.view(bboxes.size(0), -1, 4) / scale_factor).view(bboxes.size()[0], -1)
 
-        print("Shape of boxes just before NMS:", bboxes.shape)
-        print("Shape of scores just before NMS:", scores.shape)
-
         if cfg is None:
             return bboxes, scores
         else:
@@ -3211,7 +3374,6 @@ class ConvNextMaskRCNNRoIHead(nn.Module):
                 dimension 5 represent (tl_x, tl_y, br_x, br_y, score). Each Tensor in the second list is the labels
                 with shape (num_boxes, ). The length of both lists should be equal to batch_size.
         """
-
         rois = bbox2roi(proposals)
 
         if rois.shape[0] == 0:
@@ -3259,6 +3421,7 @@ class ConvNextMaskRCNNRoIHead(nn.Module):
         det_bboxes = []
         det_labels = []
         for i in range(len(proposals)):
+            print("--------------EXAMPLE", i)
             if rois[i].shape[0] == 0:
                 # There is no proposal in the single image
                 det_bbox = rois[i].new_zeros(0, 5)
@@ -3280,6 +3443,131 @@ class ConvNextMaskRCNNRoIHead(nn.Module):
             det_bboxes.append(det_bbox)
             det_labels.append(det_label)
         return det_bboxes, det_labels
+
+    def forward_test_bboxes_bis(self, x, img_metas, proposals, rcnn_test_cfg, rescale=False):
+        """
+        THIS IS A NEW EXPERIMENTAL METHOD to output a general ObjectDetectionOutput class.
+
+        This method replaces `forward_test`, `forward_test_bboxes` and `forward_test_mask`.
+
+        Args:
+            x (tuple[Tensor]):
+                Feature maps of all scale levels.
+            img_metas (list[dict]):
+                Image meta info.
+            proposals (List[Tensor]):
+                Region proposals.
+            rcnn_test_cfg (obj:`ConfigDict`):
+                `test_cfg` of R-CNN.
+            rescale (bool):
+                If True, return boxes in original image space. Default: False.
+
+        Returns:
+            tuple[list[Tensor], list[Tensor]]: The first list contains
+                the boxes of the corresponding image in a batch, each tensor has the shape (num_boxes, 5) and last
+                dimension 5 represent (tl_x, tl_y, br_x, br_y, score). Each Tensor in the second list is the labels
+                with shape (num_boxes, ). The length of both lists should be equal to batch_size.
+        """
+
+        # TODO we must also make the RPN output a fixed size tensor of shape (batch_size, num_proposals_per_image, 5)
+        # rather than a list i.e. we batch the proposals together
+
+        # so first we update the rois to a fixed size tensor
+        # shape (batch_size, num_proposals_per_image, 5)
+        rois = torch.stack(proposals)
+
+        batch_index = (
+            torch.arange(rois.size(0), device=rois.device).float().view(-1, 1, 1).expand(rois.size(0), rois.size(1), 1)
+        )
+
+        rois = torch.cat([batch_index, rois[..., :4]], dim=-1)
+        batch_size = rois.shape[0]
+        num_proposals_per_img = rois.shape[1]
+
+        # Eliminate the batch dimension
+        rois = rois.view(-1, 5)
+        bbox_results = self._bbox_forward(x, rois)
+        cls_score = bbox_results["cls_score"]
+        bbox_pred = bbox_results["bbox_pred"]
+
+        # Recover the batch dimension
+        rois = rois.reshape(batch_size, num_proposals_per_img, rois.size(-1))
+        cls_score = cls_score.reshape(batch_size, num_proposals_per_img, cls_score.size(-1))
+        bbox_pred = bbox_pred.reshape(batch_size, num_proposals_per_img, bbox_pred.size(-1))
+
+        print("Shape of cls_score:", cls_score.shape)
+        print("Shape of bbox_pred:", bbox_pred.shape)
+
+        # now I include the onnx_export method of the bbox head here:
+        # if self.custom_cls_channels:
+        #     scores = self.loss_cls.get_activation(cls_score)
+        scores = nn.functional.softmax(cls_score, dim=-1) if cls_score is not None else None
+
+        img_shape = img_metas[0]["img_shape_for_onnx"]
+
+        if bbox_pred is not None:
+            bboxes = self.bbox_head.bbox_coder.decode(rois[..., 1:], bbox_pred, max_shape=img_shape)
+        else:
+            bboxes = rois[..., 1:].clone()
+            if img_shape is not None:
+                max_shape = bboxes.new_tensor(img_shape)[..., :2]
+                min_xy = bboxes.new_tensor(0)
+                max_xy = torch.cat([max_shape] * 2, dim=-1).flip(-1).unsqueeze(-2)
+                bboxes = torch.where(bboxes < min_xy, min_xy, bboxes)
+                bboxes = torch.where(bboxes > max_xy, max_xy, bboxes)
+
+        cfg = self.test_cfg
+        max_output_boxes_per_class = cfg["nms"].get("max_output_boxes_per_class", cfg["max_per_img"])
+        iou_threshold = cfg["nms"].get("iou_threshold", 0.5)
+        score_threshold = cfg["score_thr"]
+        nms_pre = cfg.get("deploy_nms_pre", -1)
+
+        scores = scores[..., : self.bbox_head.num_classes]
+
+        if self.bbox_head.reg_class_agnostic:
+            pass
+            # return add_dummy_nms_for_onnx(
+            #     bboxes,
+            #     scores,
+            #     max_output_boxes_per_class,
+            #     iou_threshold,
+            #     score_threshold,
+            #     pre_top_k=nms_pre,
+            #     after_top_k=cfg.max_per_img)
+        else:
+            batch_size = scores.shape[0]
+            labels = torch.arange(self.bbox_head.num_classes, dtype=torch.long).to(scores.device)
+            labels = labels.view(1, 1, -1).expand_as(scores)
+            labels = labels.reshape(batch_size, -1)
+            scores = scores.reshape(batch_size, -1)
+            bboxes = bboxes.reshape(batch_size, -1, 4)
+
+            max_size = torch.max(img_shape)
+            # Offset bboxes of each class so that bboxes of different labels
+            #  do not overlap.
+            offsets = (labels * max_size + 1).unsqueeze(2)
+            bboxes_for_nms = bboxes + offsets
+
+            print("Shape of bboxes_for_nms:", bboxes_for_nms.shape)
+
+            # batch_dets, labels = add_dummy_nms_for_onnx(
+            #     bboxes_for_nms,
+            #     scores.unsqueeze(2),
+            #     max_output_boxes_per_class,
+            #     iou_threshold,
+            #     score_threshold,
+            #     pre_top_k=nms_pre,
+            #     after_top_k=cfg.max_per_img,
+            #     labels=labels)
+            # # Offset the bboxes back after dummy nms.
+            # offsets = (labels * max_size + 1).unsqueeze(2)
+            # # Indexing + inplace operation fails with dynamic shape in ONNX
+            # # original style: batch_dets[..., :4] -= offsets
+            # bboxes, scores = batch_dets[..., 0:4], batch_dets[..., 4:5]
+            # bboxes -= offsets
+            # batch_dets = torch.cat([bboxes, scores], dim=2)
+            # return batch_dets, labels
+            return -1
 
     def _mask_forward(self, x, rois=None, pos_inds=None, bbox_feats=None):
         """Mask head forward function used in both training and testing."""
@@ -3458,7 +3746,7 @@ class ConvNextMaskRCNNRoIHead(nn.Module):
             each class. When the model has mask branch, it contains bbox results and mask results. The outer list
             corresponds to each image, and first element of tuple is bbox results, second element is mask results.
         """
-        det_bboxes, det_labels = self.forward_test_bboxes(
+        det_bboxes, det_labels = self.forward_test_bboxes_bis(
             hidden_states, img_metas, proposal_list, self.test_cfg, rescale=rescale
         )
 
@@ -3473,56 +3761,6 @@ class ConvNextMaskRCNNRoIHead(nn.Module):
         segm_results = self.forward_test_mask(hidden_states, img_metas, det_bboxes, det_labels, rescale=rescale)
 
         return list(zip(bbox_results, segm_results))
-
-    def forward(self, x, img_metas, proposals, rcnn_test_cfg, rescale=False):
-        """
-        THIS IS A NEW EXPERIMENTAL METHOD to output a general ObjectDetectionOutput class.
-
-        This method replaces `forward_test`, `forward_test_bboxes` and `forward_test_mask`.
-
-        Args:
-            x (tuple[Tensor]):
-                Feature maps of all scale levels.
-            img_metas (list[dict]):
-                Image meta info.
-            proposals (List[Tensor]):
-                Region proposals.
-            rcnn_test_cfg (obj:`ConfigDict`):
-                `test_cfg` of R-CNN.
-            rescale (bool):
-                If True, return boxes in original image space. Default: False.
-
-        Returns:
-            tuple[list[Tensor], list[Tensor]]: The first list contains
-                the boxes of the corresponding image in a batch, each tensor has the shape (num_boxes, 5) and last
-                dimension 5 represent (tl_x, tl_y, br_x, br_y, score). Each Tensor in the second list is the labels
-                with shape (num_boxes, ). The length of both lists should be equal to batch_size.
-        """
-
-        rois = bbox2roi(proposals)
-
-        if rois.shape[0] == 0:
-            batch_size = len(proposals)
-            det_bbox = rois.new_zeros(0, 5)
-            det_label = rois.new_zeros((0,), dtype=torch.long)
-            if rcnn_test_cfg is None:
-                det_bbox = det_bbox[:, :4]
-                det_label = rois.new_zeros((0, self.bbox_head.fc_cls.out_features))
-            # There is no proposal in the whole batch
-            return [det_bbox] * batch_size, [det_label] * batch_size
-
-        bbox_results = self._bbox_forward(x, rois)
-
-        # split batch bbox prediction back to each image
-        cls_score = bbox_results["cls_score"]
-        bbox_pred = bbox_results["bbox_pred"]
-        num_proposals_per_img = tuple(len(p) for p in proposals)
-
-        # TODO for the general ObjectDetectionOutput class, we will need to output the following 2 variables:
-        logits = cls_score.reshape(len(proposals), num_proposals_per_img[0], cls_score.size(-1))
-        pred_boxes = bbox_pred.reshape(len(proposals), num_proposals_per_img[0], bbox_pred.size(-1))
-
-        return logits, pred_boxes
 
 
 # Copied from transformers.models.convnext.modeling_convnext.ConvNextPreTrainedModel with ConvNext->ConvNextMaskRCNN,convnext->convnext_maskrcnn
@@ -3656,6 +3894,10 @@ class ConvNextMaskRCNNForObjectDetection(ConvNextMaskRCNNPreTrainedModel):
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, MaskRCNNModelOutput]:
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        # we add the following for when exporting to ONNX
+        img_shape = torch._shape_as_tensor(pixel_values)[2:]
+        img_metas[0]["img_shape_for_onnx"] = img_shape
 
         # TODO: remove img_metas, compute `img_shape`` based on pixel_values
         # and figure out where `scale_factor` and `ori_shape` come from (probably test_pipeline)
