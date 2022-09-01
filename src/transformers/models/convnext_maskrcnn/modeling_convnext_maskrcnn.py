@@ -551,6 +551,8 @@ def multiclass_nms(multi_bboxes, multi_scores, score_thr, nms_cfg, max_num=-1, s
         else:
             return dets, labels
 
+    print("Shape of bboxes just before NMS:", bboxes.shape)
+
     dets, keep = batched_nms(bboxes, scores, labels, nms_cfg)
 
     if max_num > 0:
@@ -1206,12 +1208,11 @@ class ConvNextMaskRCNNDeltaXYWHBBoxCoder(nn.Module):
                 Encoded offsets with respect to each roi. Has shape (B, N, num_classes * 4) or (B, N, 4) or (N,
                 num_classes * 4) or (N, 4). Note N = num_anchors * W * H when rois is a grid of anchors.Offset encoding
                 follows [1]_.
-            max_shape (Sequence[int] or torch.Tensor or Sequence[
-               Sequence[int]],optional): Maximum bounds for boxes, specifies (H, W, C) or (H, W). If bboxes shape is
-               (B, N, 4), then the max_shape should be a Sequence[Sequence[int]] and the length of max_shape should
-               also be B.
-            wh_ratio_clip (float, optional): The allowed ratio between
-                width and height.
+            max_shape (Sequence[int] or torch.Tensor or Sequence[Sequence[int]],optional):
+                Maximum bounds for boxes, specifies (H, W, C) or (H, W). If bboxes shape is (B, N, 4), then the
+                max_shape should be a Sequence[Sequence[int]] and the length of max_shape should also be B.
+            wh_ratio_clip (float, optional):
+                The allowed ratio between width and height.
 
         Returns:
             torch.Tensor: Decoded boxes.
@@ -1223,6 +1224,7 @@ class ConvNextMaskRCNNDeltaXYWHBBoxCoder(nn.Module):
 
         if pred_bboxes.ndim == 2 and not torch.onnx.is_in_onnx_export():
             # single image decode
+            print("we are here")
             decoded_bboxes = delta2bbox(
                 bboxes,
                 pred_bboxes,
@@ -1244,7 +1246,7 @@ class ConvNextMaskRCNNDeltaXYWHBBoxCoder(nn.Module):
                     "the decoding speed, the batch function will no "
                     "longer be supported. "
                 )
-            raise NotImplementedError("ONNX is not yet supported")
+            raise NotImplementedError("ONNX not yet supported")
             # decoded_bboxes = onnx_delta2bbox(
             #     bboxes,
             #     pred_bboxes,
@@ -2754,9 +2756,6 @@ class ConvNextMaskRNNShared2FCBBoxHead(nn.Module):
             scale_factor = bboxes.new_tensor(scale_factor)
             bboxes = (bboxes.view(bboxes.size(0), -1, 4) / scale_factor).view(bboxes.size()[0], -1)
 
-        print("Shape of boxes just before NMS:", bboxes.shape)
-        print("Shape of scores just before NMS:", scores.shape)
-
         if cfg is None:
             return bboxes, scores
         else:
@@ -3232,6 +3231,23 @@ class ConvNextMaskRCNNRoIHead(nn.Module):
         cls_score = bbox_results["cls_score"]
         bbox_pred = bbox_results["bbox_pred"]
         num_proposals_per_img = tuple(len(p) for p in proposals)
+
+        # apply NMS in one go
+        print("IN ONE GO")
+        print("Shape of RoI's:", rois.shape)
+        print("Shape of cls_score:", cls_score.shape)
+        print("Shape of bbox_pred:", bbox_pred.shape)
+        det_bbox, det_label = self.bbox_head.get_bboxes(
+                    rois,
+                    cls_score,
+                    bbox_pred,
+                    img_shapes[0],
+                    scale_factors[0],
+                    rescale=rescale,
+                    cfg=rcnn_test_cfg,
+        )
+
+        print("Shape of det_bbox:", det_bbox.shape)
 
         # TODO for the general ObjectDetectionOutput class, we will need to output the following 2 variables:
         # logits = cls_score.reshape(len(proposals), num_proposals_per_img[0], cls_score.size(-1))
