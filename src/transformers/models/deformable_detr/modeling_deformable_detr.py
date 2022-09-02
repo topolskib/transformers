@@ -656,8 +656,7 @@ class DeformableDetrMultiscaleDeformableAttention(nn.Module):
             )
         else:
             raise ValueError(f"Last dim of reference_points must be 2 or 4, but got {reference_points.shape[-1]}")
-        try:
-            output = MultiScaleDeformableAttentionFunction.apply(
+        output = MultiScaleDeformableAttentionFunction.apply(
                 value,
                 spatial_shapes,
                 level_start_index,
@@ -665,9 +664,9 @@ class DeformableDetrMultiscaleDeformableAttention(nn.Module):
                 attention_weights,
                 self.im2col_step,
             )
-        except:
-            # CPU
-            output = ms_deform_attn_core_pytorch(value, spatial_shapes, sampling_locations, attention_weights)
+        # except:
+        #     # CPU
+        #     output = ms_deform_attn_core_pytorch(value, spatial_shapes, sampling_locations, attention_weights)
         output = self.output_proj(output)
 
         return output, attention_weights
