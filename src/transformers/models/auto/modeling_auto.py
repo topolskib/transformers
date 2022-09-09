@@ -31,6 +31,7 @@ MODEL_MAPPING_NAMES = OrderedDict(
         ("albert", "AlbertModel"),
         ("bart", "BartModel"),
         ("beit", "BeitModel"),
+        ("beitv2", "Beitv2Model"),
         ("bert", "BertModel"),
         ("bert-generation", "BertGenerationEncoder"),
         ("big_bird", "BigBirdModel"),
@@ -155,6 +156,7 @@ MODEL_FOR_PRETRAINING_MAPPING_NAMES = OrderedDict(
         # Model for pre-training mapping
         ("albert", "AlbertForPreTraining"),
         ("bart", "BartForConditionalGeneration"),
+        ("beitv2", "Beitv2ForPreTraining"),
         ("bert", "BertForPreTraining"),
         ("big_bird", "BigBirdForPreTraining"),
         ("bloom", "BloomForCausalLM"),
@@ -335,6 +337,7 @@ MODEL_FOR_IMAGE_CLASSIFICATION_MAPPING_NAMES = OrderedDict(
     [
         # Model for Image Classification mapping
         ("beit", "BeitForImageClassification"),
+        ("beitv2", "Beitv2ForImageClassification"),
         ("convnext", "ConvNextForImageClassification"),
         ("cvt", "CvtForImageClassification"),
         ("data2vec-vision", "Data2VecVisionForImageClassification"),
@@ -373,6 +376,7 @@ MODEL_FOR_SEMANTIC_SEGMENTATION_MAPPING_NAMES = OrderedDict(
     [
         # Model for Semantic Segmentation mapping
         ("beit", "BeitForSemanticSegmentation"),
+        ("beitv2", "Beitv2ForSemanticSegmentation"),
         ("data2vec-vision", "Data2VecVisionForSemanticSegmentation"),
         ("dpt", "DPTForSemanticSegmentation"),
         ("mobilevit", "MobileViTForSemanticSegmentation"),

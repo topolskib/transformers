@@ -38,6 +38,7 @@ logger = logging.get_logger(__name__)
 FEATURE_EXTRACTOR_MAPPING_NAMES = OrderedDict(
     [
         ("beit", "BeitFeatureExtractor"),
+        ("beitv2", "Beitv2FeatureExtractor"),
         ("clip", "CLIPFeatureExtractor"),
         ("convnext", "ConvNextFeatureExtractor"),
         ("cvt", "ConvNextFeatureExtractor"),

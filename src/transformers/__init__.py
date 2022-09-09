@@ -136,6 +136,7 @@ _import_structure = {
     "models.barthez": [],
     "models.bartpho": [],
     "models.beit": ["BEIT_PRETRAINED_CONFIG_ARCHIVE_MAP", "BeitConfig"],
+    "models.beitv2": ["BEITV2_PRETRAINED_CONFIG_ARCHIVE_MAP", "Beitv2Config"],
     "models.bert": [
         "BERT_PRETRAINED_CONFIG_ARCHIVE_MAP",
         "BasicTokenizer",
@@ -879,6 +880,17 @@ else:
             "BeitForSemanticSegmentation",
             "BeitModel",
             "BeitPreTrainedModel",
+        ]
+    )
+    _import_structure["models.beitv2"].extend(
+        [
+            "BEITV2_PRETRAINED_MODEL_ARCHIVE_LIST",
+            "Beitv2ForImageClassification",
+            "Beitv2ForMaskedImageModeling",
+            "Beitv2ForSemanticSegmentation",
+            "Beitv2Model",
+            "Beitv2PreTrainedModel",
+            "Beitv2ForPreTraining",
         ]
     )
     _import_structure["models.bert"].extend(
@@ -3003,6 +3015,7 @@ if TYPE_CHECKING:
     )
     from .models.bart import BartConfig, BartTokenizer
     from .models.beit import BEIT_PRETRAINED_CONFIG_ARCHIVE_MAP, BeitConfig
+    from .models.beitv2 import BEITV2_PRETRAINED_CONFIG_ARCHIVE_MAP, Beitv2Config
     from .models.bert import (
         BERT_PRETRAINED_CONFIG_ARCHIVE_MAP,
         BasicTokenizer,
@@ -3646,6 +3659,15 @@ if TYPE_CHECKING:
             BeitForSemanticSegmentation,
             BeitModel,
             BeitPreTrainedModel,
+        )
+        from .models.beitv2 import (
+            BEITV2_PRETRAINED_MODEL_ARCHIVE_LIST,
+            Beitv2ForImageClassification,
+            Beitv2ForMaskedImageModeling,
+            Beitv2ForPreTraining,
+            Beitv2ForSemanticSegmentation,
+            Beitv2Model,
+            Beitv2PreTrainedModel,
         )
         from .models.bert import (
             BERT_PRETRAINED_MODEL_ARCHIVE_LIST,

@@ -733,7 +733,6 @@ class BeitForMaskedImageModeling(BeitPreTrainedModel):
     def __init__(self, config: BeitConfig) -> None:
         super().__init__(config)
 
-        self.num_labels = config.num_labels
         self.beit = BeitModel(config, add_pooling_layer=False)
 
         # Classifier head
@@ -1157,7 +1156,6 @@ class BeitForSemanticSegmentation(BeitPreTrainedModel):
     def __init__(self, config: BeitConfig) -> None:
         super().__init__(config)
 
-        self.num_labels = config.num_labels
         self.beit = BeitModel(config, add_pooling_layer=False)
 
         # FPNs

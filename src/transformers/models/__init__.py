@@ -23,6 +23,7 @@ from . import (
     barthez,
     bartpho,
     beit,
+    beitv2,
     bert,
     bert_generation,
     bert_japanese,
