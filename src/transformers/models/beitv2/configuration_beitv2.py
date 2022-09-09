@@ -26,9 +26,10 @@ from ...utils import logging
 logger = logging.get_logger(__name__)
 
 BEITV2_PRETRAINED_CONFIG_ARCHIVE_MAP = {
-    "microsoft/beitv2-base-patch16-224": "https://huggingface.co/microsoft/beitv2-base-patch16-224/resolve/main/config.json",
+    "microsoft/beitv2-base-patch16-224": (
+        "https://huggingface.co/microsoft/beitv2-base-patch16-224/resolve/main/config.json"
+    ),
 }
-
 
 
 class Beitv2Config(PretrainedConfig):

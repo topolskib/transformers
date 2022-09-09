@@ -65,7 +65,6 @@ BEITV2_PRETRAINED_MODEL_ARCHIVE_LIST = [
 ]
 
 
-
 @dataclass
 # Copied from transformers.models.beit.modeling_beit.BeitModelOutputWithPooling with Beit->Beitv2
 class Beitv2ModelOutputWithPooling(BaseModelOutputWithPooling):
@@ -854,7 +853,18 @@ class Beitv2ForPreTraining(Beitv2PreTrainedModel):
 
         # CLS head
         # dpr = [x.item() for x in torch.linspace(0, drop_path_rate, max(depth, early_layers + head_layers))]  # stochastic depth decay rule
-        self.cls_pt_layers = nn.ModuleList([Beitv2Layer(config) for i in range(config.early_layers, config.early_layers + config.head_layers)])
+        self.cls_pt_layers = nn.ModuleList(
+            [Beitv2Layer(config) for i in range(config.early_layers, config.early_layers + config.head_layers)]
+        )
+
+        self.shared_lm_head = config.shared_lm_head
+        if not self.shared_lm_head:
+            self.cls_pt_norm = nn.LayerNorm(config.hidden_size)
+            self.cls_pt_lm_head = nn.Linear(config.hidden_size, config.vocab_size)
+
+            # TODO weights initialization
+            # self.cls_pt_norm.apply(self._init_weights)
+            # self.cls_pt_lm_head.apply(self._init_weights)
 
         # Initialize weights and apply final processing
         self.post_init()
@@ -913,23 +923,41 @@ class Beitv2ForPreTraining(Beitv2PreTrainedModel):
             bool_masked_pos=bool_masked_pos,
             head_mask=head_mask,
             output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
+            output_hidden_states=True,  # we need the intermediate hidden states
             return_dict=return_dict,
         )
 
+        # get the patch tokens of the l'th layer
+        hidden_states = outputs.hidden_states[self.early_layers + 2]
+        early_states = hidden_states[:, 1:]
+
         sequence_output = outputs[0]
+        x_cls_pt = torch.cat([sequence_output[:, [0]], early_states], dim=1)
+        for layer in self.cls_pt_layers:
+            x_cls_pt = layer(x_cls_pt)
+
         sequence_output = self.layernorm(sequence_output)
         prediction_scores = self.lm_head(sequence_output[:, 1:])
+
+        if self.shared_lm_head:
+            x_cls_pt = self.layernorm(x_cls_pt)
+            cls_prediction_scores = self.lm_head(x_cls_pt)
+        else:
+            x_cls_pt = self.cls_pt_norm(x_cls_pt)
+            cls_prediction_scores = self.cls_pt_lm_head(x_cls_pt)
 
         masked_lm_loss = None
         if labels is not None:
             loss_fct = CrossEntropyLoss()  # -100 index = padding token
-            masked_lm_loss = loss_fct(prediction_scores[bool_masked_pos], labels)
+            masked_lm_loss = loss_fct(prediction_scores[bool_masked_pos], labels) + loss_fct(
+                cls_prediction_scores[bool_masked_pos], labels
+            )
 
         if not return_dict:
             output = (prediction_scores,) + outputs[1:]
             return ((masked_lm_loss,) + output) if masked_lm_loss is not None else output
 
+        # TODO add cls_prediction_scores as well
         return MaskedLMOutput(
             loss=masked_lm_loss,
             logits=prediction_scores,

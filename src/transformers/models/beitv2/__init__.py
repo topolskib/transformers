@@ -18,14 +18,12 @@
 
 from typing import TYPE_CHECKING
 
-from ...utils import (
-    OptionalDependencyNotAvailable,
-    _LazyModule,
-    is_torch_available,
-)
+from ...utils import OptionalDependencyNotAvailable, _LazyModule, is_torch_available
 
 
-_import_structure = {"configuration_beitv2": ["BEITV2_PRETRAINED_CONFIG_ARCHIVE_MAP", "Beitv2Config", "Beitv2OnnxConfig"]}
+_import_structure = {
+    "configuration_beitv2": ["BEITV2_PRETRAINED_CONFIG_ARCHIVE_MAP", "Beitv2Config", "Beitv2OnnxConfig"]
+}
 
 try:
     if not is_torch_available():
@@ -57,10 +55,10 @@ if TYPE_CHECKING:
             BEITV2_PRETRAINED_MODEL_ARCHIVE_LIST,
             Beitv2ForImageClassification,
             Beitv2ForMaskedImageModeling,
+            Beitv2ForPreTraining,
             Beitv2ForSemanticSegmentation,
             Beitv2Model,
             Beitv2PreTrainedModel,
-            Beitv2ForPreTraining,
         )
 
 else:

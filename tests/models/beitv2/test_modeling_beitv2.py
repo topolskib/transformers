@@ -18,9 +18,6 @@
 import inspect
 import unittest
 
-from datasets import load_dataset
-from packaging import version
-
 from transformers import Beitv2Config
 from transformers.models.auto import get_values
 from transformers.testing_utils import require_torch, require_torch_multi_gpu, require_vision, slow, torch_device
@@ -38,15 +35,14 @@ if is_torch_available():
         MODEL_MAPPING,
         Beitv2ForImageClassification,
         Beitv2ForMaskedImageModeling,
+        Beitv2ForPreTraining,
         Beitv2ForSemanticSegmentation,
         Beitv2Model,
-        Beitv2ForPreTraining,
     )
     from transformers.models.beitv2.modeling_beitv2 import BEITV2_PRETRAINED_MODEL_ARCHIVE_LIST
 
 
 if is_vision_available():
-    import PIL
     from PIL import Image
 
     from transformers import BeitFeatureExtractor
@@ -193,7 +189,13 @@ class Beitv2ModelTest(ModelTesterMixin, unittest.TestCase):
     """
 
     all_model_classes = (
-        (Beitv2Model, Beitv2ForImageClassification, Beitv2ForMaskedImageModeling, Beitv2ForSemanticSegmentation, Beitv2ForPreTraining)
+        (
+            Beitv2Model,
+            Beitv2ForImageClassification,
+            Beitv2ForMaskedImageModeling,
+            Beitv2ForSemanticSegmentation,
+            Beitv2ForPreTraining,
+        )
         if is_torch_available()
         else ()
     )
@@ -335,7 +337,9 @@ class Beitv2ModelIntegrationTest(unittest.TestCase):
     @cached_property
     def default_feature_extractor(self):
         return (
-            BeitFeatureExtractor.from_pretrained("microsoft/beitv2-base-patch16-224") if is_vision_available() else None
+            BeitFeatureExtractor.from_pretrained("microsoft/beitv2-base-patch16-224")
+            if is_vision_available()
+            else None
         )
 
     @slow

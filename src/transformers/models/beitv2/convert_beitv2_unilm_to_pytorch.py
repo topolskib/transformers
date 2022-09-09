@@ -26,8 +26,8 @@ from PIL import Image
 import requests
 from huggingface_hub import hf_hub_download
 from transformers import (
-    Beitv2Config,
     BeitFeatureExtractor,
+    Beitv2Config,
     Beitv2ForImageClassification,
     Beitv2ForMaskedImageModeling,
     Beitv2ForSemanticSegmentation,
@@ -56,7 +56,9 @@ def create_rename_keys(config, has_lm_head=False, is_semantic=False):
         )
         rename_keys.append((f"{prefix}blocks.{i}.norm2.weight", f"beitv2.encoder.layer.{i}.layernorm_after.weight"))
         rename_keys.append((f"{prefix}blocks.{i}.norm2.bias", f"beitv2.encoder.layer.{i}.layernorm_after.bias"))
-        rename_keys.append((f"{prefix}blocks.{i}.mlp.fc1.weight", f"beitv2.encoder.layer.{i}.intermediate.dense.weight"))
+        rename_keys.append(
+            (f"{prefix}blocks.{i}.mlp.fc1.weight", f"beitv2.encoder.layer.{i}.intermediate.dense.weight")
+        )
         rename_keys.append((f"{prefix}blocks.{i}.mlp.fc1.bias", f"beitv2.encoder.layer.{i}.intermediate.dense.bias"))
         rename_keys.append((f"{prefix}blocks.{i}.mlp.fc2.weight", f"beitv2.encoder.layer.{i}.output.dense.weight"))
         rename_keys.append((f"{prefix}blocks.{i}.mlp.fc2.bias", f"beitv2.encoder.layer.{i}.output.dense.bias"))
@@ -172,14 +174,19 @@ def convert_beitv2_checkpoint(model_name, pytorch_dump_folder_path, push_to_hub)
     Copy/paste/tweak model's weights to our BEiTv2 structure.
     """
 
-    model_to_url = {"beitv2-base-patch16-224": "https://conversationhub.blob.core.windows.net/beit-share-public/beitv2/beitv2_base_patch16_224_pt1k.pth",
-    "beitv2-large-patch16-224": "https://conversationhub.blob.core.windows.net/beit-share-public/beitv2/beitv2_large_patch16_224_pt1k.pth",
-    "beitv2-base-patch16-224-pt1k_ft21k": "https://conversationhub.blob.core.windows.net/beit-share-public/beitv2/beitv2_base_patch16_224_pt1k_ft21k.pth",
-    "beitv2-large-patch16-224-pt1k_ft21k": "https://conversationhub.blob.core.windows.net/beit-share-public/beitv2/beitv2_large_patch16_224_pt1k_ft21k.pth",
+    model_to_url = {
+        "beitv2-base-patch16-224": (
+            "https://conversationhub.blob.core.windows.net/beit-share-public/beitv2/beitv2_base_patch16_224_pt1k.pth"
+        ),
+        "beitv2-large-patch16-224": (
+            "https://conversationhub.blob.core.windows.net/beit-share-public/beitv2/beitv2_large_patch16_224_pt1k.pth"
+        ),
+        "beitv2-base-patch16-224-pt1k_ft21k": "https://conversationhub.blob.core.windows.net/beit-share-public/beitv2/beitv2_base_patch16_224_pt1k_ft21k.pth",
+        "beitv2-large-patch16-224-pt1k_ft21k": "https://conversationhub.blob.core.windows.net/beit-share-public/beitv2/beitv2_large_patch16_224_pt1k_ft21k.pth",
     }
-    
+
     checkpoint_url = model_to_url[model_name]
-    
+
     # define default BEiTv2 configuration
     config = Beitv2Config()
     has_lm_head = False
@@ -295,16 +302,17 @@ def convert_beitv2_checkpoint(model_name, pytorch_dump_folder_path, push_to_hub)
 
     assert logits.shape == expected_shape, "Shape of logits not as expected"
     if not has_lm_head:
-        if is_semantic:
-            assert torch.allclose(
-                logits[0, :3, :3, :3], expected_logits, atol=1e-3
-            ), "First elements of logits not as expected"
-        else:
-            print("Predicted class idx:", logits.argmax(-1).item())
-            assert torch.allclose(
-                logits[0, :3], expected_logits, atol=1e-3
-            ), "First elements of logits not as expected"
-            assert logits.argmax(-1).item() == expected_class_idx, "Predicted class index not as expected"
+        raise NotImplementedError("To do")
+        # if is_semantic:
+        #     assert torch.allclose(
+        #         logits[0, :3, :3, :3], expected_logits, atol=1e-3
+        #     ), "First elements of logits not as expected"
+        # else:
+        #     print("Predicted class idx:", logits.argmax(-1).item())
+        #     assert torch.allclose(
+        #         logits[0, :3], expected_logits, atol=1e-3
+        #     ), "First elements of logits not as expected"
+        #     assert logits.argmax(-1).item() == expected_class_idx, "Predicted class index not as expected"
 
     if pytorch_dump_folder_path is not None:
         Path(pytorch_dump_folder_path).mkdir(exist_ok=True)
@@ -314,7 +322,7 @@ def convert_beitv2_checkpoint(model_name, pytorch_dump_folder_path, push_to_hub)
         feature_extractor.save_pretrained(pytorch_dump_folder_path)
 
     if push_to_hub:
-        model.push_to_hub('nielsr/test')
+        model.push_to_hub("nielsr/test")
 
 
 if __name__ == "__main__":
