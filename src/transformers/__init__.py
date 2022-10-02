@@ -372,6 +372,7 @@ _import_structure = {
     "models.vision_text_dual_encoder": ["VisionTextDualEncoderConfig", "VisionTextDualEncoderProcessor"],
     "models.visual_bert": ["VISUAL_BERT_PRETRAINED_CONFIG_ARCHIVE_MAP", "VisualBertConfig"],
     "models.vit": ["VIT_PRETRAINED_CONFIG_ARCHIVE_MAP", "ViTConfig"],
+    "models.audio_spectogram_transformer": ["AUDIO_SPECTOGRAM_TRANSFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP", "AudioSpectogramTransformerConfig"],
     "models.vit_mae": ["VIT_MAE_PRETRAINED_CONFIG_ARCHIVE_MAP", "ViTMAEConfig"],
     "models.vit_msn": ["VIT_MSN_PRETRAINED_CONFIG_ARCHIVE_MAP", "ViTMSNConfig"],
     "models.wav2vec2": [
@@ -709,6 +710,7 @@ else:
     _import_structure["models.vilt"].append("ViltFeatureExtractor")
     _import_structure["models.vilt"].append("ViltProcessor")
     _import_structure["models.vit"].append("ViTFeatureExtractor")
+    _import_structure["models.audio_spectogram_transformer"].append("AudioSpectogramTransformerFeatureExtractor")
     _import_structure["models.yolos"].append("YolosFeatureExtractor")
 
 # Timm-backed objects
@@ -2046,6 +2048,15 @@ else:
             "ViTForMaskedImageModeling",
             "ViTModel",
             "ViTPreTrainedModel",
+        ]
+    )
+    _import_structure["models.audio_spectogram_transformer"].extend(
+        [
+            "AUDIO_SPECTOGRAM_TRANSFORMER_PRETRAINED_MODEL_ARCHIVE_LIST",
+            "AudioSpectogramTransformerForImageClassification",
+            "AudioSpectogramTransformerForMaskedImageModeling",
+            "AudioSpectogramTransformerModel",
+            "AudioSpectogramTransformerPreTrainedModel",
         ]
     )
     _import_structure["models.vit_mae"].extend(
@@ -3401,6 +3412,7 @@ if TYPE_CHECKING:
     from .models.vision_text_dual_encoder import VisionTextDualEncoderConfig, VisionTextDualEncoderProcessor
     from .models.visual_bert import VISUAL_BERT_PRETRAINED_CONFIG_ARCHIVE_MAP, VisualBertConfig
     from .models.vit import VIT_PRETRAINED_CONFIG_ARCHIVE_MAP, ViTConfig
+    from .models.audio_spectogram_transformer import AUDIO_SPECTOGRAM_TRANSFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP, AudioSpectogramTransformerConfig
     from .models.vit_mae import VIT_MAE_PRETRAINED_CONFIG_ARCHIVE_MAP, ViTMAEConfig
     from .models.vit_msn import VIT_MSN_PRETRAINED_CONFIG_ARCHIVE_MAP, ViTMSNConfig
     from .models.wav2vec2 import (
@@ -3698,6 +3710,7 @@ if TYPE_CHECKING:
         from .models.videomae import VideoMAEFeatureExtractor
         from .models.vilt import ViltFeatureExtractor, ViltProcessor
         from .models.vit import ViTFeatureExtractor
+        from .models.audio_spectogram_transformer import AudioSpectogramTransformerFeatureExtractor
         from .models.yolos import YolosFeatureExtractor
 
     # Modeling
@@ -4787,6 +4800,13 @@ if TYPE_CHECKING:
             ViTForMaskedImageModeling,
             ViTModel,
             ViTPreTrainedModel,
+        )
+        from .models.audio_spectogram_transformer import (
+            AUDIO_SPECTOGRAM_TRANSFORMER_PRETRAINED_MODEL_ARCHIVE_LIST,
+            AudioSpectogramTransformerForImageClassification,
+            AudioSpectogramTransformerForMaskedImageModeling,
+            AudioSpectogramTransformerModel,
+            AudioSpectogramTransformerPreTrainedModel,
         )
         from .models.vit_mae import (
             VIT_MAE_PRETRAINED_MODEL_ARCHIVE_LIST,
