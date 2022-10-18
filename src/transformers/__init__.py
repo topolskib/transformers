@@ -235,6 +235,7 @@ _import_structure = {
         "GroupViTTextConfig",
         "GroupViTVisionConfig",
     ],
+    "models.hat": ["HAT_PRETRAINED_CONFIG_ARCHIVE_MAP", "HATConfig"],
     "models.herbert": ["HerbertTokenizer"],
     "models.hubert": ["HUBERT_PRETRAINED_CONFIG_ARCHIVE_MAP", "HubertConfig"],
     "models.ibert": ["IBERT_PRETRAINED_CONFIG_ARCHIVE_MAP", "IBertConfig"],
@@ -1837,6 +1838,18 @@ else:
             "RobertaPreTrainedModel",
         ]
     )
+    _import_structure["models.hat"].extend(
+        [
+            "HAT_PRETRAINED_MODEL_ARCHIVE_LIST",
+            "HATForMaskedLM",
+            "HATForMultipleChoice",
+            "HATForQuestionAnswering",
+            "HATForSequenceClassification",
+            "HATForTokenClassification",
+            "HATModel",
+            "HATPreTrainedModel",
+        ]
+    )
     _import_structure["models.lilt"].extend(
         [
             "LILT_PRETRAINED_MODEL_ARCHIVE_LIST",
@@ -3284,6 +3297,7 @@ if TYPE_CHECKING:
         GroupViTTextConfig,
         GroupViTVisionConfig,
     )
+    from .models.hat import HAT_PRETRAINED_CONFIG_ARCHIVE_MAP, HATConfig
     from .models.herbert import HerbertTokenizer
     from .models.hubert import HUBERT_PRETRAINED_CONFIG_ARCHIVE_MAP, HubertConfig
     from .models.ibert import IBERT_PRETRAINED_CONFIG_ARCHIVE_MAP, IBertConfig
@@ -4250,6 +4264,16 @@ if TYPE_CHECKING:
             GroupViTPreTrainedModel,
             GroupViTTextModel,
             GroupViTVisionModel,
+        )
+        from .models.hat import (
+            HAT_PRETRAINED_MODEL_ARCHIVE_LIST,
+            HATForMaskedLM,
+            HATForMultipleChoice,
+            HATForQuestionAnswering,
+            HATForSequenceClassification,
+            HATForTokenClassification,
+            HATModel,
+            HATPreTrainedModel,
         )
         from .models.hubert import (
             HUBERT_PRETRAINED_MODEL_ARCHIVE_LIST,

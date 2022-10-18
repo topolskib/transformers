@@ -73,6 +73,7 @@ from . import (
     gpt_neox_japanese,
     gptj,
     groupvit,
+    hat,
     herbert,
     hubert,
     ibert,
