@@ -12,13 +12,17 @@
 # limitations under the License.
 """Tokenization classes for HAT."""
 import torch
-from transformers import RobertaTokenizer, BertTokenizer
-from .configuration_hat import HATConfig
+
+from transformers import BertTokenizer, RobertaTokenizer
 from transformers.utils import logging
+
+from .configuration_hat import HATConfig
+
+
 try:
     from nltk import sent_tokenize
-except:
-    raise Exception('NLTK is not installed! Install it with `pip install nltk`...')
+except Exception:
+    raise Exception("NLTK is not installed! Install it with `pip install nltk`...")
 logger = logging.get_logger(__name__)
 
 
@@ -27,10 +31,12 @@ class HATTokenizer:
         self._tokenizer = tokenizer
         self.config = HATConfig.from_pretrained(self._tokenizer.name_or_path)
         self._tokenizer.model_max_length = self.model_max_length
-        self.type2id = {'input_ids': (self._tokenizer.cls_token_id, self._tokenizer.pad_token_id),
-                        'token_type_ids': (0, 0),
-                        'attention_mask': (1, 0),
-                        'special_tokens_mask': (1, -100)}
+        self.type2id = {
+            "input_ids": (self._tokenizer.cls_token_id, self._tokenizer.pad_token_id),
+            "token_type_ids": (0, 0),
+            "attention_mask": (1, 0),
+            "special_tokens_mask": (1, -100),
+        }
 
     @property
     def model_max_length(self):
@@ -83,8 +89,11 @@ class HATTokenizer:
 
     def encode(self, text, **kwargs):
         input_ids = self._tokenizer.encode_plus(text, add_special_tokens=False, **kwargs)
-        input_ids = self.chunks(input_ids[: self.model_max_length - self.config.max_sentences],
-                                chunk_size=self.config.max_sentence_length, special_id=self.type2id['input_ids'])
+        input_ids = self.chunks(
+            input_ids[: self.model_max_length - self.config.max_sentences],
+            chunk_size=self.config.max_sentence_length,
+            special_id=self.type2id["input_ids"],
+        )
         return input_ids
 
     def get_special_tokens_mask(self, *args, **kwargs):
@@ -94,16 +103,16 @@ class HATTokenizer:
     def from_pretrained(cls, pretrained_model_name_or_path, **kwargs):
         try:
             tokenizer = RobertaTokenizer.from_pretrained(pretrained_model_name_or_path, **kwargs)
-        except:
+        except Exception:
             tokenizer = BertTokenizer.from_pretrained(pretrained_model_name_or_path, **kwargs)
         return cls(tokenizer=tokenizer)
 
     def save_pretrained(self, *args, **kwargs):
-        return self._tokenizer.save_pretrained( *args, **kwargs)
+        return self._tokenizer.save_pretrained(*args, **kwargs)
 
     def __call__(self, text, **kwargs):
-        greedy_chunking = kwargs.pop('greedy_chunking', None)
-        text_pair = kwargs.pop('text_pair', None)
+        greedy_chunking = kwargs.pop("greedy_chunking", None)
+        text_pair = kwargs.pop("text_pair", None)
         if isinstance(text[0], list):
             batch = self.auto_chunking(text, **kwargs)
         elif greedy_chunking:
@@ -114,16 +123,18 @@ class HATTokenizer:
             batch = self.sentence_splitting(text, **kwargs)
 
         if text_pair:
-            batch_b = self._tokenizer(text_pair, add_special_tokens=False,
-                                      padding=False, truncation=False)
-            for idx, sample in enumerate(batch['input_ids']):
-                n_sentences = sum(sample[::self.config.max_sentence_size])
+            batch_b = self._tokenizer(text_pair, add_special_tokens=False, padding=False, truncation=False)
+            for idx, sample in enumerate(batch["input_ids"]):
+                n_sentences = sum(sample[:: self.config.max_sentence_size])
                 for input_key in batch:
-                    batch[input_key][idx][self.config.max_sentence_size * n_sentences:
-                                          self.config.max_sentence_size * (n_sentences + 1)] = \
-                        self.pad_sentence(batch_b[input_key][idx],
-                                          special_id=(self.sep_token_id, self.pad_token_id)
-                                          if input_key == 'input_ids' else self.type2id[input_key])
+                    batch[input_key][idx][
+                        self.config.max_sentence_size * n_sentences : self.config.max_sentence_size * (n_sentences + 1)
+                    ] = self.pad_sentence(
+                        batch_b[input_key][idx],
+                        special_id=(self.sep_token_id, self.pad_token_id)
+                        if input_key == "input_ids"
+                        else self.type2id[input_key],
+                    )
 
         return batch
 
@@ -133,16 +144,22 @@ class HATTokenizer:
         for input_type in original_batch:
             fixed_batch = []
             for example in original_batch[input_type]:
-                fixed_batch.append(self.chunks(example[: self.model_max_length - self.config.max_sentences],
-                                               chunk_size=self.config.max_sentence_length,
-                                               special_id=self.type2id[input_type]))
+                fixed_batch.append(
+                    self.chunks(
+                        example[: self.model_max_length - self.config.max_sentences],
+                        chunk_size=self.config.max_sentence_length,
+                        special_id=self.type2id[input_type],
+                    )
+                )
             batch[input_type] = fixed_batch if isinstance(fixed_batch[0], list) else torch.stack(fixed_batch)
 
-        if kwargs['padding']:
-            batch = self.pad(batch,
-                             padding=kwargs['padding'],
-                             max_length=kwargs['max_length'],
-                             pad_to_multiple_of=kwargs['max_length'])
+        if kwargs["padding"]:
+            batch = self.pad(
+                batch,
+                padding=kwargs["padding"],
+                max_length=kwargs["max_length"],
+                pad_to_multiple_of=kwargs["max_length"],
+            )
 
         return batch
 
@@ -152,7 +169,7 @@ class HATTokenizer:
             example_batch = self._tokenizer(text, add_special_tokens=False, **kwargs)
             for input_key in example_batch:
                 key_inputs_list = []
-                for idx, example in enumerate(example_batch[input_key][:self.config.max_sentences]):
+                for idx, example in enumerate(example_batch[input_key][: self.config.max_sentences]):
                     key_inputs_list.append(self.pad_sentence(example, special_id=self.type2id[input_key]))
                 if isinstance(key_inputs_list[0], list):
                     key_inputs_list = [token for sentence in key_inputs_list for token in sentence]
@@ -163,11 +180,13 @@ class HATTokenizer:
                 else:
                     batch[input_key] = [key_inputs_list]
 
-        if kwargs['padding']:
-            batch = self.pad(batch,
-                             padding=kwargs['padding'],
-                             max_length=kwargs['max_length'],
-                             pad_to_multiple_of=kwargs['max_length'])
+        if kwargs["padding"]:
+            batch = self.pad(
+                batch,
+                padding=kwargs["padding"],
+                max_length=kwargs["max_length"],
+                pad_to_multiple_of=kwargs["max_length"],
+            )
 
         return batch
 
@@ -179,14 +198,29 @@ class HATTokenizer:
 
     def list_chunks(self, flat_inputs, chunk_size=128, special_id=(0, 0)):
         """Yield successive n-sized chunks from lst."""
-        structured_inputs = [[special_id[0] if sum(flat_inputs[i:i + chunk_size-1]) else special_id[1]]
-                             + flat_inputs[i:i + chunk_size-1] for i in range(0, len(flat_inputs), chunk_size-1)]
+        structured_inputs = [
+            [special_id[0] if sum(flat_inputs[i : i + chunk_size - 1]) else special_id[1]]
+            + flat_inputs[i : i + chunk_size - 1]
+            for i in range(0, len(flat_inputs), chunk_size - 1)
+        ]
         return [token_input for sentence_inputs in structured_inputs for token_input in sentence_inputs]
 
     def tensor_chunks(self, flat_inputs, chunk_size=128, special_id=(0, 0)):
         """Yield successive n-sized chunks from lst."""
-        structured_inputs = torch.stack([torch.cat((torch.tensor([special_id[0] if flat_inputs[i:i + chunk_size-1].sum() else special_id[1]], dtype=torch.int),
-                                                    flat_inputs[i:i + chunk_size-1])) for i in range(0, len(flat_inputs), chunk_size-1)])
+        structured_inputs = torch.stack(
+            [
+                torch.cat(
+                    (
+                        torch.tensor(
+                            [special_id[0] if flat_inputs[i : i + chunk_size - 1].sum() else special_id[1]],
+                            dtype=torch.int,
+                        ),
+                        flat_inputs[i : i + chunk_size - 1],
+                    )
+                )
+                for i in range(0, len(flat_inputs), chunk_size - 1)
+            ]
+        )
         return structured_inputs.reshape(-1)
 
     def sentence_splitting(self, texts, **kwargs):
@@ -207,11 +241,13 @@ class HATTokenizer:
             if not isinstance(batch[input_type][0], list):
                 batch[input_type] = torch.stack(batch[input_type])
 
-        if kwargs['padding']:
-            batch = self.pad(batch,
-                             padding=kwargs['padding'],
-                             max_length=kwargs['max_length'],
-                             pad_to_multiple_of=kwargs['max_length'])
+        if kwargs["padding"]:
+            batch = self.pad(
+                batch,
+                padding=kwargs["padding"],
+                max_length=kwargs["max_length"],
+                pad_to_multiple_of=kwargs["max_length"],
+            )
 
         return batch
 
@@ -226,23 +262,37 @@ class HATTokenizer:
                 if len(tmp_sentence) + len(example) <= self.config.max_sentence_length - 1:
                     tmp_sentence.extend(example)
                 else:
-                    tmp_doc.append(self.pad_sentence(tmp_sentence if len(tmp_sentence) else example,
-                                                     chunk_size=self.config.max_sentence_length,
-                                                     special_id=self.type2id[input_type]))
-                    tmp_sentence = example if len(tmp_sentence) else example[self.config.max_sentence_length:]
+                    tmp_doc.append(
+                        self.pad_sentence(
+                            tmp_sentence if len(tmp_sentence) else example,
+                            chunk_size=self.config.max_sentence_length,
+                            special_id=self.type2id[input_type],
+                        )
+                    )
+                    tmp_sentence = example if len(tmp_sentence) else example[self.config.max_sentence_length :]
             if len(tmp_sentence) and len(tmp_doc) < self.config.max_sentences:
-                tmp_doc.append(self.pad_sentence(tmp_sentence,
-                                                 chunk_size=self.config.max_sentence_length,
-                                                 special_id=self.type2id[input_type]))
+                tmp_doc.append(
+                    self.pad_sentence(
+                        tmp_sentence, chunk_size=self.config.max_sentence_length, special_id=self.type2id[input_type]
+                    )
+                )
             doc_out[input_type] = [token for sentence in tmp_doc for token in sentence]
         return doc_out
 
     def pad_sentence(self, flat_input, chunk_size=128, special_id=(0, 0)):
         if isinstance(flat_input, list):
-            return [special_id[0]] + flat_input[:chunk_size-1] + [self.pad_token_id] * max(0, chunk_size - len(flat_input) - 1)
+            return (
+                [special_id[0]]
+                + flat_input[: chunk_size - 1]
+                + [self.pad_token_id] * max(0, chunk_size - len(flat_input) - 1)
+            )
         else:
-            return torch.cat((torch.tensor([special_id[0] if flat_input[:chunk_size-1].sum()
-                                            else special_id[1]], dtype=torch.int),
-                              flat_input[:chunk_size-1],
-                              torch.tensor([self.pad_token_id] * max(0, chunk_size - len(flat_input) - 1), dtype=torch.int)
-                              ))
+            return torch.cat(
+                (
+                    torch.tensor(
+                        [special_id[0] if flat_input[: chunk_size - 1].sum() else special_id[1]], dtype=torch.int
+                    ),
+                    flat_input[: chunk_size - 1],
+                    torch.tensor([self.pad_token_id] * max(0, chunk_size - len(flat_input) - 1), dtype=torch.int),
+                )
+            )

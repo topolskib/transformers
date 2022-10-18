@@ -17,16 +17,20 @@
 from collections import OrderedDict
 from typing import Mapping
 
+from transformers import PretrainedConfig
 from transformers.onnx import OnnxConfig
 from transformers.utils import logging
-from transformers import PretrainedConfig
 
 
 logger = logging.get_logger(__name__)
 
 HAT_PRETRAINED_CONFIG_ARCHIVE_MAP = {
-    "kiddothe2b/hierarchical-transformer-base-4096": "https://huggingface.co/kiddothe2b/hierarchical-transformer-base-4096/resolve/main/config.json",
-    "kiddothe2b/adhoc-hierarchical-transformer-base-4096": "https://huggingface.co/kiddothe2b/adhoc-hierarchical-transformer-base-4096/resolve/main/config.json",
+    "kiddothe2b/hierarchical-transformer-base-4096": (
+        "https://huggingface.co/kiddothe2b/hierarchical-transformer-base-4096/resolve/main/config.json"
+    ),
+    "kiddothe2b/adhoc-hierarchical-transformer-base-4096": (
+        "https://huggingface.co/kiddothe2b/adhoc-hierarchical-transformer-base-4096/resolve/main/config.json"
+    ),
 }
 
 

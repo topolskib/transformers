@@ -14,31 +14,32 @@
 # limitations under the License.
 """ PyTorch Hierarchical Attention Transformer (HAT) model"""
 
+from dataclasses import dataclass
+from typing import Optional, Tuple
+
 import torch
 import torch.utils.checkpoint
 from packaging import version
-from dataclasses import dataclass
-from typing import Optional, Tuple, List
 from torch import nn
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
 
+from transformers.activations import gelu
 from transformers.file_utils import (
     add_code_sample_docstrings,
     add_start_docstrings,
     add_start_docstrings_to_model_forward,
 )
 from transformers.modeling_outputs import (
-    ModelOutput,
     MaskedLMOutput,
+    ModelOutput,
     MultipleChoiceModelOutput,
     QuestionAnsweringModelOutput,
     SequenceClassifierOutput,
     TokenClassifierOutput,
 )
 from transformers.modeling_utils import PreTrainedModel
-from transformers.utils import logging
 from transformers.models.roberta.modeling_roberta import RobertaAttention, RobertaIntermediate, RobertaOutput
-from transformers.activations import gelu
+from transformers.utils import logging
 
 from .configuration_hat import HATConfig
 
@@ -58,10 +59,13 @@ HAT_PRETRAINED_MODEL_ARCHIVE_LIST = [
 
 def transform_tokens2sentences(hidden_states, num_sentences, max_sentence_length):
     # transform sequence into segments
-    seg_hidden_states = torch.reshape(hidden_states, (hidden_states.size(0), num_sentences, max_sentence_length, hidden_states.size(-1)))
+    seg_hidden_states = torch.reshape(
+        hidden_states, (hidden_states.size(0), num_sentences, max_sentence_length, hidden_states.size(-1))
+    )
     # squash segments into sequence into a single axis (samples * segments, max_segment_length, hidden_size)
-    hidden_states_reshape = seg_hidden_states.contiguous().view(hidden_states.size(0) * num_sentences,
-                                                                max_sentence_length, seg_hidden_states.size(-1))
+    hidden_states_reshape = seg_hidden_states.contiguous().view(
+        hidden_states.size(0) * num_sentences, max_sentence_length, seg_hidden_states.size(-1)
+    )
 
     return hidden_states_reshape
 
@@ -70,19 +74,22 @@ def transform_masks2sentences(hidden_states, num_sentences, max_sentence_length)
     # transform sequence into segments
     seg_hidden_states = torch.reshape(hidden_states, (hidden_states.size(0), 1, 1, num_sentences, max_sentence_length))
     # squash segments into sequence into a single axis (samples * segments, 1, 1, max_segment_length)
-    hidden_states_reshape = seg_hidden_states.contiguous().view(hidden_states.size(0) * num_sentences,
-                                                                1, 1, seg_hidden_states.size(-1))
+    hidden_states_reshape = seg_hidden_states.contiguous().view(
+        hidden_states.size(0) * num_sentences, 1, 1, seg_hidden_states.size(-1)
+    )
 
     return hidden_states_reshape
 
 
 def transform_sentences2tokens(seg_hidden_states, num_sentences, max_sentence_length):
     # transform squashed sequence into segments
-    hidden_states = seg_hidden_states.contiguous().view(seg_hidden_states.size(0) // num_sentences, num_sentences,
-                                                        max_sentence_length, seg_hidden_states.size(-1))
+    hidden_states = seg_hidden_states.contiguous().view(
+        seg_hidden_states.size(0) // num_sentences, num_sentences, max_sentence_length, seg_hidden_states.size(-1)
+    )
     # transform segments into sequence
-    hidden_states = hidden_states.contiguous().view(hidden_states.size(0), num_sentences * max_sentence_length,
-                                                    hidden_states.size(-1))
+    hidden_states = hidden_states.contiguous().view(
+        hidden_states.size(0), num_sentences * max_sentence_length, hidden_states.size(-1)
+    )
     return hidden_states
 
 
@@ -128,7 +135,9 @@ class HATEmbeddings(nn.Module):
         super().__init__()
         self.padding_idx = config.pad_token_id
         self.word_embeddings = nn.Embedding(config.vocab_size, config.hidden_size, padding_idx=self.padding_idx)
-        self.position_embeddings = nn.Embedding(config.max_sentence_length + self.padding_idx + 1, config.hidden_size, padding_idx=self.padding_idx)
+        self.position_embeddings = nn.Embedding(
+            config.max_sentence_length + self.padding_idx + 1, config.hidden_size, padding_idx=self.padding_idx
+        )
         self.token_type_embeddings = nn.Embedding(config.type_vocab_size, config.hidden_size)
 
         # self.LayerNorm is not snake-cased to stick with TensorFlow model variable name and be able to load
@@ -137,8 +146,12 @@ class HATEmbeddings(nn.Module):
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         # position_ids (1, len position emb) is contiguous in memory and exported when serialized
         self.position_embedding_type = getattr(config, "position_embedding_type", "absolute")
-        self.register_buffer("position_ids", torch.arange(self.padding_idx + 1,
-                                                          config.max_sentence_length + self.padding_idx + 1).repeat(config.max_sentences).expand((1, -1)))
+        self.register_buffer(
+            "position_ids",
+            torch.arange(self.padding_idx + 1, config.max_sentence_length + self.padding_idx + 1)
+            .repeat(config.max_sentences)
+            .expand((1, -1)),
+        )
         if version.parse(torch.__version__) > version.parse("1.6.0"):
             self.register_buffer(
                 "token_type_ids",
@@ -147,11 +160,11 @@ class HATEmbeddings(nn.Module):
             )
 
     def forward(
-            self,
-            input_ids=None,
-            token_type_ids=None,
-            position_ids=None,
-            inputs_embeds=None,
+        self,
+        input_ids=None,
+        token_type_ids=None,
+        position_ids=None,
+        inputs_embeds=None,
     ):
         if position_ids is None:
             if input_ids is not None:
@@ -220,8 +233,9 @@ class HATLayer(nn.Module):
             self.sentence_encoder = HATTransformerLayer(config)
         if self.use_document_encoder:
             self.document_encoder = HATTransformerLayer(config)
-            self.position_embeddings = nn.Embedding(config.max_sentences+1, config.hidden_size,
-                                                    padding_idx=config.pad_token_id)
+            self.position_embeddings = nn.Embedding(
+                config.max_sentences + 1, config.hidden_size, padding_idx=config.pad_token_id
+            )
 
     def forward(
         self,
@@ -233,40 +247,41 @@ class HATLayer(nn.Module):
         sentence_outputs = (None, None)
         if self.use_sentence_encoder:
             # transform sequences to sentences
-            sentence_inputs = transform_tokens2sentences(hidden_states,
-                                                         num_sentences=num_sentences,
-                                                         max_sentence_length=self.max_sentence_length)
-            sentence_masks = transform_masks2sentences(attention_mask,
-                                                       num_sentences=num_sentences,
-                                                       max_sentence_length=self.max_sentence_length)
+            sentence_inputs = transform_tokens2sentences(
+                hidden_states, num_sentences=num_sentences, max_sentence_length=self.max_sentence_length
+            )
+            sentence_masks = transform_masks2sentences(
+                attention_mask, num_sentences=num_sentences, max_sentence_length=self.max_sentence_length
+            )
 
-            sentence_outputs = self.sentence_encoder(sentence_inputs,
-                                                     sentence_masks,
-                                                     output_attentions=output_attentions)
+            sentence_outputs = self.sentence_encoder(
+                sentence_inputs, sentence_masks, output_attentions=output_attentions
+            )
 
             # transform sentences to tokens
-            outputs = transform_sentences2tokens(sentence_outputs[0],
-                                                 num_sentences=num_sentences,
-                                                 max_sentence_length=self.max_sentence_length)
+            outputs = transform_sentences2tokens(
+                sentence_outputs[0], num_sentences=num_sentences, max_sentence_length=self.max_sentence_length
+            )
         else:
             outputs = hidden_states
 
         document_outputs = (None, None)
         if self.use_document_encoder:
             # gather sentence representative tokens
-            sentence_global_tokens = outputs[:, ::self.max_sentence_length].clone()
-            sentence_attention_mask = attention_mask[:, :, :, ::self.max_sentence_length].clone()
+            sentence_global_tokens = outputs[:, :: self.max_sentence_length].clone()
+            sentence_attention_mask = attention_mask[:, :, :, :: self.max_sentence_length].clone()
 
-            sentence_positions = torch.arange(1, num_sentences+1).repeat(outputs.size(0), 1).to(outputs.device) \
-                                 * (sentence_attention_mask.reshape(-1, num_sentences) >= -100).int().to(outputs.device)
-            outputs[:, ::self.max_sentence_length] += self.position_embeddings(sentence_positions)
+            sentence_positions = torch.arange(1, num_sentences + 1).repeat(outputs.size(0), 1).to(outputs.device) * (
+                sentence_attention_mask.reshape(-1, num_sentences) >= -100
+            ).int().to(outputs.device)
+            outputs[:, :: self.max_sentence_length] += self.position_embeddings(sentence_positions)
 
-            document_outputs = self.document_encoder(sentence_global_tokens,
-                                                     sentence_attention_mask,
-                                                     output_attentions=output_attentions)
+            document_outputs = self.document_encoder(
+                sentence_global_tokens, sentence_attention_mask, output_attentions=output_attentions
+            )
 
             # replace sentence representative tokens
-            outputs[:, ::self.max_sentence_length] = document_outputs[0]
+            outputs[:, :: self.max_sentence_length] = document_outputs[0]
 
         if output_attentions:
             return outputs, sentence_outputs[1], document_outputs[1]
@@ -308,10 +323,16 @@ class HATEncoder(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
-        self.layer = nn.ModuleList([HATLayer(config,
-                                             use_sentence_encoder=self.config.encoder_layout[str(idx)]['sentence_encoder'],
-                                             use_document_encoder=self.config.encoder_layout[str(idx)]['document_encoder'])
-                                    for idx in range(config.num_hidden_layers)])
+        self.layer = nn.ModuleList(
+            [
+                HATLayer(
+                    config,
+                    use_sentence_encoder=self.config.encoder_layout[str(idx)]["sentence_encoder"],
+                    use_document_encoder=self.config.encoder_layout[str(idx)]["document_encoder"],
+                )
+                for idx in range(config.num_hidden_layers)
+            ]
+        )
         self.gradient_checkpointing = False
 
     def forward(
@@ -363,12 +384,7 @@ class HATEncoder(nn.Module):
         if not return_dict:
             return tuple(
                 v
-                for v in [
-                    hidden_states,
-                    all_hidden_states,
-                    all_self_attentions,
-                    all_sentence_attentions
-                ]
+                for v in [hidden_states, all_hidden_states, all_self_attentions, all_sentence_attentions]
                 if v is not None
             )
         return BaseModelOutputWithSentenceAttentions(
@@ -386,13 +402,13 @@ class HATEncoder(nn.Module):
         original_position_embeddings = None
         for module in self.layer:
             if hasattr(module, "position_embeddings"):
-                    assert hasattr(module.position_embeddings, "weight")
-                    if original_position_embeddings is None:
-                        original_position_embeddings = module.position_embeddings
-                    if self.config.torchscript:
-                        module.position_embeddings.weight = nn.Parameter(original_position_embeddings.weight.clone())
-                    else:
-                        module.position_embeddings.weight = original_position_embeddings.weight
+                assert hasattr(module.position_embeddings, "weight")
+                if original_position_embeddings is None:
+                    original_position_embeddings = module.position_embeddings
+                if self.config.torchscript:
+                    module.position_embeddings.weight = nn.Parameter(original_position_embeddings.weight.clone())
+                else:
+                    module.position_embeddings.weight = original_position_embeddings.weight
         return
 
 
@@ -522,17 +538,17 @@ class AttentivePooling(nn.Module):
 
 
 class HATPooler(nn.Module):
-    def __init__(self, config, pooling='max'):
+    def __init__(self, config, pooling="max"):
         super().__init__()
         self.dense = nn.Linear(config.hidden_size, config.hidden_size)
         self.pooling = pooling
-        if self.pooling == 'attentive':
+        if self.pooling == "attentive":
             self.attentive_pooling = AttentivePooling(config)
         self.activation = nn.Tanh()
         self.max_sentence_length = config.max_sentence_length
 
     def forward(self, hidden_states):
-        if self.pooling == 'attentive':
+        if self.pooling == "attentive":
             pooled_output = self.attentive_pooling(hidden_states)
         else:
             pooled_output = torch.max(hidden_states, dim=1)[0]
@@ -549,10 +565,11 @@ class HATSentencizer(nn.Module):
         self.max_sentence_length = config.max_sentence_length
 
     def forward(self, hidden_states):
-        sentence_repr_hidden_states = hidden_states[:, ::self.max_sentence_length]
+        sentence_repr_hidden_states = hidden_states[:, :: self.max_sentence_length]
         sentence_outputs = self.dense(sentence_repr_hidden_states)
         sentence_outputs = self.activation(sentence_outputs)
         return sentence_outputs
+
 
 @add_start_docstrings(
     "The bare HAT Model transformer outputting raw hidden-states without any specific head on top.",
@@ -729,7 +746,9 @@ class HATSiameseHead(nn.Module):
         return x
 
 
-@add_start_docstrings("""Hierarchical Attentinon Transformer (HAT) Model with a `language modeling` head on top.""", HAT_START_DOCSTRING)
+@add_start_docstrings(
+    """Hierarchical Attentinon Transformer (HAT) Model with a `language modeling` head on top.""", HAT_START_DOCSTRING
+)
 class HATForMaskedLM(HATPreTrainedModel):
     _keys_to_ignore_on_load_missing = [r"position_ids"]
     _keys_to_ignore_on_load_unexpected = [r"pooler"]
@@ -848,7 +867,7 @@ class HATForMaskedLM(HATPreTrainedModel):
 class HATForSequenceClassification(HATPreTrainedModel):
     _keys_to_ignore_on_load_missing = [r"position_ids"]
 
-    def __init__(self, config, pooling='max'):
+    def __init__(self, config, pooling="max"):
         super().__init__(config)
         self.num_labels = config.num_labels
         self.config = config
@@ -904,12 +923,12 @@ class HATForSequenceClassification(HATPreTrainedModel):
             return_dict=return_dict,
         )
         sequence_output = outputs[0]
-        if self.pooling == 'first':
+        if self.pooling == "first":
             pooled_output = self.pooler(torch.unsqueeze(sequence_output[:, 0, :], 1))
-        elif self.pooling == 'last':
+        elif self.pooling == "last":
             pooled_output = self.pooler(torch.unsqueeze(sequence_output[:, -128, :], 1))
         else:
-            pooled_output = self.pooler(sequence_output[:, ::self.max_sentence_length])
+            pooled_output = self.pooler(sequence_output[:, :: self.max_sentence_length])
 
         pooled_output = self.dropout(pooled_output)
         logits = self.classifier(pooled_output)
@@ -959,7 +978,7 @@ class HATForSequenceClassification(HATPreTrainedModel):
 class HATForMultipleChoice(HATPreTrainedModel):
     _keys_to_ignore_on_load_missing = [r"position_ids"]
 
-    def __init__(self, config, pooling='last'):
+    def __init__(self, config, pooling="last"):
         super().__init__(config)
 
         self.pooling = pooling
@@ -1024,12 +1043,12 @@ class HATForMultipleChoice(HATPreTrainedModel):
             return_dict=return_dict,
         )
         sequence_output = outputs[0]
-        if self.pooling == 'first':
+        if self.pooling == "first":
             pooled_output = self.pooler(torch.unsqueeze(sequence_output[:, 0, :], 1))
-        elif self.pooling == 'last':
+        elif self.pooling == "last":
             pooled_output = self.pooler(torch.unsqueeze(sequence_output[:, -128, :], 1))
         else:
-            pooled_output = self.pooler(sequence_output[:, ::self.max_sentence_length])
+            pooled_output = self.pooler(sequence_output[:, :: self.max_sentence_length])
 
         pooled_output = self.dropout(pooled_output)
         logits = self.classifier(pooled_output)
@@ -1251,28 +1270,4 @@ def create_position_ids_from_input_ids(input_ids, padding_idx, position_ids):
     """
     # The series of casts and type-conversions here are carefully balanced to both work with ONNX export and XLA.
     mask = input_ids.ne(padding_idx).int()
-    return position_ids[:, :input_ids.size(1)].repeat(input_ids.size(0), 1) * mask
-
-
-def normalized_output_std_loss(x):
-    return torch.std(x / torch.nn.functional.normalize(x, dim=1), dim=0).mean()
-
-
-def vic_reg(x: torch.Tensor, y: torch.Tensor):
-    std_x = torch.sqrt(x.var(dim=0) + 0.0001)
-    std_y = torch.sqrt(y.var(dim=0) + 0.0001)
-    std_loss = torch.mean(torch.relu(1 - std_x)) / 2 + torch.mean(torch.relu(1 - std_y)) / 2
-
-    cov_x = (x.T @ x) / (x.shape[0] - 1)
-    cov_y = (y.T @ y) / (y.shape[0] - 1)
-    cov_loss = off_diagonal(cov_x).pow_(2).sum().div(x.shape[-1]) + \
-               off_diagonal(cov_y).pow_(2).sum().div(y.shape[-1])
-
-    return std_loss, cov_loss
-
-
-def off_diagonal(x):
-    n, m = x.shape
-    assert n == m
-    return x.flatten()[:-1].view(n - 1, n + 1)[:, 1:].flatten()
-
+    return position_ids[:, : input_ids.size(1)].repeat(input_ids.size(0), 1) * mask
