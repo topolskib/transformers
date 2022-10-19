@@ -15,7 +15,6 @@
 
 
 import unittest
-from copy import deepcopy
 
 from transformers import HATConfig, is_torch_available
 from transformers.testing_utils import TestCasePlus, require_torch, slow, torch_device
@@ -29,7 +28,6 @@ if is_torch_available():
     import torch
 
     from transformers import (
-        HATForCausalLM,
         HATForMaskedLM,
         HATForMultipleChoice,
         HATForQuestionAnswering,
@@ -37,11 +35,7 @@ if is_torch_available():
         HATForTokenClassification,
         HATModel,
     )
-    from transformers.models.hat.modeling_hat import (
-        HAT_PRETRAINED_MODEL_ARCHIVE_LIST,
-        HATEmbeddings,
-        create_position_ids_from_input_ids,
-    )
+    from transformers.models.hat.modeling_hat import HAT_PRETRAINED_MODEL_ARCHIVE_LIST
 
 HAT_TINY = "sshleifer/tiny-distilkiddothe2b/hierarchical-transformer-base-4096"
 
@@ -59,7 +53,7 @@ class HATModelTester:
         self.use_token_type_ids = True
         self.use_labels = True
         self.vocab_size = 99
-        self.hidden_size = 32
+        self.hidden_size = 16
         self.num_hidden_layers = 5
         self.num_attention_heads = 4
         self.intermediate_size = 37
@@ -190,92 +184,6 @@ class HATModelTester:
         self.parent.assertEqual(result.last_hidden_state.shape, (self.batch_size, self.seq_length, self.hidden_size))
         self.parent.assertEqual(result.pooler_output.shape, (self.batch_size, self.hidden_size))
 
-    def create_and_check_for_causal_lm(
-        self,
-        config,
-        input_ids,
-        token_type_ids,
-        input_mask,
-        sequence_labels,
-        token_labels,
-        choice_labels,
-        encoder_hidden_states,
-        encoder_attention_mask,
-    ):
-        model = HATForCausalLM(config=config)
-        model.to(torch_device)
-        model.eval()
-        result = model(input_ids, attention_mask=input_mask, token_type_ids=token_type_ids, labels=token_labels)
-        self.parent.assertEqual(result.logits.shape, (self.batch_size, self.seq_length, self.vocab_size))
-
-    def create_and_check_decoder_model_past_large_inputs(
-        self,
-        config,
-        input_ids,
-        token_type_ids,
-        input_mask,
-        sequence_labels,
-        token_labels,
-        choice_labels,
-        encoder_hidden_states,
-        encoder_attention_mask,
-    ):
-        config.is_decoder = True
-        config.add_cross_attention = True
-        model = HATForCausalLM(config=config).to(torch_device).eval()
-
-        # make sure that ids don't start with pad token
-        mask = input_ids.ne(config.pad_token_id).long()
-        input_ids = input_ids * mask
-
-        # first forward pass
-        outputs = model(
-            input_ids,
-            attention_mask=input_mask,
-            encoder_hidden_states=encoder_hidden_states,
-            encoder_attention_mask=encoder_attention_mask,
-            use_cache=True,
-        )
-        past_key_values = outputs.past_key_values
-
-        # create hypothetical multiple next token and extent to next_input_ids
-        next_tokens = ids_tensor((self.batch_size, 3), config.vocab_size)
-
-        # make sure that ids don't start with pad token
-        mask = next_tokens.ne(config.pad_token_id).long()
-        next_tokens = next_tokens * mask
-        next_mask = ids_tensor((self.batch_size, 3), vocab_size=2)
-
-        # append to next input_ids and
-        next_input_ids = torch.cat([input_ids, next_tokens], dim=-1)
-        next_attention_mask = torch.cat([input_mask, next_mask], dim=-1)
-
-        output_from_no_past = model(
-            next_input_ids,
-            attention_mask=next_attention_mask,
-            encoder_hidden_states=encoder_hidden_states,
-            encoder_attention_mask=encoder_attention_mask,
-            output_hidden_states=True,
-        )["hidden_states"][0]
-        output_from_past = model(
-            next_tokens,
-            attention_mask=next_attention_mask,
-            encoder_hidden_states=encoder_hidden_states,
-            encoder_attention_mask=encoder_attention_mask,
-            past_key_values=past_key_values,
-            output_hidden_states=True,
-        )["hidden_states"][0]
-
-        # select random slice
-        random_slice_idx = ids_tensor((1,), output_from_past.shape[-1]).item()
-        output_from_no_past_slice = output_from_no_past[:, -3:, random_slice_idx].detach()
-        output_from_past_slice = output_from_past[:, :, random_slice_idx].detach()
-
-        self.parent.assertTrue(output_from_past_slice.shape[1] == next_tokens.shape[1])
-
-        # test that outputs are equal for slice
-        self.parent.assertTrue(torch.allclose(output_from_past_slice, output_from_no_past_slice, atol=1e-3))
-
     def create_and_check_for_masked_lm(
         self, config, input_ids, token_type_ids, input_mask, sequence_labels, token_labels, choice_labels
     ):
@@ -349,7 +257,6 @@ class HATModelTest(ModelTesterMixin, GenerationTesterMixin, unittest.TestCase):
 
     all_model_classes = (
         (
-            HATForCausalLM,
             HATForMaskedLM,
             HATModel,
             HATForSequenceClassification,
@@ -360,8 +267,8 @@ class HATModelTest(ModelTesterMixin, GenerationTesterMixin, unittest.TestCase):
         if is_torch_available()
         else ()
     )
-    all_generative_model_classes = (HATForCausalLM,) if is_torch_available() else ()
     fx_compatible = False
+    test_torchscript = False
 
     def setUp(self):
         self.model_tester = HATModelTester(self)
@@ -379,46 +286,6 @@ class HATModelTest(ModelTesterMixin, GenerationTesterMixin, unittest.TestCase):
         for type in ["absolute", "relative_key", "relative_key_query"]:
             config_and_inputs[0].position_embedding_type = type
             self.model_tester.create_and_check_model(*config_and_inputs)
-
-    def test_model_as_decoder(self):
-        config_and_inputs = self.model_tester.prepare_config_and_inputs_for_decoder()
-        self.model_tester.create_and_check_model_as_decoder(*config_and_inputs)
-
-    def test_model_as_decoder_with_default_input_mask(self):
-        # This regression test was failing with PyTorch < 1.3
-        (
-            config,
-            input_ids,
-            token_type_ids,
-            input_mask,
-            sequence_labels,
-            token_labels,
-            choice_labels,
-            encoder_hidden_states,
-            encoder_attention_mask,
-        ) = self.model_tester.prepare_config_and_inputs_for_decoder()
-
-        input_mask = None
-
-        self.model_tester.create_and_check_model_as_decoder(
-            config,
-            input_ids,
-            token_type_ids,
-            input_mask,
-            sequence_labels,
-            token_labels,
-            choice_labels,
-            encoder_hidden_states,
-            encoder_attention_mask,
-        )
-
-    def test_for_causal_lm(self):
-        config_and_inputs = self.model_tester.prepare_config_and_inputs_for_decoder()
-        self.model_tester.create_and_check_for_causal_lm(*config_and_inputs)
-
-    def test_decoder_model_past_with_large_inputs(self):
-        config_and_inputs = self.model_tester.prepare_config_and_inputs_for_decoder()
-        self.model_tester.create_and_check_decoder_model_past_large_inputs(*config_and_inputs)
 
     def test_for_masked_lm(self):
         config_and_inputs = self.model_tester.prepare_config_and_inputs()
@@ -441,47 +308,6 @@ class HATModelTest(ModelTesterMixin, GenerationTesterMixin, unittest.TestCase):
         for model_name in HAT_PRETRAINED_MODEL_ARCHIVE_LIST[:1]:
             model = HATModel.from_pretrained(model_name)
             self.assertIsNotNone(model)
-
-    def test_create_position_ids_respects_padding_index(self):
-        """Ensure that the default position ids only assign a sequential . This is a regression
-        test for https://github.com/huggingface/transformers/issues/1761
-
-        The position ids should be masked with the embedding object's padding index. Therefore, the
-        first available non-padding position index is HATEmbeddings.padding_idx + 1
-        """
-        config = self.model_tester.prepare_config_and_inputs()[0]
-        model = HATEmbeddings(config=config)
-
-        input_ids = torch.as_tensor([[12, 31, 13, model.padding_idx]])
-        expected_positions = torch.as_tensor(
-            [[0 + model.padding_idx + 1, 1 + model.padding_idx + 1, 2 + model.padding_idx + 1, model.padding_idx]]
-        )
-
-        position_ids = create_position_ids_from_input_ids(input_ids, model.padding_idx)
-        self.assertEqual(position_ids.shape, expected_positions.shape)
-        self.assertTrue(torch.all(torch.eq(position_ids, expected_positions)))
-
-    def test_create_position_ids_from_inputs_embeds(self):
-        """Ensure that the default position ids only assign a sequential . This is a regression
-        test for https://github.com/huggingface/transformers/issues/1761
-
-        The position ids should be masked with the embedding object's padding index. Therefore, the
-        first available non-padding position index is HATEmbeddings.padding_idx + 1
-        """
-        config = self.model_tester.prepare_config_and_inputs()[0]
-        embeddings = HATEmbeddings(config=config)
-
-        inputs_embeds = torch.empty(2, 4, 30)
-        expected_single_positions = [
-            0 + embeddings.padding_idx + 1,
-            1 + embeddings.padding_idx + 1,
-            2 + embeddings.padding_idx + 1,
-            3 + embeddings.padding_idx + 1,
-        ]
-        expected_positions = torch.as_tensor([expected_single_positions, expected_single_positions])
-        position_ids = embeddings.create_position_ids_from_inputs_embeds(inputs_embeds)
-        self.assertEqual(position_ids.shape, expected_positions.shape)
-        self.assertTrue(torch.all(torch.eq(position_ids, expected_positions)))
 
 
 @require_torch
@@ -523,40 +349,3 @@ class HATModelIntegrationTest(TestCasePlus):
         # expected_slice = hat.extract_features(input_ids)[:, :3, :3].detach()
 
         self.assertTrue(torch.allclose(output[:, :3, :3], expected_slice, atol=1e-4))
-
-    @slow
-    def test_inference_classification_head(self):
-        model = HATForSequenceClassification.from_pretrained("hat-large-mnli")
-
-        input_ids = torch.tensor([[0, 31414, 232, 328, 740, 1140, 12695, 69, 46078, 1588, 2]])
-        with torch.no_grad():
-            output = model(input_ids)[0]
-        expected_shape = torch.Size((1, 3))
-        self.assertEqual(output.shape, expected_shape)
-        expected_tensor = torch.tensor([[-0.9469, 0.3913, 0.5118]])
-
-        # hat = torch.hub.load('pytorch/fairseq', 'hat.large.mnli')
-        # hat.eval()
-        # expected_tensor = hat.predict("mnli", input_ids, return_logits=True).detach()
-
-        self.assertTrue(torch.allclose(output, expected_tensor, atol=1e-4))
-
-    # XXX: this might be a candidate for common tests if we have many of those
-    def test_lm_head_ignore_keys(self):
-        keys_to_ignore_on_save_tied = [r"lm_head.decoder.weight", r"lm_head.decoder.bias"]
-        keys_to_ignore_on_save_untied = [r"lm_head.decoder.bias"]
-        config = HATConfig.from_pretrained(HAT_TINY)
-        config_tied = deepcopy(config)
-        config_tied.tie_word_embeddings = True
-        config_untied = deepcopy(config)
-        config_untied.tie_word_embeddings = False
-        for cls in [HATForMaskedLM, HATForCausalLM]:
-            model = cls(config_tied)
-            self.assertEqual(model._keys_to_ignore_on_save, keys_to_ignore_on_save_tied, cls)
-
-            # the keys should be different when embeddings aren't tied
-            model = cls(config_untied)
-            self.assertEqual(model._keys_to_ignore_on_save, keys_to_ignore_on_save_untied, cls)
-
-            # test that saving works with updated ignore keys - just testing that it doesn't fail
-            model.save_pretrained(self.get_auto_remove_tmp_dir())

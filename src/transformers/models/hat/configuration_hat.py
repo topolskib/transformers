@@ -51,10 +51,10 @@ class HATConfig(PretrainedConfig):
             `inputs_ids` passed when calling [`BertModel`] or [`TFBertModel`].
         max_sentences (`int`, *optional*, defaults to 64):
             The maximum number of sentences that this model might ever be used with.
-        max_sentence_size (`int`, *optional*, defaults to 128):
+        max_sentence_length (`int`, *optional*, defaults to 128):
             The maximum sentence length that this model might ever be used with.
         model_max_length (`int`, *optional*, defaults to 8192):
-            The maximum sequence length (max_sentences * max_sentence_size) that this model might ever be used with
+            The maximum sequence length (max_sentences * max_sentence_length) that this model might ever be used with
         encoder_layout (`Dict`):
             The sentence/document encoder layout.
         hidden_size (`int`, *optional*, defaults to 768):
@@ -87,9 +87,6 @@ class HATConfig(PretrainedConfig):
             [Self-Attention with Relative Position Representations (Shaw et al.)](https://arxiv.org/abs/1803.02155).
             For more information on `"relative_key_query"`, please refer to *Method 4* in [Improve Transformer Models
             with Better Relative Position Embeddings (Huang et al.)](https://arxiv.org/abs/2009.13658).
-        use_cache (`bool`, *optional*, defaults to `True`):
-            Whether or not the model should return the last key/values attentions (not used by all models). Only
-            relevant if `config.is_decoder=True`.
         classifier_dropout (`float`, *optional*):
             The dropout ratio for the classification head.
     """
@@ -100,7 +97,7 @@ class HATConfig(PretrainedConfig):
         vocab_size=30522,
         hidden_size=768,
         max_sentences=64,
-        max_sentence_size=128,
+        max_sentence_length=128,
         model_max_length=8192,
         num_hidden_layers=12,
         num_attention_heads=12,
@@ -114,8 +111,20 @@ class HATConfig(PretrainedConfig):
         layer_norm_eps=1e-12,
         pad_token_id=0,
         position_embedding_type="absolute",
-        encoder_layout=None,
-        use_cache=True,
+        encoder_layout={
+            "0": {"document_encoder": False, "sentence_encoder": True},
+            "1": {"document_encoder": False, "sentence_encoder": True},
+            "10": {"document_encoder": False, "sentence_encoder": True},
+            "11": {"document_encoder": False, "sentence_encoder": True},
+            "2": {"document_encoder": False, "sentence_encoder": True},
+            "3": {"document_encoder": False, "sentence_encoder": True},
+            "4": {"document_encoder": False, "sentence_encoder": True},
+            "5": {"document_encoder": False, "sentence_encoder": True},
+            "6": {"document_encoder": False, "sentence_encoder": True},
+            "7": {"document_encoder": False, "sentence_encoder": True},
+            "8": {"document_encoder": False, "sentence_encoder": True},
+            "9": {"document_encoder": False, "sentence_encoder": True},
+        },
         classifier_dropout=None,
         **kwargs
     ):
@@ -124,7 +133,7 @@ class HATConfig(PretrainedConfig):
         self.vocab_size = vocab_size
         self.hidden_size = hidden_size
         self.max_sentences = max_sentences
-        self.max_sentence_size = max_sentence_size
+        self.max_sentence_length = max_sentence_length
         self.model_max_length = model_max_length
         self.encoder_layout = encoder_layout
         self.num_hidden_layers = num_hidden_layers
@@ -138,7 +147,6 @@ class HATConfig(PretrainedConfig):
         self.initializer_range = initializer_range
         self.layer_norm_eps = layer_norm_eps
         self.position_embedding_type = position_embedding_type
-        self.use_cache = use_cache
         self.classifier_dropout = classifier_dropout
 
 

@@ -1086,7 +1086,7 @@ class HATForTokenClassification(HATPreTrainedModel):
         super().__init__(config)
         self.num_labels = config.num_labels
 
-        self.hi_transformer = HATModel(config, add_pooling_layer=False)
+        self.hi_transformer = HATModel(config)
         classifier_dropout = (
             config.classifier_dropout if config.classifier_dropout is not None else config.hidden_dropout_prob
         )
@@ -1170,7 +1170,7 @@ class HATForQuestionAnswering(HATPreTrainedModel):
         super().__init__(config)
         self.num_labels = config.num_labels
 
-        self.hi_transformer = HATModel(config, add_pooling_layer=False)
+        self.hi_transformer = HATModel(config)
         self.qa_outputs = nn.Linear(config.hidden_size, config.num_labels)
 
         # Initialize weights and apply final processing
