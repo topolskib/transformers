@@ -688,6 +688,7 @@ else:
     _import_structure["models.beit"].append("BeitFeatureExtractor")
     _import_structure["models.clip"].append("CLIPFeatureExtractor")
     _import_structure["models.convnext"].append("ConvNextFeatureExtractor")
+    _import_structure["models.convnext_maskrcnn"].append("ConvNextMaskRCNNFeatureExtractor")
     _import_structure["models.deformable_detr"].append("DeformableDetrFeatureExtractor")
     _import_structure["models.deit"].append("DeiTFeatureExtractor")
     _import_structure["models.detr"].append("DetrFeatureExtractor")
@@ -3688,6 +3689,7 @@ if TYPE_CHECKING:
         from .models.clip import CLIPFeatureExtractor
         from .models.conditional_detr import ConditionalDetrFeatureExtractor
         from .models.convnext import ConvNextFeatureExtractor
+        from .models.convnext_maskrcnn import ConvNextMaskRCNNFeatureExtractor
         from .models.deformable_detr import DeformableDetrFeatureExtractor
         from .models.deit import DeiTFeatureExtractor
         from .models.detr import DetrFeatureExtractor
@@ -4027,7 +4029,6 @@ if TYPE_CHECKING:
         )
         from .models.convnext_maskrcnn import (
             CONVNEXTMASKRCNN_PRETRAINED_MODEL_ARCHIVE_LIST,
-            ConvNextMaskRCNNFeatureExtractor,
             ConvNextMaskRCNNForObjectDetection,
             ConvNextMaskRCNNModel,
             ConvNextMaskRCNNPreTrainedModel,
