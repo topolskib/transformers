@@ -174,9 +174,7 @@ _import_structure = {
     "models.clipseg": [
         "CLIPSEG_PRETRAINED_CONFIG_ARCHIVE_MAP",
         "CLIPSegConfig",
-       
         "CLIPSegTextConfig",
-       
         "CLIPSegVisionConfig",
     ],
     "models.codegen": ["CODEGEN_PRETRAINED_CONFIG_ARCHIVE_MAP", "CodeGenConfig", "CodeGenTokenizer"],
@@ -1089,6 +1087,7 @@ else:
             "CLIPSegPreTrainedModel",
             "CLIPSegTextModel",
             "CLIPSegVisionModel",
+            "CLIPSegForImageSegmentation",
         ]
     )
     _import_structure["models.x_clip"].extend(
@@ -3243,9 +3242,7 @@ if TYPE_CHECKING:
     from .models.clipseg import (
         CLIPSEG_PRETRAINED_CONFIG_ARCHIVE_MAP,
         CLIPSegConfig,
-       
         CLIPSegTextConfig,
-       
         CLIPSegVisionConfig,
     )
     from .models.codegen import CODEGEN_PRETRAINED_CONFIG_ARCHIVE_MAP, CodeGenConfig, CodeGenTokenizer
@@ -4018,6 +4015,7 @@ if TYPE_CHECKING:
         )
         from .models.clipseg import (
             CLIPSEG_PRETRAINED_MODEL_ARCHIVE_LIST,
+            CLIPSegForImageSegmentation,
             CLIPSegModel,
             CLIPSegPreTrainedModel,
             CLIPSegTextModel,
