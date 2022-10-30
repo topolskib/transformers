@@ -646,6 +646,7 @@ except OptionalDependencyNotAvailable:
         name for name in dir(dummy_speech_objects) if not name.startswith("_")
     ]
 else:
+    _import_structure["models.audio_spectogram_transformer"].append("AudioSpectogramTransformerFeatureExtractor")
     _import_structure["models.mctct"].append("MCTCTFeatureExtractor")
     _import_structure["models.speech_to_text"].append("Speech2TextFeatureExtractor")
 
@@ -713,7 +714,6 @@ else:
     _import_structure["models.vilt"].append("ViltFeatureExtractor")
     _import_structure["models.vilt"].append("ViltProcessor")
     _import_structure["models.vit"].append("ViTFeatureExtractor")
-    _import_structure["models.audio_spectogram_transformer"].append("AudioSpectogramTransformerFeatureExtractor")
     _import_structure["models.yolos"].append("YolosFeatureExtractor")
 
 # Timm-backed objects
@@ -2056,8 +2056,6 @@ else:
     _import_structure["models.audio_spectogram_transformer"].extend(
         [
             "AUDIO_SPECTOGRAM_TRANSFORMER_PRETRAINED_MODEL_ARCHIVE_LIST",
-            "AudioSpectogramTransformerForImageClassification",
-            "AudioSpectogramTransformerForMaskedImageModeling",
             "AudioSpectogramTransformerModel",
             "AudioSpectogramTransformerPreTrainedModel",
             "AudioSpectogramTransformerForSequenceClassification",
@@ -3665,6 +3663,7 @@ if TYPE_CHECKING:
     except OptionalDependencyNotAvailable:
         from .utils.dummy_speech_objects import *
     else:
+        from .models.audio_spectogram_transformer import AudioSpectogramTransformerFeatureExtractor
         from .models.mctct import MCTCTFeatureExtractor
         from .models.speech_to_text import Speech2TextFeatureExtractor
 
@@ -3693,7 +3692,6 @@ if TYPE_CHECKING:
         from .image_processing_utils import ImageProcessorMixin
         from .image_transforms import rescale, resize, to_pil_image
         from .image_utils import ImageFeatureExtractionMixin
-        from .models.audio_spectogram_transformer import AudioSpectogramTransformerFeatureExtractor
         from .models.beit import BeitFeatureExtractor
         from .models.clip import CLIPFeatureExtractor
         from .models.conditional_detr import ConditionalDetrFeatureExtractor
@@ -3839,8 +3837,6 @@ if TYPE_CHECKING:
         )
         from .models.audio_spectogram_transformer import (
             AUDIO_SPECTOGRAM_TRANSFORMER_PRETRAINED_MODEL_ARCHIVE_LIST,
-            AudioSpectogramTransformerForImageClassification,
-            AudioSpectogramTransformerForMaskedImageModeling,
             AudioSpectogramTransformerForSequenceClassification,
             AudioSpectogramTransformerModel,
             AudioSpectogramTransformerPreTrainedModel,
