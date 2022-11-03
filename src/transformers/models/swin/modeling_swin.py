@@ -1520,11 +1520,13 @@ class SwinForSemanticSegmentation(SwinPreTrainedModel):
             pixel_values,
             head_mask=head_mask,
             output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
+            output_hidden_states=True,  # we need the intermediate hidden states
             return_dict=return_dict,
         )
 
-        logits = self.decode_head(outputs[0])
+        encoder_hidden_states = outputs.hidden_states if return_dict else outputs[1]
+
+        logits = self.decode_head(encoder_hidden_states[1:])
 
         auxiliary_logits = None
         if self.auxiliary_head is not None:
