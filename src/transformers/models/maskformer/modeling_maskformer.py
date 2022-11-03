@@ -1957,6 +1957,8 @@ class MaskFormerSwinTransformerBackbone(nn.Module):
             hidden_state_permuted = (
                 hidden_state_norm.permute(0, 2, 1).view((batch_size, hidden_size, height, width)).contiguous()
             )
+            print(f"Shape of hidden_state_permuted stage {i}:", hidden_state_permuted.shape)
+            print(f"First values of hidden_state_permuted stage {i}:", hidden_state_permuted[0,0,:3,:3])
             hidden_states_permuted.append(hidden_state_permuted)
         return hidden_states_permuted
 
@@ -2408,7 +2410,11 @@ class MaskFormerModel(MaskFormerPreTrainedModel):
             transformer_decoder_hidden_states = transformer_module_output.hidden_states
             hidden_states = encoder_hidden_states + pixel_decoder_hidden_states + transformer_decoder_hidden_states
 
-        output = MaskFormerModelOutput(
+        if not return_dict:
+            output = tuple(v for v in output.values())
+            return output
+
+        return MaskFormerModelOutput(
             encoder_last_hidden_state=image_features,
             pixel_decoder_last_hidden_state=pixel_embeddings,
             transformer_decoder_last_hidden_state=queries,
@@ -2418,11 +2424,6 @@ class MaskFormerModel(MaskFormerPreTrainedModel):
             hidden_states=hidden_states,
             attentions=transformer_module_output.attentions,
         )
-
-        if not return_dict:
-            output = tuple(v for v in output.values())
-
-        return output
 
 
 class MaskFormerForInstanceSegmentation(MaskFormerPreTrainedModel):
@@ -2560,7 +2561,7 @@ class MaskFormerForInstanceSegmentation(MaskFormerPreTrainedModel):
         )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
-        outputs: MaskFormerModelOutput = self.model(
+        outputs = self.model(
             pixel_values,
             pixel_mask,
             output_hidden_states=output_hidden_states or self.config.use_auxiliary_loss,
@@ -2576,6 +2577,8 @@ class MaskFormerForInstanceSegmentation(MaskFormerPreTrainedModel):
             loss_dict: Dict[str, Tensor] = self.get_loss_dict(
                 masks_queries_logits, class_queries_logits, mask_labels, class_labels, auxiliary_logits
             )
+            for k,v in loss_dict.items():
+                print("Loss {}: {}".format(k, v))
             loss = self.get_loss(loss_dict)
 
         output_auxiliary_logits = (
@@ -2584,16 +2587,16 @@ class MaskFormerForInstanceSegmentation(MaskFormerPreTrainedModel):
         if not output_auxiliary_logits:
             auxiliary_logits = None
 
-        output = MaskFormerForInstanceSegmentationOutput(
+        if not return_dict:
+            output = tuple(v for v in output.values())
+            if loss is not None:
+                output = ((loss)) + output
+            return output
+        
+        return MaskFormerForInstanceSegmentationOutput(
             loss=loss,
             **outputs,
             class_queries_logits=class_queries_logits,
             masks_queries_logits=masks_queries_logits,
             auxiliary_logits=auxiliary_logits,
         )
-
-        if not return_dict:
-            output = tuple(v for v in output.values())
-            if loss is not None:
-                output = ((loss)) + output
-        return output
