@@ -36,6 +36,7 @@ else:
         "SwinForMaskedImageModeling",
         "SwinModel",
         "SwinPreTrainedModel",
+        "SwinForSemanticSegmentation",
     ]
 
 try:
@@ -65,6 +66,7 @@ if TYPE_CHECKING:
             SWIN_PRETRAINED_MODEL_ARCHIVE_LIST,
             SwinForImageClassification,
             SwinForMaskedImageModeling,
+            SwinForSemanticSegmentation,
             SwinModel,
             SwinPreTrainedModel,
         )

@@ -1941,6 +1941,7 @@ else:
             "SwinForMaskedImageModeling",
             "SwinModel",
             "SwinPreTrainedModel",
+            "SwinForSemanticSegmentation",
         ]
     )
     _import_structure["models.swinv2"].extend(
@@ -4691,6 +4692,7 @@ if TYPE_CHECKING:
             SWIN_PRETRAINED_MODEL_ARCHIVE_LIST,
             SwinForImageClassification,
             SwinForMaskedImageModeling,
+            SwinForSemanticSegmentation,
             SwinModel,
             SwinPreTrainedModel,
         )
