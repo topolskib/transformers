@@ -1673,9 +1673,9 @@ class MaskFormerHungarianMatcher(nn.Module):
         for idx, (pred_probs, pred_mask, target_mask, labels) in enumerate(zip(preds_probs, preds_masks, mask_labels, class_labels)):
             if idx == 0:
                 print("Shape of pred_mask", pred_mask.shape)
-                print("Type of pred_mask", pred_mask.shape)
+                print("Type of pred_mask", pred_mask.dtype)
                 print("Shape of target_mask", target_mask.shape)
-                print("Type of target_mask", target_mask.shape)
+                print("Type of target_mask", target_mask.dtype)
             # downsample the target mask, save memory
             target_mask = target_mask.to(pred_mask.device)
             target_mask = nn.functional.interpolate(target_mask[:, None], size=pred_mask.shape[-2:], mode="nearest")
