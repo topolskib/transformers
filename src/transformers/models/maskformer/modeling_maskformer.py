@@ -2561,7 +2561,7 @@ class MaskFormerForInstanceSegmentation(MaskFormerPreTrainedModel):
         )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
-        outputs: MaskFormerModelOutput = self.model(
+        outputs = self.model(
             pixel_values,
             pixel_mask,
             output_hidden_states=output_hidden_states or self.config.use_auxiliary_loss,
@@ -2574,9 +2574,7 @@ class MaskFormerForInstanceSegmentation(MaskFormerPreTrainedModel):
         class_queries_logits, masks_queries_logits, auxiliary_logits = self.get_logits(outputs)
 
         if mask_labels is not None and class_labels is not None:
-            loss_dict: Dict[str, Tensor] = self.get_loss_dict(
-                masks_queries_logits, class_queries_logits, mask_labels, class_labels, auxiliary_logits
-            )
+            loss_dict = self.get_loss_dict(masks_queries_logits, class_queries_logits, mask_labels, class_labels, auxiliary_logits)
             loss = self.get_loss(loss_dict)
 
         output_auxiliary_logits = (
