@@ -1670,8 +1670,9 @@ class MaskFormerHungarianMatcher(nn.Module):
         preds_masks = masks_queries_logits
         preds_probs = class_queries_logits
         # iterate through batch size
-        for pred_probs, pred_mask, target_mask, labels in zip(preds_probs, preds_masks, mask_labels, class_labels):
+        for idx, (pred_probs, pred_mask, target_mask, labels) in zip(preds_probs, preds_masks, mask_labels, class_labels):
             # downsample the target mask, save memory
+            target_mask = target_mask.to(pred_mask.device)
             target_mask = nn.functional.interpolate(target_mask[:, None], size=pred_mask.shape[-2:], mode="nearest")
             pred_probs = pred_probs.softmax(-1)
             # Compute the classification cost. Contrary to the loss, we don't use the NLL,
@@ -2570,11 +2571,10 @@ class MaskFormerForInstanceSegmentation(MaskFormerPreTrainedModel):
         )
 
         loss, loss_dict, auxiliary_logits = None, None, None
-
         class_queries_logits, masks_queries_logits, auxiliary_logits = self.get_logits(outputs)
 
         if mask_labels is not None and class_labels is not None:
-            loss_dict: Dict[str, Tensor] = self.get_loss_dict(
+            loss_dict = self.get_loss_dict(
                 masks_queries_logits, class_queries_logits, mask_labels, class_labels, auxiliary_logits
             )
             for k,v in loss_dict.items():
