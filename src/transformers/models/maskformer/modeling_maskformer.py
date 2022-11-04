@@ -1689,6 +1689,8 @@ class MaskFormerHungarianMatcher(nn.Module):
             # same for target_mask "c h w -> c (h w)"
             target_mask_flat = target_mask[:, 0].flatten(1)  # [num_total_labels, height*width]
             # compute the focal loss between each mask pairs -> shape (num_queries, num_labels)
+            print("Type of pred_mask_flat", pred_mask_flat.dtype)
+            print("Type of target_mask_flat", target_mask_flat.dtype)
             cost_mask = pair_wise_sigmoid_focal_loss(pred_mask_flat, target_mask_flat)
             # Compute the dice loss betwen each mask pairs -> shape (num_queries, num_labels)
             cost_dice = pair_wise_dice_loss(pred_mask_flat, target_mask_flat)
