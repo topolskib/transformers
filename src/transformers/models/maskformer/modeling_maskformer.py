@@ -1843,6 +1843,7 @@ class MaskFormerLoss(nn.Module):
         # pad all and stack the targets to the num_labels dimension
         target_masks, _ = self._pad_images_to_max_in_batch(mask_labels)
         target_masks = target_masks[tgt_idx]
+        target_masks = target_masks.to(pred_masks)
         # upsample predictions to the target size, we have to add one dim to use interpolate
         pred_masks = nn.functional.interpolate(
             pred_masks[:, None], size=target_masks.shape[-2:], mode="bilinear", align_corners=False
