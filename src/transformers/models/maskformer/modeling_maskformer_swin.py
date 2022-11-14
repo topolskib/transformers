@@ -884,7 +884,9 @@ class MaskFormerSwinBackbone(Backbone):
             norm = self.hidden_states_norms[i]
             # the last element corespond to the layer's last block output but before patch merging
             hidden_state_unpolled = hidden_state[-1]
+            print("Shape before norm:", hidden_state_unpolled.shape)
             hidden_state_norm = norm(hidden_state_unpolled)
+            print("Shape after norm:", hidden_state_norm.shape)
             # the pixel decoder (FPN) expects 3D tensors (features)
             batch_size, _, hidden_size = hidden_state_norm.shape
             # reshape "b (h w) d -> b d h w"

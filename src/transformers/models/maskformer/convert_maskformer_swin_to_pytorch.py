@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Convert MaskFormer checkpoints with a ResNet backbone from the original repository. URL:
+"""Convert MaskFormer checkpoints with a Swin backbone from the original repository. URL:
 https://github.com/facebookresearch/MaskFormer"""
 
 
@@ -24,7 +24,7 @@ import torch
 from PIL import Image
 
 import requests
-from transformers import MaskFormerConfig, MaskFormerFeatureExtractor, MaskFormerForInstanceSegmentation, ResNetConfig
+from transformers import MaskFormerConfig, MaskFormerFeatureExtractor, MaskFormerForInstanceSegmentation, SwinConfig
 from transformers.utils import logging
 
 
@@ -33,17 +33,10 @@ logger = logging.get_logger(__name__)
 
 
 def get_maskformer_config(model_name: str):
-    if "resnet101-c" in model_name:
-        # TODO use ResNet-C model here instead
-        backbone_config = ResNetConfig.from_pretrained("microsoft/resnet-101", use_deeplab_stem=True)
-    elif "resnet101" in model_name:
-        backbone_config = ResNetConfig.from_pretrained(
-            "microsoft/resnet-101", out_features=["stage1", "stage2", "stage3", "stage4"]
-        )
+    if "tiny" in model_name:
+        backbone_config = SwinConfig.from_pretrained("microsoft/swin-tiny-patch4-window7-224")
     else:
-        backbone_config = ResNetConfig.from_pretrained(
-            "microsoft/resnet-50", out_features=["stage1", "stage2", "stage3", "stage4"]
-        )
+        raise ValueError("Not supported")
     config = MaskFormerConfig(backbone_config=backbone_config)
 
     # TODO id2label mappings
@@ -56,80 +49,34 @@ def create_rename_keys(config):
     rename_keys = []
     # stem
     # fmt: off
-    rename_keys.append(("backbone.stem.conv1.weight", "model.pixel_level_module.encoder.model.embedder.embedder.convolution.weight"))
-    rename_keys.append(("backbone.stem.conv1.norm.weight", "model.pixel_level_module.encoder.model.embedder.embedder.normalization.weight"))
-    rename_keys.append(("backbone.stem.conv1.norm.bias", "model.pixel_level_module.encoder.model.embedder.embedder.normalization.bias"))
-    rename_keys.append(("backbone.stem.conv1.norm.running_mean", "model.pixel_level_module.encoder.model.embedder.embedder.normalization.running_mean"))
-    rename_keys.append(("backbone.stem.conv1.norm.running_var", "model.pixel_level_module.encoder.model.embedder.embedder.normalization.running_var"))
+    rename_keys.append(("backbone.patch_embed.proj.weight", "model.pixel_level_module.encoder.model.embeddings.patch_embeddings.projection.weight"))
+    rename_keys.append(("backbone.patch_embed.proj.bias", "model.pixel_level_module.encoder.model.embeddings.patch_embeddings.projection.bias"))
+    rename_keys.append(("backbone.patch_embed.norm.weight", "model.pixel_level_module.encoder.model.embeddings.norm.weight"))
+    rename_keys.append(("backbone.patch_embed.norm.bias", "model.pixel_level_module.encoder.model.embeddings.norm.bias"))
     # fmt: on
     # stages
+    # fmt: off
     for stage_idx in range(len(config.backbone_config.depths)):
         for layer_idx in range(config.backbone_config.depths[stage_idx]):
-            # shortcut
-            if layer_idx == 0:
-                rename_keys.append(
-                    (
-                        f"backbone.res{stage_idx + 2}.{layer_idx}.shortcut.weight",
-                        f"model.pixel_level_module.encoder.model.encoder.stages.{stage_idx}.layers.{layer_idx}.shortcut.convolution.weight",
-                    )
-                )
-                rename_keys.append(
-                    (
-                        f"backbone.res{stage_idx + 2}.{layer_idx}.shortcut.norm.weight",
-                        f"model.pixel_level_module.encoder.model.encoder.stages.{stage_idx}.layers.{layer_idx}.shortcut.normalization.weight",
-                    )
-                )
-                rename_keys.append(
-                    (
-                        f"backbone.res{stage_idx + 2}.{layer_idx}.shortcut.norm.bias",
-                        f"model.pixel_level_module.encoder.model.encoder.stages.{stage_idx}.layers.{layer_idx}.shortcut.normalization.bias",
-                    )
-                )
-                rename_keys.append(
-                    (
-                        f"backbone.res{stage_idx + 2}.{layer_idx}.shortcut.norm.running_mean",
-                        f"model.pixel_level_module.encoder.model.encoder.stages.{stage_idx}.layers.{layer_idx}.shortcut.normalization.running_mean",
-                    )
-                )
-                rename_keys.append(
-                    (
-                        f"backbone.res{stage_idx + 2}.{layer_idx}.shortcut.norm.running_var",
-                        f"model.pixel_level_module.encoder.model.encoder.stages.{stage_idx}.layers.{layer_idx}.shortcut.normalization.running_var",
-                    )
-                )
-            # 3 convs
-            for i in range(3):
-                rename_keys.append(
-                    (
-                        f"backbone.res{stage_idx + 2}.{layer_idx}.conv{i+1}.weight",
-                        f"model.pixel_level_module.encoder.model.encoder.stages.{stage_idx}.layers.{layer_idx}.layer.{i}.convolution.weight",
-                    )
-                )
-                rename_keys.append(
-                    (
-                        f"backbone.res{stage_idx + 2}.{layer_idx}.conv{i+1}.norm.weight",
-                        f"model.pixel_level_module.encoder.model.encoder.stages.{stage_idx}.layers.{layer_idx}.layer.{i}.normalization.weight",
-                    )
-                )
-                rename_keys.append(
-                    (
-                        f"backbone.res{stage_idx + 2}.{layer_idx}.conv{i+1}.norm.bias",
-                        f"model.pixel_level_module.encoder.model.encoder.stages.{stage_idx}.layers.{layer_idx}.layer.{i}.normalization.bias",
-                    )
-                )
-                rename_keys.append(
-                    (
-                        f"backbone.res{stage_idx + 2}.{layer_idx}.conv{i+1}.norm.running_mean",
-                        f"model.pixel_level_module.encoder.model.encoder.stages.{stage_idx}.layers.{layer_idx}.layer.{i}.normalization.running_mean",
-                    )
-                )
-                rename_keys.append(
-                    (
-                        f"backbone.res{stage_idx + 2}.{layer_idx}.conv{i+1}.norm.running_var",
-                        f"model.pixel_level_module.encoder.model.encoder.stages.{stage_idx}.layers.{layer_idx}.layer.{i}.normalization.running_var",
-                    )
-                )
-
+            rename_keys.append((f"backbone.layers.{stage_idx}.blocks.{layer_idx}.norm1.weight", f"model.pixel_level_module.encoder.model.encoder.layers.{stage_idx}.blocks.{layer_idx}.layernorm_before.weight"))
+            rename_keys.append((f"backbone.layers.{stage_idx}.blocks.{layer_idx}.norm1.bias", f"model.pixel_level_module.encoder.model.encoder.layers.{stage_idx}.blocks.{layer_idx}.layernorm_before.bias"))
+            rename_keys.append((f"backbone.layers.{stage_idx}.blocks.{layer_idx}.norm2.weight", f"model.pixel_level_module.encoder.model.encoder.layers.{stage_idx}.blocks.{layer_idx}.layernorm_after.weight"))
+            rename_keys.append((f"backbone.layers.{stage_idx}.blocks.{layer_idx}.norm2.bias", f"model.pixel_level_module.encoder.model.encoder.layers.{stage_idx}.blocks.{layer_idx}.layernorm_after.bias"))
+            rename_keys.append((f"backbone.layers.{stage_idx}.blocks.{layer_idx}.attn.relative_position_bias_table", f"model.pixel_level_module.encoder.model.encoder.layers.{stage_idx}.blocks.{layer_idx}.attention.self.relative_position_bias_table"))
+            rename_keys.append((f"backbone.layers.{stage_idx}.blocks.{layer_idx}.attn.relative_position_index", f"model.pixel_level_module.encoder.model.encoder.layers.{stage_idx}.blocks.{layer_idx}.attention.self.relative_position_index"))
+            rename_keys.append((f"backbone.layers.{stage_idx}.blocks.{layer_idx}.mlp.fc1.weight", f"model.pixel_level_module.encoder.model.encoder.layers.{stage_idx}.blocks.{layer_idx}.intermediate.dense.weight"))
+            rename_keys.append((f"backbone.layers.{stage_idx}.blocks.{layer_idx}.mlp.fc1.bias", f"model.pixel_level_module.encoder.model.encoder.layers.{stage_idx}.blocks.{layer_idx}.intermediate.dense.bias"))
+            rename_keys.append((f"backbone.layers.{stage_idx}.blocks.{layer_idx}.mlp.fc2.weight", f"model.pixel_level_module.encoder.model.encoder.layers.{stage_idx}.blocks.{layer_idx}.output.dense.weight"))
+            rename_keys.append((f"backbone.layers.{stage_idx}.blocks.{layer_idx}.mlp.fc2.bias", f"model.pixel_level_module.encoder.model.encoder.layers.{stage_idx}.blocks.{layer_idx}.output.dense.bias"))
+            rename_keys.append((f"backbone.layers.{stage_idx}.blocks.{layer_idx}.attn.proj.weight", f"model.pixel_level_module.encoder.model.encoder.layers.{stage_idx}.blocks.{layer_idx}.attention.output.dense.weight"))
+            rename_keys.append((f"backbone.layers.{stage_idx}.blocks.{layer_idx}.attn.proj.bias", f"model.pixel_level_module.encoder.model.encoder.layers.{stage_idx}.blocks.{layer_idx}.attention.output.dense.bias"))
+        if stage_idx < 3:
+            rename_keys.append((f"backbone.layers.{stage_idx}.downsample.reduction.weight", f"model.pixel_level_module.encoder.model.encoder.layers.{stage_idx}.downsample.reduction.weight"))
+            rename_keys.append((f"backbone.layers.{stage_idx}.downsample.norm.weight", f"model.pixel_level_module.encoder.model.encoder.layers.{stage_idx}.downsample.norm.weight"))
+            rename_keys.append((f"backbone.layers.{stage_idx}.downsample.norm.bias", f"model.pixel_level_module.encoder.model.encoder.layers.{stage_idx}.downsample.norm.bias"))
+        rename_keys.append((f"backbone.norm{stage_idx}.weight", f"model.pixel_level_module.encoder.hidden_states_norms.{stage_idx}.weight"))
+        rename_keys.append((f"backbone.norm{stage_idx}.bias", f"model.pixel_level_module.encoder.hidden_states_norms.{stage_idx}.bias"))
+    # fmt: on
     # FPN
     # fmt: off
     rename_keys.append(("sem_seg_head.layer_4.weight", "model.pixel_level_module.decoder.fpn.stem.0.weight"))
@@ -199,6 +146,25 @@ def rename_key(dct, old, new):
 
 
 # we split up the matrix of each encoder layer into queries, keys and values
+# fmt: off
+def read_in_swin_q_k_v(state_dict, config):
+    
+     for stage_idx in range(len(config.backbone_config.depths)):
+        for layer_idx in range(config.backbone_config.depths[stage_idx]):
+            # read in weights + bias of input projection layer (in the original implementation, this is a single matrix + bias)
+            in_proj_weight = state_dict.pop(f"backbone.layers.{stage_idx}.blocks.{layer_idx}.attn.qkv.weight")
+            in_proj_bias = state_dict.pop(f"backbone.layers.{stage_idx}.blocks.{layer_idx}.attn.qkv.bias")
+            hidden_size = int(config.backbone_config.embed_dim * 2** stage_idx)
+            # next, add query, keys and values (in that order) to the state dict
+            state_dict[f"model.pixel_level_module.encoder.model.encoder.layers.{stage_idx}.blocks.{layer_idx}.attention.self.query.weight"] = in_proj_weight[: hidden_size, :]
+            state_dict[f"model.pixel_level_module.encoder.model.encoder.layers.{stage_idx}.blocks.{layer_idx}.attention.self.query.bias"] = in_proj_bias[:hidden_size]
+            state_dict[f"model.pixel_level_module.encoder.model.encoder.layers.{stage_idx}.blocks.{layer_idx}.attention.self.key.weight"] = in_proj_weight[hidden_size : hidden_size * 2, :]
+            state_dict[f"model.pixel_level_module.encoder.model.encoder.layers.{stage_idx}.blocks.{layer_idx}.attention.self.key.bias"] = in_proj_bias[hidden_size : hidden_size * 2]
+            state_dict[f"model.pixel_level_module.encoder.model.encoder.layers.{stage_idx}.blocks.{layer_idx}.attention.self.value.weight"] = in_proj_weight[-hidden_size :, :]
+            state_dict[f"model.pixel_level_module.encoder.model.encoder.layers.{stage_idx}.blocks.{layer_idx}.attention.self.value.bias"] = in_proj_bias[-hidden_size :] 
+# fmt: on
+
+# we split up the matrix of each encoder layer into queries, keys and values
 def read_in_decoder_q_k_v(state_dict, config):
     # fmt: off
     hidden_size = config.decoder_config.hidden_size
@@ -208,7 +174,7 @@ def read_in_decoder_q_k_v(state_dict, config):
         in_proj_bias = state_dict.pop(f"sem_seg_head.predictor.transformer.decoder.layers.{idx}.self_attn.in_proj_bias")
         # next, add query, keys and values (in that order) to the state dict
         state_dict[f"model.transformer_module.decoder.layers.{idx}.self_attn.q_proj.weight"] = in_proj_weight[: hidden_size, :]
-        state_dict[f"model.transformer_module.decoder.layers.{idx}.self_attn.q_proj.bias"] = in_proj_bias[:hidden_size]
+        state_dict[f"model.transformer_module.decoder.layers.{idx}.self_attn.q_proj.bias"] = in_proj_bias[:config.hidden_size]
         state_dict[f"model.transformer_module.decoder.layers.{idx}.self_attn.k_proj.weight"] = in_proj_weight[hidden_size : hidden_size * 2, :]
         state_dict[f"model.transformer_module.decoder.layers.{idx}.self_attn.k_proj.bias"] = in_proj_bias[hidden_size : hidden_size * 2]
         state_dict[f"model.transformer_module.decoder.layers.{idx}.self_attn.v_proj.weight"] = in_proj_weight[-hidden_size :, :]
@@ -218,7 +184,7 @@ def read_in_decoder_q_k_v(state_dict, config):
         in_proj_bias = state_dict.pop(f"sem_seg_head.predictor.transformer.decoder.layers.{idx}.multihead_attn.in_proj_bias")
         # next, add query, keys and values (in that order) to the state dict
         state_dict[f"model.transformer_module.decoder.layers.{idx}.encoder_attn.q_proj.weight"] = in_proj_weight[: hidden_size, :]
-        state_dict[f"model.transformer_module.decoder.layers.{idx}.encoder_attn.q_proj.bias"] = in_proj_bias[:hidden_size]
+        state_dict[f"model.transformer_module.decoder.layers.{idx}.encoder_attn.q_proj.bias"] = in_proj_bias[:config.hidden_size]
         state_dict[f"model.transformer_module.decoder.layers.{idx}.encoder_attn.k_proj.weight"] = in_proj_weight[hidden_size : hidden_size * 2, :]
         state_dict[f"model.transformer_module.decoder.layers.{idx}.encoder_attn.k_proj.bias"] = in_proj_bias[hidden_size : hidden_size * 2]
         state_dict[f"model.transformer_module.decoder.layers.{idx}.encoder_attn.v_proj.weight"] = in_proj_weight[-hidden_size :, :]
@@ -251,6 +217,7 @@ def convert_maskformer_checkpoint(
     rename_keys = create_rename_keys(config)
     for src, dest in rename_keys:
         rename_key(state_dict, src, dest)
+    read_in_swin_q_k_v(state_dict, config)
     read_in_decoder_q_k_v(state_dict, config)
 
     # update to torch tensors
@@ -264,7 +231,9 @@ def convert_maskformer_checkpoint(
     for name, param in model.named_parameters():
         print(name, param.shape)
 
-    model.load_state_dict(state_dict)
+    missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
+    print("Missing keys:", missing_keys)
+    print("Unexpected keys:", unexpected_keys)
 
     # verify results
     image = prepare_img()
@@ -297,15 +266,13 @@ if __name__ == "__main__":
     # Required parameters
     parser.add_argument(
         "--model_name",
-        default="maskformer-resnet50-ade",
+        default="maskformer-swin-tiny-ade",
         type=str,
         help=("Name of the MaskFormer model you'd like to convert",),
     )
     parser.add_argument(
         "--checkpoint_path",
-        default=(
-            "/Users/nielsrogge/Documents/MaskFormer_checkpoints/MaskFormer-ResNet-50-ADE20k/model_final_d8dbeb.pkl"
-        ),
+        default="/Users/nielsrogge/Documents/MaskFormer_checkpoints/MaskFormer-Swin-tiny-ADE20k/model.pkl",
         type=str,
         help="Path to the original state dict (.pth file).",
     )

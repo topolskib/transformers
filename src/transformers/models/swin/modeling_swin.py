@@ -18,14 +18,15 @@
 import collections.abc
 import math
 from dataclasses import dataclass
-from typing import Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import torch
 import torch.utils.checkpoint
-from torch import nn
+from torch import Tensor, nn
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
 
 from ...activations import ACT2FN
+from ...backbone import Backbone, ShapeSpec
 from ...modeling_utils import PreTrainedModel
 from ...pytorch_utils import find_pruneable_heads_and_indices, prune_linear_layer
 from ...utils import (
@@ -1214,3 +1215,60 @@ class SwinForImageClassification(SwinPreTrainedModel):
             attentions=outputs.attentions,
             reshaped_hidden_states=outputs.reshaped_hidden_states,
         )
+
+
+class SwinBackbone(Backbone):
+    """
+    This class converts [`SwinModel`] into a generic backbone to be consumed by frameworks like DETR and MaskFormer.
+
+    This classes reshapes `hidden_states` from (`batch_size, sequence_length, hidden_size)` to (`batch_size,
+    num_channels, height, width)`). It also adds additional layernorms after each stage.
+
+    Args:
+        config (`SwinConfig`):
+            The configuration used by [`SwinModel`].
+    """
+
+    def __init__(self, config: SwinConfig):
+        super().__init__(config)
+
+        self.model = SwinModel(config)
+
+        self.stage_names = [f"stage{i+1}" for i in range(len(config.depths))]
+
+        self.out_features = config.out_features
+
+        self.out_feature_strides = {f"stage{i+1}": 2 ** (i + 2) for i in range(len(config.depths))}
+        num_features = [int(config.embed_dim * 2**i) for i in range(len(config.depths))]
+        self.num_features = num_features
+        self.out_feature_channels = {
+            "stage1": self.num_features[0],
+            "stage2": self.num_features[1],
+            "stage3": self.num_features[2],
+            "stage4": self.num_features[3],
+        }
+
+        self.hidden_states_norms = nn.ModuleList([nn.LayerNorm(x.channels) for x in self.output_shape().values()])
+
+    def forward(self, *args, **kwargs) -> List[Tensor]:
+        output = self.model(*args, **kwargs, output_hidden_states=True)
+
+        outputs = {}
+
+        for i, hidden_state in enumerate(output.reshaped_hidden_states[:-1]):
+            norm = self.hidden_states_norms[i]
+            batch_size, num_channels, height, width = hidden_state.shape
+            hidden_state = hidden_state.reshape(batch_size, height * width, num_channels)
+            print("Shape before norm:", hidden_state.shape)
+            hidden_state = norm(hidden_state)
+            outputs[f"stage{i+1}"] = hidden_state.view(batch_size, num_channels, height, width)
+
+        return outputs
+
+    def output_shape(self):
+        """A dictionary that maps feature map names to their shapes (number of channels + stride)."""
+
+        return {
+            name: ShapeSpec(channels=self.out_feature_channels[name], stride=self.out_feature_strides[name])
+            for name in self.out_features
+        }

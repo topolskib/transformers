@@ -830,10 +830,9 @@ _MODEL_FOR_ZERO_SHOT_IMAGE_CLASSIFICATION_MAPPING_NAMES = OrderedDict(
 
 BACKBONE_MAPPING_NAMES = OrderedDict(
     [
-        # Model for Instance Segmentation mapping
-        ("maskformer-swin", "MaskFormerSwinBackbone"),
+        # Backbone mapping
         ("resnet", "ResNetBackbone"),
-        ("swin", "MaskFormerSwinBackbone"),  # for backward compatibility
+        ("swin", "SwinBackbone"),
     ]
 )
 
