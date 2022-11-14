@@ -1132,3 +1132,239 @@ Egyptian cat
 ```
 </pt>
 </frameworkcontent>
+
+## Image segmentation
+
+Image segmentation is the task of identifying different parts in an image, called "segments". A distinction is made between instance, semantic and panoptic segmentation.
+
+#### Instance segmentation
+
+Instance segmentation is very similar to object detection; it refers to identifiying the individual "instances" or "objects" in an image. Instances could be individual people, for example. The only difference between object
+detection and instance segmentation is that the former involves outputting a set of bounding boxes along with class names, whereas instance segmentation involves outputting a set of binary masks along
+with class names. Each binary mask is a tensor that has the same dimensions (height, width) as the original image containing only ones and zeros, with 1 = "this pixel is part of the instance" and 0 = "this pixel
+is not part of the instance".
+
+Examples of instance segmentation datasets are COCO and ADE20k.
+
+Let's load an instance segmentation dataset from the [hub](https://huggingface.co/datasets/scene_parse_150) to illustrate this. Below we load the instance segmentation version of ADE20k.
+
+```py
+>>> from datasets import load_dataset
+
+>>> dataset = load_dataset("scene_parse_150", "instance_segmentation")
+```
+
+Instance segmentation annotations can be stored in different formats, which can be very dataset-specific. In the case of ADE20k, we can read the following from the [dataset card](https://huggingface.co/datasets/scene_parse_150#instance_segmentation-1):
+
+> Note: in the instance annotation masks, the R(ed) channel encodes category ID, and the G(reen) channel encodes instance ID. Each object instance has a unique instance ID regardless of its category ID. In the dataset,
+all images have <256 object instances. Refer to [this file (train split)](https://github.com/CSAILVision/placeschallenge/blob/master/instancesegmentation/instanceInfo100_train.txt) and to [this file (validation split)](https://github.com/CSAILVision/placeschallenge/blob/master/instancesegmentation/instanceInfo100_val.txt) for the information about the labels of the 100 semantic categories. To find the mapping between the semantic categories
+for instance_segmentation and scene_parsing, refer to [this file](https://github.com/CSAILVision/placeschallenge/blob/master/instancesegmentation/categoryMapping.txt).
+
+In this case, the annotations are stored as RGB images, and only a single channel per pixel contains the instance ID. Let's look at one training example:
+
+```py
+>>> example = dataset["train"][0]
+>>> example.keys()
+dict_keys(['image', 'annotation'])
+```
+
+Let's visualize the image:
+
+```py
+>>> example["image"]
+```
+
+![pipeline-cat-chonk](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/pipeline-cat-chonk.jpeg)
+
+To load the instance segmentation map, we need to do the following:
+
+```py
+>>> import numpy as np
+
+>>> instance_segmentation = np.array(annotation)[:, :, 1]
+```
+
+As the annotation is of type [Image](https://huggingface.co/docs/datasets/v2.6.1/en/package_reference/main_classes#datasets.Image), we first turn it into a NumPy array and then only take the second (G) channel.
+Let's check the unique values of this array:
+
+```py
+>>> np.unique(instance_segmentation)
+array([0, 1, 2, 3, 4], dtype=uint8)
+```
+
+This means that this instance segmentation map contains 5 individual instances. Note that in this case, all instances are stored using a single segmentation map, which means that different instances don't overlap
+(as each pixel is annotated with only one instance ID). Note that other datasets might have instances that overlap, however in that case the annotations shoud be stored as a set of separate binary masks along with their labels, rather than as a single map as is the case here.
+
+We can now visualize the image with a corresponding binary mask of one of the instances. We don't visualize the instance with ID = 0, as this corresponds to the "background" class.
+
+```py
+from PIL import Image
+
+# let's visualize the binary mask of the first actual instance (ignoring background)
+mask = instance_seg == 1
+visual_mask = (mask * 255).astype(np.uint8)
+Image.fromarray(visual_mask)
+```
+
+You might wonder what the corresponding class label is for this particular instance. For that, we need to load the semantic categories, like so:
+
+```py
+class_id_map = np.array(example["annotation"])[:, :, 0]
+class_labels = np.unique(class_id_map)
+
+# create mapping between instance IDs and semantic category IDs
+inst2class = {}
+for label in class_labels:
+    instance_ids = np.unique(instance_seg[class_id_map == label])
+    inst2class.update({i: label for i in instance_ids})
+```
+
+This gives us a mapping between instance IDs and their corresponding semantic category IDs. In this case, we obtain `{0: 0, 1: 5, 2: 5, 3: 24, 4: 56}`. This means that
+the instance with ID = 1 has semantic category 5. Looking at [this file](https://github.com/CSAILVision/placeschallenge/blob/master/instancesegmentation/instanceInfo100_train.txt), that means that this instance has the class label "door".
+
+#### Semantic segmentation
+
+Semantic segmentation is the task of identifying different semantic categories in an image, like "sky", "grass, "people" etc. Important to note here is that, unlike in instance segmentation,
+no distinction is made between different instances of the same semantic category; one just tries to identify the "people" semantic category in an image, rather than the individual persons.
+
+Examples of semantic segmentation datasets are CityScapes, ADE20k and COCO-stuff.
+
+Semantic segmentation annotations are typically stored as a single segmentation map per image, which labels each individual pixel. Hence, it's not possible that semantic categories overlap.
+
+Let's load a semantic segmentation dataset from the [hub](https://huggingface.co/datasets/scene_parse_150) to illustrate this.
+
+```py
+from datasets import load_dataset
+
+dataset = load_dataset("scene_parse_150")
+```
+
+Let's load a particular example:
+
+```py
+example = dataset["train"][0]
+example["image"]
+```
+
+The corresponding ground truth segmentation map is stored as an image. Let's convert it to a NumPy array like so:
+
+```py
+import numpy as np
+
+semantic_segmentation = np.array(example["annotation"])
+```
+
+We can check the unique semantic categories by typing:
+
+```py
+np.unique(ground_truth_seg)
+```
+
+This gives us `array([ 0,  5, 10, 53], dtype=uint8)`, which means that the semantic categories 0, 5, 10 and 53 are contained in this example. The
+id2label mapping of this dataset can be found [here](https://github.com/CSAILVision/sceneparsing/blob/master/objectInfo150.csv) - as also explained
+in the dataset card. The HuggingFace team maintains id2label mappings of several datasets, it can be loaded as follows from the hub:
+
+```py
+import json
+from huggingface_hub import hf_hub_download
+
+repo_id = "huggingface/label-files"
+filename = "ade20k-id2label.json"
+id2label = json.load(open(hf_hub_download(repo_id, filename, repo_type="dataset"), "r"))
+id2label = {int(k): v for k, v in id2label.items()}
+```
+
+An additional caveat here is that the annotated segmentation maps contain labels between 0 and 150, with 0 meaning "background". However, "background" isn't 
+part of the 150 labels of the dataset. Hence, when mapping labels to actual names, we need to reduce the labels by one:
+
+```py
+labels = [id2label[label - 1] for label in list(np.unique(ground_truth_seg)) if label != 0]
+print(labels)
+```
+
+This gives us `['tree', 'grass', 'path']`. 
+
+
+#### Panoptic segmentation
+
+Panoptic segmentation unifies instance and semantic segmentation. The goal here is to just identify "segments" in an image, each of which could be an
+individual instance or a general semantic category like "sky" or "grass". A "segment" is anything that can be identified with a binary mask and which
+has a corresponding label.
+
+Example panoptic segmentation datasets are COCO-panoptic, ADE20k-panoptic.
+
+Let's load a panoptic segmentation dataset from the [hub](https://huggingface.co/datasets/nielsr/ade20k-panoptic-demo) to illustrate this.
+
+```py
+from datasets import load_dataset
+
+dataset = load_dataset("nielsr/ade20k-panoptic-demo")
+```
+
+This particular dataset is just a toy dataset to illustrate panoptic segmentation. It was created by subsetting ADE20K-panoptic segmentation.
+
+Let's load a particular example:
+
+```py
+example = dataset["train"][0]
+example.keys()
+```
+
+This prints `dict_keys(['image', 'label', 'segments_info'])`. The corresponding panoptic segmentation of each image is stored in 2 files;
+"label" and "segments_info". "label" is the ground truth panoptic segmentation map stored as a RGB image, hence it's of type Image.
+To retrieve the segment IDs, we need to use the `rgb_to_id` function from panopticapi:
+
+```py
+# Taken from https://github.com/cocodataset/panopticapi/blob/master/panopticapi/utils.py
+# Copyright (c) 2018, Alexander Kirillov
+# All rights reserved.
+def rgb_to_id(color):
+    if isinstance(color, np.ndarray) and len(color.shape) == 3:
+        if color.dtype == np.uint8:
+            color = color.astype(np.int32)
+        return color[:, :, 0] + 256 * color[:, :, 1] + 256 * 256 * color[:, :, 2]
+    return int(color[0] + 256 * color[1] + 256 * 256 * color[2])
+
+
+panoptic_segmentation = rgb_to_id(np.array(example["label"]))
+```
+
+Now we have a NumPy array containing the individual segment IDs. Let's look at the unique ones:
+
+```py
+np.unique(panoptic_segmentation)
+```
+
+As can be seen here, panoptic segments can have very arbitrary IDs, ranging from 0 to 16734209. Similar to instance segmentation, we can visualize a binary mask for a given segment like so:
+
+```py
+from PIL import Image
+
+# let's visualize the binary mask of the first segment (ignoring background)
+mask = panoptic_segmentation == 247812
+visual_mask = (mask * 255).astype(np.uint8)
+Image.fromarray(visual_mask)
+```
+
+To retrieve the corresponding category, we need to use `segments_info`.
+
+```py
+for segment in example["segments_info"]:
+    if segment["id"] == 247812:
+        print(segment)
+```
+
+This prints `{'area': 3887, 'bbox': [58, 324, 566, 136], 'category_id': 4, 'id': 247812, 'iscrowd': 0}`. This contains some information about this particular segment,
+namely the area, bounding box, and so on. However we are only interested in the `category_id` here, which is 4 in this case. We can retrieve the mapping to an actual class
+name using the same mapping as semantic_segmentation:
+
+```py
+import json
+from huggingface_hub import hf_hub_download
+
+repo_id = "huggingface/label-files"
+filename = "ade20k-id2label.json"
+id2label = json.load(open(hf_hub_download(repo_id, filename, repo_type="dataset"), "r"))
+id2label = {int(k): v for k, v in id2label.items()}
+id2label[4]
+```
