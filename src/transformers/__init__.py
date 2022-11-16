@@ -256,7 +256,7 @@ _import_structure = {
     "models.fnet": ["FNET_PRETRAINED_CONFIG_ARCHIVE_MAP", "FNetConfig"],
     "models.fsmt": ["FSMT_PRETRAINED_CONFIG_ARCHIVE_MAP", "FSMTConfig", "FSMTTokenizer"],
     "models.funnel": ["FUNNEL_PRETRAINED_CONFIG_ARCHIVE_MAP", "FunnelConfig", "FunnelTokenizer"],
-    "models.git": ["GIT_PRETRAINED_CONFIG_ARCHIVE_MAP", "GITConfig"],
+    "models.git": ["GIT_PRETRAINED_CONFIG_ARCHIVE_MAP", "GITConfig", "GITVisionConfig"],
     "models.glpn": ["GLPN_PRETRAINED_CONFIG_ARCHIVE_MAP", "GLPNConfig"],
     "models.gpt2": ["GPT2_PRETRAINED_CONFIG_ARCHIVE_MAP", "GPT2Config", "GPT2Tokenizer"],
     "models.gpt_neo": ["GPT_NEO_PRETRAINED_CONFIG_ARCHIVE_MAP", "GPTNeoConfig"],
@@ -1040,6 +1040,7 @@ else:
             "GITLMHeadModel",
             "GITModel",
             "GITPreTrainedModel",
+            "GITVisionModel",
         ]
     )
     _import_structure["models.bert_generation"].extend(
@@ -3603,7 +3604,7 @@ if TYPE_CHECKING:
     from .models.fnet import FNET_PRETRAINED_CONFIG_ARCHIVE_MAP, FNetConfig
     from .models.fsmt import FSMT_PRETRAINED_CONFIG_ARCHIVE_MAP, FSMTConfig, FSMTTokenizer
     from .models.funnel import FUNNEL_PRETRAINED_CONFIG_ARCHIVE_MAP, FunnelConfig, FunnelTokenizer
-    from .models.git import GIT_PRETRAINED_CONFIG_ARCHIVE_MAP, GITConfig
+    from .models.git import GIT_PRETRAINED_CONFIG_ARCHIVE_MAP, GITConfig, GITVisionConfig
     from .models.glpn import GLPN_PRETRAINED_CONFIG_ARCHIVE_MAP, GLPNConfig
     from .models.gpt2 import GPT2_PRETRAINED_CONFIG_ARCHIVE_MAP, GPT2Config, GPT2Tokenizer
     from .models.gpt_neo import GPT_NEO_PRETRAINED_CONFIG_ARCHIVE_MAP, GPTNeoConfig
@@ -4618,7 +4619,13 @@ if TYPE_CHECKING:
             FunnelPreTrainedModel,
             load_tf_weights_in_funnel,
         )
-        from .models.git import GIT_PRETRAINED_MODEL_ARCHIVE_LIST, GITLMHeadModel, GITModel, GITPreTrainedModel
+        from .models.git import (
+            GIT_PRETRAINED_MODEL_ARCHIVE_LIST,
+            GITLMHeadModel,
+            GITModel,
+            GITPreTrainedModel,
+            GITVisionModel,
+        )
         from .models.glpn import (
             GLPN_PRETRAINED_MODEL_ARCHIVE_LIST,
             GLPNForDepthEstimation,
