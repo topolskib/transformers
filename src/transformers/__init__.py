@@ -295,7 +295,7 @@ _import_structure = {
         "MarkupLMProcessor",
         "MarkupLMTokenizer",
     ],
-    "models.maskformer": ["MASKFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP", "MaskFormerConfig"],
+    "models.maskformer": ["MASKFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP", "MaskFormerConfig", "MaskFormerSwinConfig"],
     "models.mbart": ["MBartConfig"],
     "models.mbart50": [],
     "models.mctct": ["MCTCT_PRETRAINED_CONFIG_ARCHIVE_MAP", "MCTCTConfig", "MCTCTProcessor"],
@@ -1621,6 +1621,9 @@ else:
             "MaskFormerForInstanceSegmentation",
             "MaskFormerModel",
             "MaskFormerPreTrainedModel",
+            "MaskFormerSwinBackbone",
+            "MaskFormerSwinModel",
+            "MaskFormerSwinPreTrainedModel",
         ]
     )
     _import_structure["models.markuplm"].extend(
@@ -3478,7 +3481,7 @@ if TYPE_CHECKING:
         MarkupLMProcessor,
         MarkupLMTokenizer,
     )
-    from .models.maskformer import MASKFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP, MaskFormerConfig
+    from .models.maskformer import MASKFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP, MaskFormerConfig, MaskFormerSwinConfig
     from .models.mbart import MBartConfig
     from .models.mctct import MCTCT_PRETRAINED_CONFIG_ARCHIVE_MAP, MCTCTConfig, MCTCTProcessor
     from .models.megatron_bert import MEGATRON_BERT_PRETRAINED_CONFIG_ARCHIVE_MAP, MegatronBertConfig
@@ -4571,6 +4574,9 @@ if TYPE_CHECKING:
             MaskFormerForInstanceSegmentation,
             MaskFormerModel,
             MaskFormerPreTrainedModel,
+            MaskFormerSwinBackbone,
+            MaskFormerSwinModel,
+            MaskFormerSwinPreTrainedModel,
         )
         from .models.mbart import (
             MBartForCausalLM,
