@@ -1186,6 +1186,7 @@ else:
             "ConvNextForImageClassification",
             "ConvNextModel",
             "ConvNextPreTrainedModel",
+            "ConvNextBackbone",
         ]
     )
     _import_structure["models.ctrl"].extend(
@@ -4322,6 +4323,7 @@ if TYPE_CHECKING:
         )
         from .models.convnext import (
             CONVNEXT_PRETRAINED_MODEL_ARCHIVE_LIST,
+            ConvNextBackbone,
             ConvNextForImageClassification,
             ConvNextModel,
             ConvNextPreTrainedModel,
