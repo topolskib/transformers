@@ -161,6 +161,7 @@ from . import (
     trocr,
     unispeech,
     unispeech_sat,
+    upernet,
     van,
     videomae,
     vilt,
