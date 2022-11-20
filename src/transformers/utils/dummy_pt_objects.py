@@ -5514,7 +5514,7 @@ class UniSpeechSatPreTrainedModel(metaclass=DummyObject):
         requires_backends(self, ["torch"])
 
 
-class UperNetForSemanticSegmentatation(metaclass=DummyObject):
+class UperNetForSemanticSegmentation(metaclass=DummyObject):
     _backends = ["torch"]
 
     def __init__(self, *args, **kwargs):
