@@ -47,6 +47,7 @@ PRIVATE_MODELS = [
 # Being in this list is an exception and should **not** be the rule.
 IGNORE_NON_TESTED = PRIVATE_MODELS.copy() + [
     # models to ignore for not tested
+    "MaskFormerSwinBackbone",  # Backbones have their own tests.
     "ResNetBackbone",  # Backbones have their own tests.
     "CLIPSegDecoder",  # Building part of bigger (tested) model.
     "TableTransformerEncoder",  # Building part of bigger (tested) model.
@@ -669,8 +670,11 @@ SHOULD_HAVE_THEIR_OWN_PAGE = [
     "PyTorchBenchmarkArguments",
     "TensorFlowBenchmark",
     "TensorFlowBenchmarkArguments",
+    "MaskFormerSwinBackbone",
     "ResNetBackbone",
     "AutoBackbone",
+    "MaskFormerSwinConfig",
+    "MaskFormerSwinModel",
 ]
 
 
