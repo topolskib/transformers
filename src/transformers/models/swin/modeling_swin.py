@@ -18,14 +18,15 @@
 import collections.abc
 import math
 from dataclasses import dataclass
-from typing import Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import torch
 import torch.utils.checkpoint
-from torch import nn
+from torch import Tensor, nn
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
 
 from ...activations import ACT2FN
+from ...modeling_outputs import BackboneOutput
 from ...modeling_utils import PreTrainedModel
 from ...pytorch_utils import find_pruneable_heads_and_indices, prune_linear_layer
 from ...utils import (
@@ -1225,3 +1226,61 @@ class SwinForImageClassification(SwinPreTrainedModel):
             attentions=outputs.attentions,
             reshaped_hidden_states=outputs.reshaped_hidden_states,
         )
+
+
+@add_start_docstrings(
+    """
+    Swin backbone, to be used with frameworks like DETR and MaskFormer.
+    """,
+    SWIN_START_DOCSTRING,
+)
+class SwinBackbone(SwinPreTrainedModel):
+    def __init__(self, config: SwinConfig):
+        super().__init__(config)
+
+        self.stage_names = config.stage_names
+        assert config.output_hidden_states_before_downsampling is True
+        self.swin = SwinModel(config)
+
+        self.out_features = config.out_features
+        if "stem" in self.out_features:
+            raise ValueError("This backbone does not support 'stem' in the `out_features`.")
+
+        num_features = [int(config.embed_dim * 2**i) for i in range(len(config.depths))]
+        self.out_feature_channels = {}
+        for i, stage in enumerate(self.stage_names[1:]):
+            self.out_feature_channels[stage] = num_features[i]
+
+        self.hidden_states_norms = nn.ModuleList([nn.LayerNorm(num_channels) for num_channels in self.channels])
+
+    @property
+    def channels(self):
+        return [self.out_feature_channels[name] for name in self.out_features]
+
+    def forward(self, pixel_values) -> List[Tensor]:
+        outputs = self.model(pixel_values, output_hidden_states=True, return_dict=True)
+
+        # we skip the stem
+        hidden_states = outputs.hidden_states[1:]
+
+        feature_maps = ()
+        # we need to reshape the hidden states to their original spatial dimensions
+        # spatial dimensions contains all the heights and widths of each stage, including after the embeddings
+        spatial_dimensions: Tuple[Tuple[int, int]] = outputs.hidden_states_spatial_dimensions
+        for i, (hidden_state, stage, (height, width)) in enumerate(
+            zip(hidden_states, self.stage_names[1:], spatial_dimensions)
+        ):
+            norm = self.hidden_states_norms[i]
+            # the last element corespond to the layer's last block output but before patch merging
+            hidden_state_unpolled = hidden_state[-1]
+            hidden_state_norm = norm(hidden_state_unpolled)
+            # the pixel decoder (FPN) expects 3D tensors (features)
+            batch_size, _, hidden_size = hidden_state_norm.shape
+            # reshape "b (h w) d -> b d h w"
+            hidden_state_permuted = (
+                hidden_state_norm.permute(0, 2, 1).view((batch_size, hidden_size, height, width)).contiguous()
+            )
+            if stage in self.out_features:
+                feature_maps += (hidden_state_permuted,)
+
+        return BackboneOutput(feature_maps=feature_maps)
