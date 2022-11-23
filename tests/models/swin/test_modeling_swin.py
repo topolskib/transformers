@@ -30,7 +30,7 @@ if is_torch_available():
     import torch
     from torch import nn
 
-    from transformers import SwinForImageClassification, SwinForMaskedImageModeling, SwinModel
+    from transformers import SwinBackbone, SwinForImageClassification, SwinForMaskedImageModeling, SwinModel
     from transformers.models.swin.modeling_swin import SWIN_PRETRAINED_MODEL_ARCHIVE_LIST
 
 if is_vision_available():
@@ -190,6 +190,7 @@ class SwinModelTest(ModelTesterMixin, unittest.TestCase):
     all_model_classes = (
         (
             SwinModel,
+            SwinBackbone,
             SwinForImageClassification,
             SwinForMaskedImageModeling,
         )

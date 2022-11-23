@@ -673,6 +673,7 @@ SHOULD_HAVE_THEIR_OWN_PAGE = [
     "ResNetBackbone",
     "AutoBackbone",
     "ConvNextBackbone",
+    "SwinBackbone",
 ]
 
 

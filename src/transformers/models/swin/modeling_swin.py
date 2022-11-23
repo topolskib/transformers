@@ -22,10 +22,11 @@ from typing import Optional, Tuple, Union
 
 import torch
 import torch.utils.checkpoint
-from torch import nn
+from torch import Tensor, nn
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
 
 from ...activations import ACT2FN
+from ...modeling_outputs import BackboneOutput
 from ...modeling_utils import PreTrainedModel
 from ...pytorch_utils import find_pruneable_heads_and_indices, prune_linear_layer
 from ...utils import (
@@ -742,14 +743,15 @@ class SwinStage(nn.Module):
 
             hidden_states = layer_outputs[0]
 
+        hidden_states_before_downsampling = hidden_states
         if self.downsample is not None:
             height_downsampled, width_downsampled = (height + 1) // 2, (width + 1) // 2
             output_dimensions = (height, width, height_downsampled, width_downsampled)
-            hidden_states = self.downsample(layer_outputs[0], input_dimensions)
+            hidden_states = self.downsample(hidden_states_before_downsampling, input_dimensions)
         else:
             output_dimensions = (height, width, height, width)
 
-        stage_outputs = (hidden_states, output_dimensions)
+        stage_outputs = (hidden_states, hidden_states_before_downsampling, output_dimensions)
 
         if output_attentions:
             stage_outputs += layer_outputs[1:]
@@ -819,12 +821,22 @@ class SwinEncoder(nn.Module):
                 layer_outputs = layer_module(hidden_states, input_dimensions, layer_head_mask, output_attentions)
 
             hidden_states = layer_outputs[0]
-            output_dimensions = layer_outputs[1]
+            hidden_states_before_downsampling = layer_outputs[1]
+            output_dimensions = layer_outputs[2]
 
             input_dimensions = (output_dimensions[-2], output_dimensions[-1])
             all_input_dimensions += (input_dimensions,)
 
-            if output_hidden_states:
+            if output_hidden_states and self.config.output_hidden_states_before_downsampling:
+                batch_size, _, hidden_size = hidden_states_before_downsampling.shape
+                # rearrange b (h w) c -> b c h w
+                reshaped_hidden_state = hidden_states_before_downsampling.view(
+                    batch_size, *input_dimensions, hidden_size
+                )
+                reshaped_hidden_state = reshaped_hidden_state.permute(0, 3, 1, 2)
+                all_hidden_states += (hidden_states_before_downsampling,)
+                all_reshaped_hidden_states += (reshaped_hidden_state,)
+            elif output_hidden_states and not self.config.output_hidden_states_before_downsampling:
                 batch_size, _, hidden_size = hidden_states.shape
                 # rearrange b (h w) c -> b c h w
                 reshaped_hidden_state = hidden_states.view(batch_size, *input_dimensions, hidden_size)
@@ -833,7 +845,7 @@ class SwinEncoder(nn.Module):
                 all_reshaped_hidden_states += (reshaped_hidden_state,)
 
             if output_attentions:
-                all_self_attentions += layer_outputs[2:]
+                all_self_attentions += layer_outputs[3:]
 
         if not return_dict:
             return tuple(v for v in [hidden_states, all_hidden_states, all_self_attentions] if v is not None)
@@ -1213,4 +1225,79 @@ class SwinForImageClassification(SwinPreTrainedModel):
             hidden_states=outputs.hidden_states,
             attentions=outputs.attentions,
             reshaped_hidden_states=outputs.reshaped_hidden_states,
+        )
+
+
+@add_start_docstrings(
+    """
+    Swin backbone, to be used with frameworks like DETR and MaskFormer.
+    """,
+    SWIN_START_DOCSTRING,
+)
+class SwinBackbone(SwinPreTrainedModel):
+    def __init__(self, config: SwinConfig):
+        super().__init__(config)
+
+        self.stage_names = config.stage_names
+        assert config.output_hidden_states_before_downsampling is True
+        self.swin = SwinModel(config)
+
+        self.out_features = config.out_features
+        if "stem" in self.out_features:
+            raise ValueError("This backbone does not support 'stem' in the `out_features`.")
+
+        num_features = [int(config.embed_dim * 2**i) for i in range(len(config.depths))]
+        self.out_feature_channels = {}
+        for i, stage in enumerate(self.stage_names[1:]):
+            self.out_feature_channels[stage] = num_features[i]
+
+        self.hidden_states_norms = nn.ModuleList([nn.LayerNorm(num_channels) for num_channels in self.channels])
+
+    @property
+    def channels(self):
+        return [self.out_feature_channels[name] for name in self.out_features]
+
+    def forward(
+        self, pixel_values: Tensor, output_hidden_states: Optional[bool] = None, return_dict: Optional[bool] = None
+    ) -> BackboneOutput:
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        output_hidden_states = (
+            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
+        )
+
+        outputs = self.swin(pixel_values, output_hidden_states=True, return_dict=True)
+
+        # we skip the stem
+        hidden_states = outputs.hidden_states[1:]
+
+        feature_maps = ()
+        # we need to reshape the hidden states to their original spatial dimensions
+        # spatial dimensions contains all the heights and widths of each stage, including after the embeddings
+        spatial_dimensions: Tuple[Tuple[int, int]] = outputs.hidden_states_spatial_dimensions
+        for i, (hidden_state, stage, (height, width)) in enumerate(
+            zip(hidden_states, self.stage_names[1:], spatial_dimensions)
+        ):
+            norm = self.hidden_states_norms[i]
+            # the last element corespond to the layer's last block output but before patch merging
+            hidden_state_unpolled = hidden_state[-1]
+            hidden_state_norm = norm(hidden_state_unpolled)
+            # the pixel decoder (FPN) expects 3D tensors (features)
+            batch_size, _, hidden_size = hidden_state_norm.shape
+            # reshape "b (h w) d -> b d h w"
+            hidden_state_permuted = (
+                hidden_state_norm.permute(0, 2, 1).view((batch_size, hidden_size, height, width)).contiguous()
+            )
+            if stage in self.out_features:
+                feature_maps += (hidden_state_permuted,)
+
+        if not return_dict:
+            output = (feature_maps,)
+            if output_hidden_states:
+                output += (outputs.hidden_states,)
+            return output
+
+        return BackboneOutput(
+            feature_maps=feature_maps,
+            hidden_states=outputs.hidden_states if output_hidden_states else None,
+            attentions=None,
         )

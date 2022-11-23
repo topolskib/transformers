@@ -125,6 +125,8 @@ class SwinConfig(PretrainedConfig):
         initializer_range=0.02,
         layer_norm_eps=1e-5,
         encoder_stride=32,
+        output_hidden_states_before_downsampling=False,
+        out_features=None,
         **kwargs
     ):
         super().__init__(**kwargs)
@@ -151,6 +153,17 @@ class SwinConfig(PretrainedConfig):
         # we set the hidden_size attribute in order to make Swin work with VisionEncoderDecoderModel
         # this indicates the channel dimension after the last stage of the model
         self.hidden_size = int(embed_dim * 2 ** (len(depths) - 1))
+        self.output_hidden_states_before_downsampling = output_hidden_states_before_downsampling
+        self.stage_names = ["stem"] + [f"stage{idx}" for idx in range(1, len(depths) + 1)]
+        if out_features is not None:
+            if not isinstance(out_features, list):
+                raise ValueError("out_features should be a list")
+            for feature in out_features:
+                if feature not in self.stage_names:
+                    raise ValueError(
+                        f"Feature {feature} is not a valid feature name. Valid names are {self.stage_names}"
+                    )
+        self.out_features = out_features
 
 
 class SwinOnnxConfig(OnnxConfig):
