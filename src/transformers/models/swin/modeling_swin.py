@@ -747,7 +747,10 @@ class SwinStage(nn.Module):
         if self.downsample is not None:
             height_downsampled, width_downsampled = (height + 1) // 2, (width + 1) // 2
             output_dimensions = (height, width, height_downsampled, width_downsampled)
+            print("Output dimensions: ", output_dimensions)
+            print("Hidden state before downsampling", hidden_states.shape)
             hidden_states = self.downsample(hidden_states_before_downsampling, input_dimensions)
+            print("Hidden state after downsampling", hidden_states.shape)
         else:
             output_dimensions = (height, width, height, width)
 
@@ -790,7 +793,6 @@ class SwinEncoder(nn.Module):
         output_hidden_states: Optional[bool] = False,
         return_dict: Optional[bool] = True,
     ) -> Union[Tuple, SwinEncoderOutput]:
-        all_input_dimensions = ()
         all_hidden_states = () if output_hidden_states else None
         all_reshaped_hidden_states = () if output_hidden_states else None
         all_self_attentions = () if output_attentions else None
@@ -825,13 +827,13 @@ class SwinEncoder(nn.Module):
             output_dimensions = layer_outputs[2]
 
             input_dimensions = (output_dimensions[-2], output_dimensions[-1])
-            all_input_dimensions += (input_dimensions,)
 
             if output_hidden_states and self.config.output_hidden_states_before_downsampling:
                 batch_size, _, hidden_size = hidden_states_before_downsampling.shape
                 # rearrange b (h w) c -> b c h w
+                # here we use the original (not downsampled) height and width
                 reshaped_hidden_state = hidden_states_before_downsampling.view(
-                    batch_size, *input_dimensions, hidden_size
+                    batch_size, *(output_dimensions[0], output_dimensions[1]), hidden_size
                 )
                 reshaped_hidden_state = reshaped_hidden_state.permute(0, 3, 1, 2)
                 all_hidden_states += (hidden_states_before_downsampling,)
