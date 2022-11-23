@@ -678,6 +678,7 @@ SHOULD_HAVE_THEIR_OWN_PAGE = [
     "MaskFormerSwinBackbone",
     "ResNetBackbone",
     "AutoBackbone",
+    "ConvNextBackbone",
     "DinatBackbone",
     "NatBackbone",
     "MaskFormerSwinConfig",

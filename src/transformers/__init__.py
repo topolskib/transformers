@@ -2085,6 +2085,7 @@ else:
             "SwinForMaskedImageModeling",
             "SwinModel",
             "SwinPreTrainedModel",
+            "SwinBackbone",
         ]
     )
     _import_structure["models.swinv2"].extend(
