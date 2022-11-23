@@ -670,6 +670,7 @@ SHOULD_HAVE_THEIR_OWN_PAGE = [
     "TensorFlowBenchmarkArguments",
     "ResNetBackbone",
     "AutoBackbone",
+    "ConvNextBackbone",
 ]
 
 
