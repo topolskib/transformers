@@ -747,10 +747,7 @@ class SwinStage(nn.Module):
         if self.downsample is not None:
             height_downsampled, width_downsampled = (height + 1) // 2, (width + 1) // 2
             output_dimensions = (height, width, height_downsampled, width_downsampled)
-            print("Output dimensions: ", output_dimensions)
-            print("Hidden state before downsampling", hidden_states.shape)
             hidden_states = self.downsample(hidden_states_before_downsampling, input_dimensions)
-            print("Hidden state after downsampling", hidden_states.shape)
         else:
             output_dimensions = (height, width, height, width)
 
@@ -1270,27 +1267,16 @@ class SwinBackbone(SwinPreTrainedModel):
         outputs = self.swin(pixel_values, output_hidden_states=True, return_dict=True)
 
         # we skip the stem
-        hidden_states = outputs.hidden_states[1:]
+        hidden_states = outputs.reshaped_hidden_states
 
         feature_maps = ()
-        # we need to reshape the hidden states to their original spatial dimensions
-        # spatial dimensions contains all the heights and widths of each stage, including after the embeddings
-        spatial_dimensions: Tuple[Tuple[int, int]] = outputs.hidden_states_spatial_dimensions
-        for i, (hidden_state, stage, (height, width)) in enumerate(
-            zip(hidden_states, self.stage_names[1:], spatial_dimensions)
-        ):
-            norm = self.hidden_states_norms[i]
-            # the last element corespond to the layer's last block output but before patch merging
-            hidden_state_unpolled = hidden_state[-1]
-            hidden_state_norm = norm(hidden_state_unpolled)
-            # the pixel decoder (FPN) expects 3D tensors (features)
-            batch_size, _, hidden_size = hidden_state_norm.shape
-            # reshape "b (h w) d -> b d h w"
-            hidden_state_permuted = (
-                hidden_state_norm.permute(0, 2, 1).view((batch_size, hidden_size, height, width)).contiguous()
-            )
+        # we skip the stem
+        for idx, (stage, hidden_state) in enumerate(zip(self.stage_names[1:], hidden_states[1:])):
             if stage in self.out_features:
-                feature_maps += (hidden_state_permuted,)
+                batch_size, num_channels, height, width = hidden_state.shape
+                hidden_state = self.hidden_states_norms[idx](hidden_state.reshape(batch_size, -1, num_channels))
+                hidden_state = hidden_state.view(batch_size, num_channels, height, width)
+                feature_maps += (hidden_state,)
 
         if not return_dict:
             output = (feature_maps,)
@@ -1300,6 +1286,6 @@ class SwinBackbone(SwinPreTrainedModel):
 
         return BackboneOutput(
             feature_maps=feature_maps,
-            hidden_states=outputs.hidden_states if output_hidden_states else None,
-            attentions=None,
+            # hidden_states=outputs.hidden_states if output_hidden_states else None,
+            # attentions=None,
         )
