@@ -29,7 +29,7 @@ from ...test_modeling_common import ModelTesterMixin, floats_tensor, ids_tensor
 if is_torch_available():
     import torch
 
-    from transformers import ConvNextForImageClassification, ConvNextModel
+    from transformers import ConvNextBackbone, ConvNextForImageClassification, ConvNextModel
     from transformers.models.convnext.modeling_convnext import CONVNEXT_PRETRAINED_MODEL_ARCHIVE_LIST
 
 
@@ -55,7 +55,7 @@ class ConvNextModelTester:
         hidden_act="gelu",
         type_sequence_label_size=10,
         initializer_range=0.02,
-        num_labels=3,
+        out_features=["stage2", "stage3", "stage4"],
         scope=None,
     ):
         self.parent = parent
@@ -71,6 +71,7 @@ class ConvNextModelTester:
         self.hidden_act = hidden_act
         self.type_sequence_label_size = type_sequence_label_size
         self.initializer_range = initializer_range
+        self.out_features = out_features
         self.scope = scope
 
     def prepare_config_and_inputs(self):
@@ -93,6 +94,7 @@ class ConvNextModelTester:
             hidden_act=self.hidden_act,
             is_decoder=False,
             initializer_range=self.initializer_range,
+            out_features=self.out_features,
         )
 
     def create_and_check_model(self, config, pixel_values, labels):
@@ -114,6 +116,20 @@ class ConvNextModelTester:
         result = model(pixel_values, labels=labels)
         self.parent.assertEqual(result.logits.shape, (self.batch_size, self.type_sequence_label_size))
 
+    def create_and_check_backbone(self, config, pixel_values, labels):
+        model = ConvNextBackbone(config=config)
+        model.to(torch_device)
+        model.eval()
+        result = model(pixel_values)
+
+        # verify hidden states
+        self.parent.assertEqual(len(result.feature_maps), len(config.out_features))
+        self.parent.assertListEqual(list(result.feature_maps[0].shape), [self.batch_size, self.hidden_sizes[1], 4, 4])
+
+        # verify channels
+        self.parent.assertEqual(len(model.channels), len(config.out_features))
+        self.parent.assertListEqual(model.channels, config.hidden_sizes[1:])
+
     def prepare_config_and_inputs_for_common(self):
         config_and_inputs = self.prepare_config_and_inputs()
         config, pixel_values, labels = config_and_inputs
@@ -132,6 +148,7 @@ class ConvNextModelTest(ModelTesterMixin, unittest.TestCase):
         (
             ConvNextModel,
             ConvNextForImageClassification,
+            ConvNextBackbone,
         )
         if is_torch_available()
         else ()
@@ -163,6 +180,10 @@ class ConvNextModelTest(ModelTesterMixin, unittest.TestCase):
     def test_attention_outputs(self):
         pass
 
+    @unittest.skip(reason="ConvNext does not use feedforward chunking")
+    def test_feed_forward_chunking(self):
+        pass
+
     @unittest.skip(reason="ConvNext does not use inputs_embeds")
     def test_inputs_embeds(self):
         pass
@@ -186,6 +207,14 @@ class ConvNextModelTest(ModelTesterMixin, unittest.TestCase):
     def test_model(self):
         config_and_inputs = self.model_tester.prepare_config_and_inputs()
         self.model_tester.create_and_check_model(*config_and_inputs)
+
+    def test_for_image_classification(self):
+        config_and_inputs = self.model_tester.prepare_config_and_inputs()
+        self.model_tester.create_and_check_for_image_classification(*config_and_inputs)
+
+    def test_backbone(self):
+        config_and_inputs = self.model_tester.prepare_config_and_inputs()
+        self.model_tester.create_and_check_backbone(*config_and_inputs)
 
     def test_hidden_states_output(self):
         def check_hidden_states_output(inputs_dict, config, model_class):
@@ -218,10 +247,6 @@ class ConvNextModelTest(ModelTesterMixin, unittest.TestCase):
             config.output_hidden_states = True
 
             check_hidden_states_output(inputs_dict, config, model_class)
-
-    def test_for_image_classification(self):
-        config_and_inputs = self.model_tester.prepare_config_and_inputs()
-        self.model_tester.create_and_check_for_image_classification(*config_and_inputs)
 
     @slow
     def test_model_from_pretrained(self):
