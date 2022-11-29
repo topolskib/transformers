@@ -15,7 +15,7 @@
 """ PyTorch ResNetv2 model."""
 
 from functools import partial
-from typing import Optional
+from typing import Optional, Tuple
 
 import torch
 import torch.utils.checkpoint
@@ -58,6 +58,39 @@ def _num_groups(num_channels, num_groups, group_size):
         assert num_channels % group_size == 0
         return num_channels // group_size
     return num_groups
+
+
+def get_padding_value(padding, kernel_size, **kwargs) -> Tuple[Tuple, bool]:
+    dynamic = False
+    if isinstance(padding, str):
+        # for any string padding, the padding will be calculated for you, one of three ways
+        padding = padding.lower()
+        if padding == "same":
+            # TF compatible 'SAME' padding, has a performance and GPU memory allocation impact
+            if is_static_pad(kernel_size, **kwargs):
+                # static case, no extra overhead
+                padding = get_padding(kernel_size, **kwargs)
+            else:
+                # dynamic 'SAME' padding, has runtime/GPU memory overhead
+                padding = 0
+                dynamic = True
+        elif padding == "valid":
+            # 'VALID' padding, same as padding=0
+            padding = 0
+        else:
+            # Default to PyTorch style 'same'-ish symmetric padding
+            padding = get_padding(kernel_size, **kwargs)
+    return padding, dynamic
+
+
+def create_conv2d_pad(in_chs, out_chs, kernel_size, **kwargs):
+    padding = kwargs.pop("padding", "")
+    kwargs.setdefault("bias", False)
+    padding, is_dynamic = get_padding_value(padding, kernel_size, **kwargs)
+    if is_dynamic:
+        return Conv2dSame(in_chs, out_chs, kernel_size, **kwargs)
+    else:
+        return nn.Conv2d(in_chs, out_chs, kernel_size, padding=padding, **kwargs)
 
 
 class BatchNormAct2d(nn.BatchNorm2d):
@@ -353,13 +386,19 @@ class ResNetv2PreActivationBottleneckLayer(nn.Module):
         self.conv3 = conv_layer(mid_channels, out_channels, 1)
         self.drop_path = ResNetv2DropPath(drop_path_rate) if drop_path_rate > 0 else nn.Identity()
 
-    def forward(self, x):
+    def forward(self, x, print_values=False):
         x_preact = self.norm1(x)
+
+        if print_values:
+            print("Hidden states after first norm:", x_preact[0, 0, :3, :3])
 
         # shortcut branch
         shortcut = x
         if self.downsample is not None:
-            shortcut = self.downsample(x_preact)
+            shortcut = self.downsample(x_preact, print_values)
+
+        if print_values:
+            print("Hidden states after downsample:", shortcut[0, 0, :3, :3])
 
         # residual branch
         x = self.conv1(x_preact)
@@ -382,10 +421,20 @@ class ResNetv2DownsampleConv(nn.Module):
         norm_layer=None,
     ):
         super(ResNetv2DownsampleConv, self).__init__()
+        self.conv_layer = conv_layer
         self.conv = conv_layer(in_channels, out_channels, 1, stride=stride)
         self.norm = nn.Identity() if preact else norm_layer(out_channels, apply_act=False)
 
-    def forward(self, x):
+    def forward(self, x, print_values=False):
+        if print_values:
+            print("Conv layer:", self.conv_layer)
+            print("Hidden states before downsample conv:", x[0, 0, :3, :3])
+
+        z = self.conv(x)
+
+        if print_values:
+            print("Hidden states after downsample conv:", z[0, 0, :3, :3])
+
         return self.norm(self.conv(x))
 
 
@@ -511,10 +560,14 @@ class ResNetv2Stage(nn.Module):
             first_dilation = dilation
             proj_layer = None
 
-    def forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: Tensor, print_values=False) -> Tensor:
         hidden_state = input
-        for layer in self.layers:
-            hidden_state = layer(hidden_state)
+        for idx, layer in enumerate(self.layers):
+            if idx == 0 and print_values:
+                print(f"Hidden states before block {idx}", hidden_state[0, 0, :3, :3])
+            hidden_state = layer(hidden_state, print_values=idx == 0)
+            if idx == 0 and print_values:
+                print(f"Hidden states after block {idx}", hidden_state[0, 0, :3, :3])
         return hidden_state
 
 
@@ -523,7 +576,7 @@ class ResNetv2Encoder(nn.Module):
         self,
         config: ResNetv2Config,
         act_layer=nn.ReLU,
-        conv_layer=StdConv2d,
+        conv_layer=create_conv2d_pad,
         norm_layer=BatchNormAct2d,
     ):
         super().__init__()
@@ -564,11 +617,14 @@ class ResNetv2Encoder(nn.Module):
     ) -> BaseModelOutputWithNoAttention:
         hidden_states = () if output_hidden_states else None
 
-        for stage_module in self.stages:
+        for idx, stage_module in enumerate(self.stages):
             if output_hidden_states:
                 hidden_states = hidden_states + (hidden_state,)
 
-            hidden_state = stage_module(hidden_state)
+            hidden_state = stage_module(hidden_state, print_values=idx == 0)
+
+            print(f"Hidden states after stage {idx}: ", hidden_state.shape)
+            print(f"Hidden states after stage {idx}: ", hidden_state[0, 0, :3, :3])
 
         if output_hidden_states:
             hidden_states = hidden_states + (hidden_state,)
@@ -642,7 +698,9 @@ class ResNetv2Model(ResNetv2PreTrainedModel):
         self.embedder = ResNetv2Embeddings(config)
 
         self.encoder = ResNetv2Encoder(config)
-        self.norm = nn.BatchNorm2d(config.hidden_sizes[-1])
+        self.norm = BatchNormAct2d(config.hidden_sizes[-1])
+
+        self.pooler = nn.AdaptiveAvgPool2d((1, 1))
         # Initialize weights and apply final processing
         self.post_init()
 
@@ -676,7 +734,13 @@ class ResNetv2Model(ResNetv2PreTrainedModel):
 
         last_hidden_state = self.norm(last_hidden_state)
 
-        pooled_output = None # TODO fix pooler output
+        print("Shape of final embeddings:", last_hidden_state.shape)
+        print("Final embeddings:", last_hidden_state[0, 0, :3, :3])
+
+        pooled_output = self.pooler(last_hidden_state)
+
+        print("Pooled output:", pooled_output.shape)
+        print("Pool output:", pooled_output[0, 0, :3, :3])
 
         if not return_dict:
             return (last_hidden_state, pooled_output) + encoder_outputs[1:]
@@ -695,7 +759,6 @@ class ResNetv2Model(ResNetv2PreTrainedModel):
     """,
     RESNETV2_START_DOCSTRING,
 )
-# Copied from transformers.models.resnet.modeling_resnet.ResNetForImageClassification with RESNET->RESNETV2,ResNet->ResNetv2,resnet->resnetv2
 class ResNetv2ForImageClassification(ResNetv2PreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
@@ -733,11 +796,9 @@ class ResNetv2ForImageClassification(ResNetv2PreTrainedModel):
 
         outputs = self.resnetv2(pixel_values, output_hidden_states=output_hidden_states, return_dict=return_dict)
 
-        sequence_output = outputs[0]
+        pooled_output = outputs.pooler_output if return_dict else outputs[1]
 
-        print("Shape of sequence output:", sequence_output.shape)
-
-        logits = self.classifier(sequence_output)
+        logits = self.classifier(pooled_output)
 
         loss = None
 

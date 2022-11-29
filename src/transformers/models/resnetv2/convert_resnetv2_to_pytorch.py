@@ -33,7 +33,6 @@ logging.set_verbosity_info()
 logger = logging.get_logger(__name__)
 
 
-
 def rename_key(name):
     if "stem.conv" in name:
         name = name.replace("stem.conv", "resnetv2.embedder.convolution")
