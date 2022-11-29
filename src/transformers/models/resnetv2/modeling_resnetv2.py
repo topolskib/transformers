@@ -83,14 +83,14 @@ def get_padding_value(padding, kernel_size, **kwargs) -> Tuple[Tuple, bool]:
     return padding, dynamic
 
 
-def create_conv2d_pad(in_chs, out_chs, kernel_size, **kwargs):
+def create_conv2d_pad(in_channels, out_channels, kernel_size, **kwargs):
     padding = kwargs.pop("padding", "")
     kwargs.setdefault("bias", False)
     padding, is_dynamic = get_padding_value(padding, kernel_size, **kwargs)
     if is_dynamic:
-        return Conv2dSame(in_chs, out_chs, kernel_size, **kwargs)
+        return Conv2dSame(in_channels, out_channels, kernel_size, **kwargs)
     else:
-        return nn.Conv2d(in_chs, out_chs, kernel_size, padding=padding, **kwargs)
+        return nn.Conv2d(in_channels, out_channels, kernel_size, padding=padding, **kwargs)
 
 
 class BatchNormAct2d(nn.BatchNorm2d):
@@ -473,37 +473,70 @@ class ResNetv2ShortCut(nn.Module):
         return hidden_state
 
 
-class ResNetv2BottleNeckLayer(nn.Module):
-    """
-    A classic ResNet's bottleneck layer composed by three `3x3` convolutions.
-
-    The first `1x1` convolution reduces the input by a factor of `reduction` in order to make the second `3x3`
-    convolution faster. The last `1x1` convolution remaps the reduced features to `out_channels`.
-    """
+class ResNetv2BottleneckLayer(nn.Module):
+    """Non Pre-activation bottleneck block, equivalent to V1.5/V1b bottleneck. Used for ViT."""
 
     def __init__(
-        self, in_channels: int, out_channels: int, stride: int = 1, activation: str = "relu", reduction: int = 4
+        self,
+        in_channels,
+        out_channels=None,
+        bottle_ratio=0.25,
+        stride=1,
+        dilation=1,
+        first_dilation=None,
+        groups=1,
+        act_layer=None,
+        conv_layer=None,
+        norm_layer=None,
+        proj_layer=None,
+        drop_path_rate=0.0,
     ):
         super().__init__()
-        should_apply_shortcut = in_channels != out_channels or stride != 1
-        reduces_channels = out_channels // reduction
-        self.shortcut = (
-            ResNetv2ShortCut(in_channels, out_channels, stride=stride) if should_apply_shortcut else nn.Identity()
-        )
-        self.layer = nn.Sequential(
-            ResNetv2ConvLayer(in_channels, reduces_channels, kernel_size=1),
-            ResNetv2ConvLayer(reduces_channels, reduces_channels, stride=stride),
-            ResNetv2ConvLayer(reduces_channels, out_channels, kernel_size=1, activation=None),
-        )
-        self.activation = ACT2FN[activation]
+        first_dilation = first_dilation or dilation
+        act_layer = act_layer or nn.ReLU
+        conv_layer = conv_layer or StdConv2d
+        norm_layer = norm_layer or partial(GroupNormAct, num_groups=32)
+        out_channels = out_channels or in_channels
+        mid_chs = make_div(out_channels * bottle_ratio)
 
-    def forward(self, hidden_state):
-        residual = hidden_state
-        hidden_state = self.layer(hidden_state)
-        residual = self.shortcut(residual)
-        hidden_state += residual
-        hidden_state = self.activation(hidden_state)
-        return hidden_state
+        if proj_layer is not None:
+            self.downsample = proj_layer(
+                in_channels,
+                out_channels,
+                stride=stride,
+                dilation=dilation,
+                preact=False,
+                conv_layer=conv_layer,
+                norm_layer=norm_layer,
+            )
+        else:
+            self.downsample = None
+
+        self.conv1 = conv_layer(in_channels, mid_chs, 1)
+        self.norm1 = norm_layer(mid_chs)
+        self.conv2 = conv_layer(mid_chs, mid_chs, 3, stride=stride, dilation=first_dilation, groups=groups)
+        self.norm2 = norm_layer(mid_chs)
+        self.conv3 = conv_layer(mid_chs, out_channels, 1)
+        self.norm3 = norm_layer(out_channels, apply_act=False)
+        self.drop_path = ResNetv2DropPath(drop_path_rate) if drop_path_rate > 0 else nn.Identity()
+        self.act3 = act_layer(inplace=True)
+
+    def forward(self, x):
+        # shortcut branch
+        shortcut = x
+        if self.downsample is not None:
+            shortcut = self.downsample(x)
+
+        # residual
+        x = self.conv1(x)
+        x = self.norm1(x)
+        x = self.conv2(x)
+        x = self.norm2(x)
+        x = self.conv3(x)
+        x = self.norm3(x)
+        x = self.drop_path(x)
+        x = self.act3(x + shortcut)
+        return x
 
 
 class ResNetv2Stage(nn.Module):
@@ -572,15 +605,14 @@ class ResNetv2Stage(nn.Module):
 
 
 class ResNetv2Encoder(nn.Module):
-    def __init__(
-        self,
-        config: ResNetv2Config,
-        act_layer=nn.ReLU,
-        conv_layer=create_conv2d_pad,
-        norm_layer=BatchNormAct2d,
-    ):
+    def __init__(self, config: ResNetv2Config):
         super().__init__()
         self.stages = nn.ModuleList([])
+
+        # TODO make these configurable
+        act_layer = nn.ReLU
+        conv_layer = create_conv2d_pad
+        norm_layer = BatchNormAct2d
 
         prev_chs = config.embedding_size
         curr_stride = 4
@@ -588,16 +620,22 @@ class ResNetv2Encoder(nn.Module):
         block_dprs = [
             x.tolist() for x in torch.linspace(0, config.drop_path_rate, sum(config.depths)).split(config.depths)
         ]
-        block_fn = ResNetv2PreActivationBottleneckLayer if config.layer_type == "preact" else ResNetv2BottleNeckLayer
+        if config.layer_type == "bottleneck":
+            block_fn = ResNetv2BottleneckLayer
+        elif config.layer_type == "preact":
+            block_fn = ResNetv2PreActivationBottleneckLayer
+        else:
+            raise ValueError("Unknown layer type: {}".format(config.layer_type))
+
         for stage_idx, (d, c, bdpr) in enumerate(zip(config.depths, config.hidden_sizes, block_dprs)):
-            out_chs = make_div(c * config.width_factor)
+            out_channels = make_div(c * config.width_factor)
             stride = 1 if stage_idx == 0 else 2
             if curr_stride >= config.output_stride:
                 dilation *= stride
                 stride = 1
             stage = ResNetv2Stage(
                 prev_chs,
-                out_chs,
+                out_channels,
                 stride=stride,
                 dilation=dilation,
                 depth=d,
@@ -608,7 +646,7 @@ class ResNetv2Encoder(nn.Module):
                 block_dpr=bdpr,
                 block_fn=block_fn,
             )
-            prev_chs = out_chs
+            prev_chs = out_channels
             curr_stride *= stride
             self.stages.add_module(str(stage_idx), stage)
 

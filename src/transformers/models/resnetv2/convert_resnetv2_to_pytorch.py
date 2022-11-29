@@ -42,7 +42,8 @@ def get_config(model_name):
     id2label = {int(k): v for k, v in id2label.items()}
     label2id = {v: k for k, v in id2label.items()}
 
-    config = ResNetv2Config(num_labels=1000, id2label=id2label, label2id=label2id)
+    layer_type = "preact" if "bit" not in model_name else "bottleneck"
+    config = ResNetv2Config(layer_type=layer_type, num_labels=1000, id2label=id2label, label2id=label2id)
 
     return config
 
@@ -117,8 +118,8 @@ def convert_resnetv2_checkpoint(model_name, pytorch_dump_folder_path):
         logits = outputs.logits
 
     print("Predicted class:", model.config.id2label[logits.argmax(-1).item()])
-    expected_slice = torch.tensor([-10.2422, -11.0364,  -9.0973])
-    assert torch.allclose(logits[0,:3], expected_slice, atol=1e-3)
+    expected_slice = torch.tensor([-10.2422, -11.0364, -9.0973])
+    assert torch.allclose(logits[0, :3], expected_slice, atol=1e-3)
     print("Looks ok!")
 
     if pytorch_dump_folder_path is not None:
@@ -136,7 +137,7 @@ if __name__ == "__main__":
         "--model_name",
         default="resnetv2_50",
         type=str,
-        help="Name of the ViT timm model you'd like to convert.",
+        help="Name of the ResNetv2 timm model you'd like to convert.",
     )
     parser.add_argument(
         "--pytorch_dump_folder_path", default=None, type=str, help="Path to the output PyTorch model directory."
