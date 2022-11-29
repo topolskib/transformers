@@ -126,6 +126,7 @@ MODEL_MAPPING_NAMES = OrderedDict(
         ("regnet", "RegNetModel"),
         ("rembert", "RemBertModel"),
         ("resnet", "ResNetModel"),
+        ("resnetv2", "ResNetv2Model"),
         ("retribert", "RetriBertModel"),
         ("roberta", "RobertaModel"),
         ("roc_bert", "RoCBertModel"),
@@ -390,6 +391,7 @@ MODEL_FOR_IMAGE_CLASSIFICATION_MAPPING_NAMES = OrderedDict(
         ("poolformer", "PoolFormerForImageClassification"),
         ("regnet", "RegNetForImageClassification"),
         ("resnet", "ResNetForImageClassification"),
+        ("resnetv2", "ResNetv2ForImageClassification"),
         ("segformer", "SegformerForImageClassification"),
         ("swin", "SwinForImageClassification"),
         ("swinv2", "Swinv2ForImageClassification"),
@@ -850,6 +852,7 @@ MODEL_FOR_BACKBONE_MAPPING_NAMES = OrderedDict(
         # Backbone mapping
         ("maskformer-swin", "MaskFormerSwinBackbone"),
         ("resnet", "ResNetBackbone"),
+        ("resnetv2", "ResNetv2Backbone"),
     ]
 )
 

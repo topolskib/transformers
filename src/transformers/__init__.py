@@ -340,6 +340,7 @@ _import_structure = {
     "models.regnet": ["REGNET_PRETRAINED_CONFIG_ARCHIVE_MAP", "RegNetConfig"],
     "models.rembert": ["REMBERT_PRETRAINED_CONFIG_ARCHIVE_MAP", "RemBertConfig"],
     "models.resnet": ["RESNET_PRETRAINED_CONFIG_ARCHIVE_MAP", "ResNetConfig"],
+    "models.resnetv2": ["RESNETV2_PRETRAINED_CONFIG_ARCHIVE_MAP", "ResNetv2Config"],
     "models.retribert": ["RETRIBERT_PRETRAINED_CONFIG_ARCHIVE_MAP", "RetriBertConfig", "RetriBertTokenizer"],
     "models.roberta": ["ROBERTA_PRETRAINED_CONFIG_ARCHIVE_MAP", "RobertaConfig", "RobertaTokenizer"],
     "models.roc_bert": ["ROC_BERT_PRETRAINED_CONFIG_ARCHIVE_MAP", "RoCBertConfig", "RoCBertTokenizer"],
@@ -1925,6 +1926,15 @@ else:
             "ResNetBackbone",
         ]
     )
+    _import_structure["models.resnetv2"].extend(
+        [
+            "RESNETV2_PRETRAINED_MODEL_ARCHIVE_LIST",
+            "ResNetv2ForImageClassification",
+            "ResNetv2Model",
+            "ResNetv2PreTrainedModel",
+            "ResNetv2Backbone",
+        ]
+    )
     _import_structure["models.retribert"].extend(
         ["RETRIBERT_PRETRAINED_MODEL_ARCHIVE_LIST", "RetriBertModel", "RetriBertPreTrainedModel"]
     )
@@ -2822,6 +2832,14 @@ else:
             "TFResNetPreTrainedModel",
         ]
     )
+    _import_structure["models.resnetv2"].extend(
+        [
+            "TF_RESNETV2_PRETRAINED_MODEL_ARCHIVE_LIST",
+            "TFResNetv2ForImageClassification",
+            "TFResNetv2Model",
+            "TFResNetv2PreTrainedModel",
+        ]
+    )
     _import_structure["models.roberta"].extend(
         [
             "TF_ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST",
@@ -3518,6 +3536,7 @@ if TYPE_CHECKING:
     from .models.regnet import REGNET_PRETRAINED_CONFIG_ARCHIVE_MAP, RegNetConfig
     from .models.rembert import REMBERT_PRETRAINED_CONFIG_ARCHIVE_MAP, RemBertConfig
     from .models.resnet import RESNET_PRETRAINED_CONFIG_ARCHIVE_MAP, ResNetConfig
+    from .models.resnetv2 import RESNETV2_PRETRAINED_CONFIG_ARCHIVE_MAP, ResNetv2Config
     from .models.retribert import RETRIBERT_PRETRAINED_CONFIG_ARCHIVE_MAP, RetriBertConfig, RetriBertTokenizer
     from .models.roberta import ROBERTA_PRETRAINED_CONFIG_ARCHIVE_MAP, RobertaConfig, RobertaTokenizer
     from .models.roc_bert import ROC_BERT_PRETRAINED_CONFIG_ARCHIVE_MAP, RoCBertConfig, RoCBertTokenizer
@@ -4821,6 +4840,13 @@ if TYPE_CHECKING:
             ResNetModel,
             ResNetPreTrainedModel,
         )
+        from .models.resnetv2 import (
+            RESNETV2_PRETRAINED_MODEL_ARCHIVE_LIST,
+            ResNetv2Backbone,
+            ResNetv2ForImageClassification,
+            ResNetv2Model,
+            ResNetv2PreTrainedModel,
+        )
         from .models.retribert import RETRIBERT_PRETRAINED_MODEL_ARCHIVE_LIST, RetriBertModel, RetriBertPreTrainedModel
         from .models.roberta import (
             ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST,
@@ -5562,6 +5588,12 @@ if TYPE_CHECKING:
             TFResNetForImageClassification,
             TFResNetModel,
             TFResNetPreTrainedModel,
+        )
+        from .models.resnetv2 import (
+            TF_RESNETV2_PRETRAINED_MODEL_ARCHIVE_LIST,
+            TFResNetv2ForImageClassification,
+            TFResNetv2Model,
+            TFResNetv2PreTrainedModel,
         )
         from .models.roberta import (
             TF_ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST,

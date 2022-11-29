@@ -131,6 +131,7 @@ from . import (
     regnet,
     rembert,
     resnet,
+    resnetv2,
     retribert,
     roberta,
     roc_bert,

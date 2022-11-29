@@ -2051,6 +2051,30 @@ class TFResNetPreTrainedModel(metaclass=DummyObject):
         requires_backends(self, ["tf"])
 
 
+TF_RESNETV2_PRETRAINED_MODEL_ARCHIVE_LIST = None
+
+
+class TFResNetv2ForImageClassification(metaclass=DummyObject):
+    _backends = ["tf"]
+
+    def __init__(self, *args, **kwargs):
+        requires_backends(self, ["tf"])
+
+
+class TFResNetv2Model(metaclass=DummyObject):
+    _backends = ["tf"]
+
+    def __init__(self, *args, **kwargs):
+        requires_backends(self, ["tf"])
+
+
+class TFResNetv2PreTrainedModel(metaclass=DummyObject):
+    _backends = ["tf"]
+
+    def __init__(self, *args, **kwargs):
+        requires_backends(self, ["tf"])
+
+
 TF_ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST = None
 
 

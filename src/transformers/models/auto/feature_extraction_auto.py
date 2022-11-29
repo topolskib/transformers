@@ -71,6 +71,7 @@ FEATURE_EXTRACTOR_MAPPING_NAMES = OrderedDict(
         ("poolformer", "PoolFormerFeatureExtractor"),
         ("regnet", "ConvNextFeatureExtractor"),
         ("resnet", "ConvNextFeatureExtractor"),
+        ("resnetv2", "ConvNextFeatureExtractor"),
         ("segformer", "SegformerFeatureExtractor"),
         ("speech_to_text", "Speech2TextFeatureExtractor"),
         ("swin", "ViTFeatureExtractor"),
