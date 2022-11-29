@@ -16,12 +16,14 @@
 
 
 import argparse
+import json
 from pathlib import Path
 
 import torch
 from PIL import Image
 
 import requests
+from huggingface_hub import hf_hub_download
 from timm import create_model
 from timm.data import resolve_data_config
 from timm.data.transforms_factory import create_transform
@@ -31,6 +33,18 @@ from transformers.utils import logging
 
 logging.set_verbosity_info()
 logger = logging.get_logger(__name__)
+
+
+def get_config(model_name):
+    repo_id = "huggingface/label-files"
+    filename = "imagenet-1k-id2label.json"
+    id2label = json.load(open(hf_hub_download(repo_id, filename, repo_type="dataset"), "r"))
+    id2label = {int(k): v for k, v in id2label.items()}
+    label2id = {v: k for k, v in id2label.items()}
+
+    config = ResNetv2Config(num_labels=1000, id2label=id2label, label2id=label2id)
+
+    return config
 
 
 def rename_key(name):
@@ -62,7 +76,7 @@ def convert_resnetv2_checkpoint(model_name, pytorch_dump_folder_path):
     """
 
     # define default ResNetv2 configuration
-    config = ResNetv2Config(num_labels=1000)
+    config = get_config(model_name)
 
     # load original model from timm
     timm_model = create_model(model_name, pretrained=True)
@@ -98,10 +112,14 @@ def convert_resnetv2_checkpoint(model_name, pytorch_dump_folder_path):
     print("Shape of pixel values:", pixel_values.shape)
     print("First values of pixel values:", pixel_values[0, 0, :3, :3])
 
-    outputs = model(pixel_values)
-    logits = outputs.logits
+    with torch.no_grad():
+        outputs = model(pixel_values)
+        logits = outputs.logits
 
-    print("Predicted class:", logits.argmax(-1))
+    print("Predicted class:", model.config.id2label[logits.argmax(-1).item()])
+    expected_slice = torch.tensor([-10.2422, -11.0364,  -9.0973])
+    assert torch.allclose(logits[0,:3], expected_slice, atol=1e-3)
+    print("Looks ok!")
 
     if pytorch_dump_folder_path is not None:
         Path(pytorch_dump_folder_path).mkdir(exist_ok=True)
