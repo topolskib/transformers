@@ -91,14 +91,15 @@ class ResNetv2Config(PretrainedConfig):
         embedding_size=64,
         hidden_sizes=[256, 512, 1024, 2048],
         depths=[3, 4, 6, 3],
+        stem_type="",
         layer_type="preact",
         hidden_act="relu",
         downsample_in_first_stage=False,
         drop_path_rate=0.0,
         output_stride=32,
         width_factor=1,
+        conv_layer="",
         use_group_norm=False,
-        use_weight_standardization=False,
         **kwargs
     ):
         super().__init__(**kwargs)
@@ -108,14 +109,15 @@ class ResNetv2Config(PretrainedConfig):
         self.embedding_size = embedding_size
         self.hidden_sizes = hidden_sizes
         self.depths = depths
+        self.stem_type = stem_type
         self.layer_type = layer_type
         self.hidden_act = hidden_act
         self.downsample_in_first_stage = downsample_in_first_stage
         self.drop_path_rate = drop_path_rate
         self.output_stride = output_stride
         self.width_factor = width_factor
+        self.conv_layer = conv_layer
         self.use_group_norm = use_group_norm
-        self.use_weight_standardization = use_weight_standardization
 
 
 class ResNetv2OnnxConfig(OnnxConfig):

@@ -43,10 +43,13 @@ def get_config(model_name):
     label2id = {v: k for k, v in id2label.items()}
 
     use_group_norm = True if "bit" in model_name else False
-    use_weight_standardization = True if "bit" in model_name else False
+    conv_layer = "std_conv" if "bit" in model_name else False
+    # for the ViT-hybrid checkpoints, one needs to additionally set config.layer_type = "bottleneck"
+    # and use a different conv_layer, namely StdConv2dSame
+    # and "stem_type": "same" in the data config
     config = ResNetv2Config(
         use_group_norm=use_group_norm,
-        use_weight_standardization=use_weight_standardization,
+        conv_layer=conv_layer,
         num_labels=1000,
         id2label=id2label,
         label2id=label2id,

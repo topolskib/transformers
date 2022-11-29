@@ -14,8 +14,9 @@
 # limitations under the License.
 """ PyTorch ResNetv2 model."""
 
+import collections
 from functools import partial
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 import torch
 import torch.utils.checkpoint
@@ -51,6 +52,31 @@ RESNETV2_PRETRAINED_MODEL_ARCHIVE_LIST = [
     "google/resnetnv2-50",
     # See all ResNetv2 models at https://huggingface.co/models?filter=resnetv2
 ]
+
+
+class StdConv2dSame(nn.Conv2d):
+    """Conv2d with Weight Standardization. TF compatible SAME padding. Used for ViT Hybrid model.
+    Paper: `Micro-Batch Training with Batch-Channel Normalization and Weight Standardization` -
+        https://arxiv.org/abs/1903.10520v2
+    """
+    def __init__(
+            self, in_channel, out_channels, kernel_size, stride=1, padding='SAME',
+            dilation=1, groups=1, bias=False, eps=1e-6):
+        padding, is_dynamic = get_padding_value(padding, kernel_size, stride=stride, dilation=dilation)
+        super().__init__(
+            in_channel, out_channels, kernel_size, stride=stride, padding=padding, dilation=dilation,
+            groups=groups, bias=bias)
+        self.same_pad = is_dynamic
+        self.eps = eps
+
+    def forward(self, x):
+        if self.same_pad:
+            x = pad_same(x, self.kernel_size, self.stride, self.dilation)
+        weight = nn.functional.batch_norm(
+            self.weight.reshape(1, self.out_channels, -1), None, None,
+            training=True, momentum=0., eps=self.eps).reshape_as(self.weight)
+        x = nn.functional.conv2d(x, weight, self.bias, self.stride, self.padding, self.dilation, self.groups)
+        return x
 
 
 def _num_groups(num_channels, num_groups, group_size):
@@ -263,6 +289,34 @@ class StdConv2d(nn.Conv2d):
         return x
 
 
+# Calculate asymmetric TensorFlow-like 'SAME' padding for a convolution
+def get_same_padding(x: int, k: int, s: int, d: int):
+    return max((math.ceil(x / s) - 1) * s + (k - 1) * d + 1 - x, 0)
+
+
+# Dynamically pad input x with 'SAME' padding for conv with specified args
+def pad_same(x, k: List[int], s: List[int], d: List[int] = (1, 1), value: float = 0):
+    ih, iw = x.size()[-2:]
+    pad_h, pad_w = get_same_padding(ih, k[0], s[0], d[0]), get_same_padding(iw, k[1], s[1], d[1])
+    if pad_h > 0 or pad_w > 0:
+        x = nn.functional.pad(x, [pad_w // 2, pad_w - pad_w // 2, pad_h // 2, pad_h - pad_h // 2], value=value)
+    return x
+
+
+class MaxPool2dSame(nn.MaxPool2d):
+    """Tensorflow like 'SAME' wrapper for 2D max pooling"""
+
+    def __init__(self, kernel_size: int, stride=None, dilation=1, ceil_mode=False):
+        kernel_size = kernel_size if isinstance(kernel_size, collections.abc.Iterable) else (kernel_size, kernel_size)
+        stride = stride if isinstance(stride, collections.abc.Iterable) else (stride, stride)
+        dilation = dilation if isinstance(dilation, collections.abc.Iterable) else (dilation, dilation)
+        super(MaxPool2dSame, self).__init__(kernel_size, stride, (0, 0), dilation, ceil_mode)
+
+    def forward(self, x):
+        x = pad_same(x, self.kernel_size, self.stride, value=-float("inf"))
+        return nn.functional.max_pool2d(x, self.kernel_size, self.stride, (0, 0), self.dilation, self.ceil_mode)
+
+
 class ResNetv2Embeddings(nn.Module):
     """
     ResNetv2 Embeddings (stem) composed of a single aggressive convolution.
@@ -273,7 +327,10 @@ class ResNetv2Embeddings(nn.Module):
         self.convolution = nn.Conv2d(
             config.num_channels, config.embedding_size, kernel_size=7, stride=2, padding=3, bias=False
         )
-        self.pooler = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        if config.stem_type == "same":
+            self.pooler = MaxPool2dSame(kernel_size=3, stride=2)
+        else:
+            self.pooler = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.num_channels = config.num_channels
 
     def forward(self, pixel_values: Tensor) -> Tensor:
@@ -610,7 +667,13 @@ class ResNetv2Encoder(nn.Module):
         self.stages = nn.ModuleList([])
 
         act_layer = nn.ReLU
-        conv_layer = partial(StdConv2d, eps=1e-8) if config.use_weight_standardization else create_conv2d_pad
+        if config.conv_layer == "std_conv":
+            conv_layer = partial(StdConv2d, eps=1e-8)
+        elif config.conv_layer == "std_conv_same":
+            conv_layer = partial(StdConv2dSame, eps=1e-8)
+        else:
+            conv_layer = create_conv2d_pad
+
         norm_layer = partial(ResNetv2GroupNormActivation, num_groups=32) if config.use_group_norm else BatchNormAct2d
 
         prev_chs = config.embedding_size
