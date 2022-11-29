@@ -495,7 +495,7 @@ class ResNetv2BottleneckLayer(nn.Module):
         first_dilation = first_dilation or dilation
         act_layer = act_layer or nn.ReLU
         conv_layer = conv_layer or StdConv2d
-        norm_layer = norm_layer or partial(GroupNormAct, num_groups=32)
+        norm_layer = norm_layer or partial(ResNetv2GroupNormActivation, num_groups=32)
         out_channels = out_channels or in_channels
         mid_chs = make_div(out_channels * bottle_ratio)
 
@@ -609,10 +609,9 @@ class ResNetv2Encoder(nn.Module):
         super().__init__()
         self.stages = nn.ModuleList([])
 
-        # TODO make these configurable
         act_layer = nn.ReLU
-        conv_layer = create_conv2d_pad
-        norm_layer = BatchNormAct2d
+        conv_layer = partial(StdConv2d, eps=1e-8) if config.use_weight_standardization else create_conv2d_pad
+        norm_layer = partial(ResNetv2GroupNormActivation, num_groups=32) if config.use_group_norm else BatchNormAct2d
 
         prev_chs = config.embedding_size
         curr_stride = 4
@@ -736,7 +735,8 @@ class ResNetv2Model(ResNetv2PreTrainedModel):
         self.embedder = ResNetv2Embeddings(config)
 
         self.encoder = ResNetv2Encoder(config)
-        self.norm = BatchNormAct2d(config.hidden_sizes[-1])
+        norm_layer = partial(ResNetv2GroupNormActivation, num_groups=32) if config.use_group_norm else BatchNormAct2d
+        self.norm = norm_layer(config.hidden_sizes[-1]) if config.layer_type == "preact" else nn.Identity()
 
         self.pooler = nn.AdaptiveAvgPool2d((1, 1))
         # Initialize weights and apply final processing

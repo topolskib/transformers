@@ -42,8 +42,15 @@ def get_config(model_name):
     id2label = {int(k): v for k, v in id2label.items()}
     label2id = {v: k for k, v in id2label.items()}
 
-    layer_type = "preact" if "bit" not in model_name else "bottleneck"
-    config = ResNetv2Config(layer_type=layer_type, num_labels=1000, id2label=id2label, label2id=label2id)
+    use_group_norm = True if "bit" in model_name else False
+    use_weight_standardization = True if "bit" in model_name else False
+    config = ResNetv2Config(
+        use_group_norm=use_group_norm,
+        use_weight_standardization=use_weight_standardization,
+        num_labels=1000,
+        id2label=id2label,
+        label2id=label2id,
+    )
 
     return config
 
@@ -117,8 +124,12 @@ def convert_resnetv2_checkpoint(model_name, pytorch_dump_folder_path):
         outputs = model(pixel_values)
         logits = outputs.logits
 
+    print("Logits:", logits[0, :3])
     print("Predicted class:", model.config.id2label[logits.argmax(-1).item()])
-    expected_slice = torch.tensor([-10.2422, -11.0364, -9.0973])
+    if model_name == "resnetv2_50":
+        expected_slice = torch.tensor([-10.2422, -11.0364, -9.0973])
+    elif model_name == "resnetv2_50x1_bitm":
+        expected_slice = torch.tensor([0.4306, -0.0052, -0.6205])
     assert torch.allclose(logits[0, :3], expected_slice, atol=1e-3)
     print("Looks ok!")
 

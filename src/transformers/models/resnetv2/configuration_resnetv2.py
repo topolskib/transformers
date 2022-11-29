@@ -63,6 +63,10 @@ class ResNetv2Config(PretrainedConfig):
             The output stride of the model.
         width_factor (`int`, *optional*, defaults to 1):
             The width factor for the model.
+        use_group_norm (`bool`, *optional*, defaults to `False`):
+            If `True`, use group normalization instead of batch normalization in all layers.
+        use_weight_standardization (`bool`, *optional*, defaults to `False`):
+            If `True`, use Weight Standardization in all convolutional layers.
 
     Example:
     ```python
@@ -93,6 +97,8 @@ class ResNetv2Config(PretrainedConfig):
         drop_path_rate=0.0,
         output_stride=32,
         width_factor=1,
+        use_group_norm=False,
+        use_weight_standardization=False,
         **kwargs
     ):
         super().__init__(**kwargs)
@@ -108,6 +114,8 @@ class ResNetv2Config(PretrainedConfig):
         self.drop_path_rate = drop_path_rate
         self.output_stride = output_stride
         self.width_factor = width_factor
+        self.use_group_norm = use_group_norm
+        self.use_weight_standardization = use_weight_standardization
 
 
 class ResNetv2OnnxConfig(OnnxConfig):
