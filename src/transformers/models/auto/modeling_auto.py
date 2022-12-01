@@ -116,6 +116,7 @@ MODEL_MAPPING_NAMES = OrderedDict(
         ("nezha", "NezhaModel"),
         ("nllb", "M2M100Model"),
         ("nystromformer", "NystromformerModel"),
+        ("oneformer", "OneFormerModel"),
         ("openai-gpt", "OpenAIGPTModel"),
         ("opt", "OPTModel"),
         ("owlvit", "OwlViTModel"),
@@ -445,6 +446,13 @@ MODEL_FOR_UNIVERSAL_SEGMENTATION_MAPPING_NAMES = OrderedDict(
         # Model for Universal Segmentation mapping
         ("detr", "DetrForSegmentation"),
         ("maskformer", "MaskFormerForInstanceSegmentation"),
+    ]
+)
+
+MODEL_FOR_UNIVERSAL_SEGMENTATION_MAPPING_NAMES = OrderedDict(
+    [
+        # Model for Universal Segmentation mapping
+        ("oneformer", "OneFormerForUniversalSegmentation"),
     ]
 )
 
@@ -1111,6 +1119,15 @@ class AutoModelForInstanceSegmentation(_BaseAutoModelClass):
 
 AutoModelForInstanceSegmentation = auto_class_update(
     AutoModelForInstanceSegmentation, head_doc="instance segmentation"
+)
+
+
+class AutoModelForUniversalSegmentation(_BaseAutoModelClass):
+    _model_mapping = MODEL_FOR_UNIVERSAL_SEGMENTATION_MAPPING
+
+
+AutoModelForUniversalSegmentation = auto_class_update(
+    AutoModelForUniversalSegmentation, head_doc="universal segmentation"
 )
 
 
