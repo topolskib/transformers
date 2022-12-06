@@ -77,7 +77,7 @@ CONFIG_MAPPING_NAMES = OrderedDict(
         ("fnet", "FNetConfig"),
         ("fsmt", "FSMTConfig"),
         ("funnel", "FunnelConfig"),
-        ("git", "GITConfig"),
+        ("git", "GitConfig"),
         ("glpn", "GLPNConfig"),
         ("gpt-sw3", "GPT2Config"),
         ("gpt2", "GPT2Config"),

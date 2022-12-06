@@ -76,7 +76,7 @@ MODEL_MAPPING_NAMES = OrderedDict(
         ("fnet", "FNetModel"),
         ("fsmt", "FSMTModel"),
         ("funnel", ("FunnelModel", "FunnelBaseModel")),
-        ("git", "GITModel"),
+        ("git", "GitModel"),
         ("glpn", "GLPNModel"),
         ("gpt-sw3", "GPT2Model"),
         ("gpt2", "GPT2Model"),
