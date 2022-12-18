@@ -830,14 +830,6 @@ else:
             "DeformableDetrPreTrainedModel",
         ]
     )
-    _import_structure["models.deta"].extend(
-        [
-            "DETA_PRETRAINED_MODEL_ARCHIVE_LIST",
-            "DetaForObjectDetection",
-            "DetaModel",
-            "DetaPreTrainedModel",
-        ]
-    )
     _import_structure["models.detr"].extend(
         [
             "DETR_PRETRAINED_MODEL_ARCHIVE_LIST",
@@ -1327,6 +1319,14 @@ else:
             "DeiTForMaskedImageModeling",
             "DeiTModel",
             "DeiTPreTrainedModel",
+        ]
+    )
+    _import_structure["models.deta"].extend(
+        [
+            "DETA_PRETRAINED_MODEL_ARCHIVE_LIST",
+            "DetaForObjectDetection",
+            "DetaModel",
+            "DetaPreTrainedModel",
         ]
     )
     _import_structure["models.dinat"].extend(
@@ -4158,12 +4158,6 @@ if TYPE_CHECKING:
             DeformableDetrModel,
             DeformableDetrPreTrainedModel,
         )
-        from .models.deta import (
-            DETA_PRETRAINED_MODEL_ARCHIVE_LIST,
-            DetaForObjectDetection,
-            DetaModel,
-            DetaPreTrainedModel,
-        )
         from .models.detr import (
             DETR_PRETRAINED_MODEL_ARCHIVE_LIST,
             DetrForObjectDetection,
@@ -4570,6 +4564,12 @@ if TYPE_CHECKING:
             DeiTForMaskedImageModeling,
             DeiTModel,
             DeiTPreTrainedModel,
+        )
+        from .models.deta import (
+            DETA_PRETRAINED_MODEL_ARCHIVE_LIST,
+            DetaForObjectDetection,
+            DetaModel,
+            DetaPreTrainedModel,
         )
         from .models.dinat import (
             DINAT_PRETRAINED_MODEL_ARCHIVE_LIST,
