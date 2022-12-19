@@ -367,14 +367,14 @@ class SegformerImageProcessor(metaclass=DummyObject):
         requires_backends(self, ["vision"])
 
 
-class UperNetImageProcessor(metaclass=DummyObject):
+class Swin2SRImageProcessor(metaclass=DummyObject):
     _backends = ["vision"]
 
     def __init__(self, *args, **kwargs):
         requires_backends(self, ["vision"])
-  
-  
-  class Swin2SRImageProcessor(metaclass=DummyObject):
+
+
+class UperNetImageProcessor(metaclass=DummyObject):
     _backends = ["vision"]
 
     def __init__(self, *args, **kwargs):
