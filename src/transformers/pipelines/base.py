@@ -31,6 +31,7 @@ from packaging import version
 
 from ..dynamic_module_utils import custom_object_save
 from ..feature_extraction_utils import PreTrainedFeatureExtractor
+from ..image_processing_utils import BaseImageProcessor
 from ..modelcard import ModelCard
 from ..models.auto.configuration_auto import AutoConfig
 from ..tokenization_utils import PreTrainedTokenizer
@@ -743,6 +744,7 @@ class Pipeline(_ScikitCompat):
         model: Union["PreTrainedModel", "TFPreTrainedModel"],
         tokenizer: Optional[PreTrainedTokenizer] = None,
         feature_extractor: Optional[PreTrainedFeatureExtractor] = None,
+        image_processor: Optional[BaseImageProcessor] = None,
         modelcard: Optional[ModelCard] = None,
         framework: Optional[str] = None,
         task: str = "",
@@ -758,6 +760,7 @@ class Pipeline(_ScikitCompat):
         self.model = model
         self.tokenizer = tokenizer
         self.feature_extractor = feature_extractor
+        self.image_processor = image_processor
         self.modelcard = modelcard
         self.framework = framework
         if is_torch_available() and self.framework == "pt":

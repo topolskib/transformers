@@ -79,6 +79,9 @@ class OneFormerProcessor(ProcessorMixin):
             token_inputs.append(token.unsqueeze(0))
 
         token_inputs = torch.cat(token_inputs, dim=0)
+        import ipdb
+
+        ipdb.set_trace()
         return token_inputs
 
     def __call__(self, images=None, task_inputs=None, segmentation_maps=None, **kwargs):
