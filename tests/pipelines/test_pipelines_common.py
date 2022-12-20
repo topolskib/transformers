@@ -166,6 +166,9 @@ def get_tiny_feature_extractor_from_checkpoint(checkpoint, tiny_config, feature_
         feature_extractor = feature_extractor.__class__(
             feature_size=tiny_config.input_feat_per_channel, num_mel_bins=tiny_config.input_feat_per_channel
         )
+    # TODO remove this, once those have been moved to `image_processor`.
+    if hasattr(tiny_config, "image_size") and feature_extractor:
+        feature_extractor = feature_extractor.__class__(size=tiny_config.image_size, crop_size=tiny_config.image_size)
     return feature_extractor
 
 
