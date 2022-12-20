@@ -27,11 +27,13 @@ from transformers import (
     MODEL_FOR_SEMANTIC_SEGMENTATION_MAPPING,
     MODEL_FOR_UNIVERSAL_SEGMENTATION_MAPPING,
     AutoFeatureExtractor,
+    AutoImageProcessor,
     AutoModelForImageSegmentation,
     AutoModelForInstanceSegmentation,
     DetrForSegmentation,
     ImageSegmentationPipeline,
     MaskFormerForInstanceSegmentation,
+    OneFormerForUniversalSegmentation,
     is_vision_available,
     pipeline,
 )
@@ -82,8 +84,10 @@ class ImageSegmentationPipelineTests(unittest.TestCase, metaclass=PipelineTestCa
         + (MODEL_FOR_UNIVERSAL_SEGMENTATION_MAPPING.items() if MODEL_FOR_UNIVERSAL_SEGMENTATION_MAPPING else [])
     }
 
-    def get_test_pipeline(self, model, tokenizer, feature_extractor):
-        image_segmenter = ImageSegmentationPipeline(model=model, feature_extractor=feature_extractor)
+    def get_test_pipeline(self, model, tokenizer, feature_extractor, image_processor):
+        image_segmenter = ImageSegmentationPipeline(
+            model=model, feature_extractor=feature_extractor, image_processor=image_processor
+        )
         return image_segmenter, [
             "./tests/fixtures/tests_samples/COCO/000000039769.png",
             "./tests/fixtures/tests_samples/COCO/000000039769.png",
@@ -100,7 +104,7 @@ class ImageSegmentationPipelineTests(unittest.TestCase, metaclass=PipelineTestCa
         n = len(outputs)
         if isinstance(
             image_segmenter.model,
-            (MaskFormerForInstanceSegmentation, DetrForSegmentation),
+            (OneFormerForUniversalSegmentation, MaskFormerForInstanceSegmentation, DetrForSegmentation),
         ):
             # Instance segmentation (maskformer, and detr) have a slot for null class
             # and can output nothing even with a low threshold
@@ -197,10 +201,10 @@ class ImageSegmentationPipelineTests(unittest.TestCase, metaclass=PipelineTestCa
         model_id = "hf-internal-testing/tiny-detr-mobilenetsv3-panoptic"
 
         model = AutoModelForImageSegmentation.from_pretrained(model_id)
-        feature_extractor = AutoFeatureExtractor.from_pretrained(model_id)
+        image_processor = AutoImageProcessor.from_pretrained(model_id)
         image_segmenter = ImageSegmentationPipeline(
             model=model,
-            feature_extractor=feature_extractor,
+            image_processor=image_processor,
             subtask="panoptic",
             threshold=0.0,
             mask_threshold=0.0,
@@ -664,7 +668,7 @@ class ImageSegmentationPipelineTests(unittest.TestCase, metaclass=PipelineTestCa
         )
 
         # Different task
-        outputs = image_segmenter(file, mask_threshold=0.99, overlap_mask_area_threshold=0.99, subtask="semantic")
+        outputs = image_segmenter(file, subtask="semantic")
         # Shortening by hashing
         for o in outputs:
             o["mask"] = mask_to_test_readable(o["mask"])
@@ -673,17 +677,6 @@ class ImageSegmentationPipelineTests(unittest.TestCase, metaclass=PipelineTestCa
         self.assertEqual(
             nested_simplify(outputs, decimals=4),
             [
-                {
-                    "score": 0.5194,
-                    "label": "street lamp",
-                    "mask": {"hash": "895acbce0b", "white_pixels": 1654, "shape": (512, 683)},
-                },
-                {
-                    "score": 0.1131,
-                    "label": "fence",
-                    "mask": {"hash": "a57425bc07", "white_pixels": 348042, "shape": (512, 683)},
-                },
-            ][
                 {
                     "score": None,
                     "label": "wall",
