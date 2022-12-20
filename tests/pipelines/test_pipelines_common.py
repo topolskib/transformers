@@ -258,8 +258,8 @@ class PipelineTestCaseMeta(type):
 
                 if tokenizer is None and feature_extractor is None and image_processor:
                     self.skipTest(
-                        f"Ignoring {ModelClass}, cannot create a tokenizer or feature_extractor or image_processor (PerceiverConfig with"
-                        " no FastTokenizer ?)"
+                        f"Ignoring {ModelClass}, cannot create a tokenizer or feature_extractor or image_processor"
+                        " (PerceiverConfig with no FastTokenizer ?)"
                     )
                 pipeline, examples = self.get_test_pipeline(model, tokenizer, feature_extractor, image_processor)
                 if pipeline is None:
