@@ -67,12 +67,6 @@ class ImageSegmentationPipeline(Pipeline):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        if self.image_processor is None and self.feature_extractor is not None:
-            # Backward compatible change, if users called
-            # ImageSegmentationPipeline(.., feature_extractor=MyFeatureExtractor())
-            # then we should keep working
-            self.image_processor = self.feature_extractor
-
         if self.framework == "tf":
             raise ValueError(f"The {self.__class__} is only available in PyTorch.")
 
@@ -88,10 +82,11 @@ class ImageSegmentationPipeline(Pipeline):
 
     def _sanitize_parameters(self, **kwargs):
         preprocessor_kwargs = {}
+        if "task_inputs" in kwargs:
+            preprocessor_kwargs["task_inputs"] = kwargs["task_inputs"]
         postprocess_kwargs = {}
         if "subtask" in kwargs:
             postprocess_kwargs["subtask"] = kwargs["subtask"]
-            preprocessor_kwargs["subtask"] = kwargs["subtask"]
         if "threshold" in kwargs:
             postprocess_kwargs["threshold"] = kwargs["threshold"]
         if "mask_threshold" in kwargs:
@@ -115,6 +110,9 @@ class ImageSegmentationPipeline(Pipeline):
 
                 The pipeline accepts either a single image or a batch of images. Images in a batch must all be in the
                 same format: all as HTTP(S) links, all as local paths, or all as PIL images.
+            task_inputs (`List[str]`):
+                The value of task token inputs for task-dynamic inference, choose [`semantic`, `instance` or
+                `panoptic`]. task_inputs is only needed for [`~OneFormerForUniversalSegmentation`]
             subtask (`str`, *optional*):
                 Segmentation task to be performed, choose [`semantic`, `instance` and `panoptic`] depending on model
                 capabilities. If not set, the pipeline will attempt tp resolve in the following order:
@@ -142,16 +140,14 @@ class ImageSegmentationPipeline(Pipeline):
         """
         return super().__call__(images, **kwargs)
 
-    def preprocess(self, image, subtask=None):
+    def preprocess(self, image, task_inputs=None):
         image = load_image(image)
         target_size = [(image.height, image.width)]
 
-        kwargs = {}
-        if subtask is not None and self.image_processor.__class__.__name__ == "OneFormerImageProcessor":
-            # This is extremely specific, but for other subtask, oneformer
-            # uses some prompting + specific masks
-            kwargs["task_inputs"] = [subtask]
-        inputs = self.image_processor(images=[image], return_tensors="pt", **kwargs)
+        if task_inputs is not None:
+            inputs = self.feature_extractor(images=[image], task_inputs=task_inputs, return_tensors="pt")
+        else:
+            inputs = self.feature_extractor(images=[image], return_tensors="pt")
         inputs["target_size"] = target_size
         return inputs
 
@@ -165,10 +161,10 @@ class ImageSegmentationPipeline(Pipeline):
         self, model_outputs, subtask=None, threshold=0.9, mask_threshold=0.5, overlap_mask_area_threshold=0.5
     ):
         fn = None
-        if subtask in {"panoptic", None} and hasattr(self.image_processor, "post_process_panoptic_segmentation"):
-            fn = self.image_processor.post_process_panoptic_segmentation
-        elif subtask in {"instance", None} and hasattr(self.image_processor, "post_process_instance_segmentation"):
-            fn = self.image_processor.post_process_instance_segmentation
+        if subtask in {"panoptic", None} and hasattr(self.feature_extractor, "post_process_panoptic_segmentation"):
+            fn = self.feature_extractor.post_process_panoptic_segmentation
+        elif subtask in {"instance", None} and hasattr(self.feature_extractor, "post_process_instance_segmentation"):
+            fn = self.feature_extractor.post_process_instance_segmentation
 
         if fn is not None:
             outputs = fn(
@@ -189,8 +185,8 @@ class ImageSegmentationPipeline(Pipeline):
                 score = segment["score"]
                 annotation.append({"score": score, "label": label, "mask": mask})
 
-        elif subtask in {"semantic", None} and hasattr(self.image_processor, "post_process_semantic_segmentation"):
-            outputs = self.image_processor.post_process_semantic_segmentation(
+        elif subtask in {"semantic", None} and hasattr(self.feature_extractor, "post_process_semantic_segmentation"):
+            outputs = self.feature_extractor.post_process_semantic_segmentation(
                 model_outputs, target_sizes=model_outputs["target_size"]
             )[0]
 

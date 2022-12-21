@@ -175,7 +175,7 @@ class FeatureExtractionPipelineTests(unittest.TestCase, metaclass=PipelineTestCa
             raise ValueError("We expect lists of floats, nothing else")
         return shape
 
-    def get_test_pipeline(self, model, tokenizer, feature_extractor, image_processor):
+    def get_test_pipeline(self, model, tokenizer, feature_extractor):
         if tokenizer is None:
             self.skipTest("No tokenizer")
             return
