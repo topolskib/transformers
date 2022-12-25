@@ -246,7 +246,13 @@ def convert_mask2former_checkpoint(model_name: str, pytorch_dump_folder_path: st
     config = get_mask2former_config(model_name)
 
     # load original state_dict
-    filepath = hf_hub_download(repo_id="nielsr/mask2former-original-checkpoints", filename="mask2former_swin_base_coco_panoptic.pkl", repo_type="dataset")
+    model_name_to_filename = {
+        "mask2former-swin-base-coco-panoptic": "mask2former_swin_base_coco_panoptic.pkl",
+        "mask2former-swin-base-ade-semantic": "maskformer_swin_base_ade_panoptic.pkl",
+    }
+
+    filename = model_name_to_filename[model_name]
+    filepath = hf_hub_download(repo_id="nielsr/mask2former-original-checkpoints", filename=filename, repo_type="dataset")
     with open(filepath, "rb") as f:
         data = pickle.load(f)
     state_dict = data["model"]
@@ -293,6 +299,12 @@ def convert_mask2former_checkpoint(model_name: str, pytorch_dump_folder_path: st
         [-2.1374, -8.1785, -3.5263],
         [-1.3945, -6.2297, -4.8062]]
         )
+    elif model_name == "mask2former-swin-base-ade-semantic":
+        expected_logits = torch.tensor(
+            [[ 4.0837, -1.1718, -1.4966],
+        [ 2.5418, -3.0524, -1.1140],
+        [ 2.8320, -3.1094, -3.3143]]
+        )
     assert torch.allclose(outputs.class_queries_logits[0, :3, :3], expected_logits, atol=1e-4)
     print("Looks ok!")
 
@@ -315,6 +327,7 @@ if __name__ == "__main__":
         "--model_name",
         default="mask2former-swin-base-coco-panoptic",
         type=str,
+        choices=["mask2former-swin-base-coco-panoptic", "mask2former-swin-base-ade-semantic"],
         help=("Name of the Mask2Former model you'd like to convert",),
     )
     parser.add_argument(
