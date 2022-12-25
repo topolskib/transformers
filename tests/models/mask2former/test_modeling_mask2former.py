@@ -181,6 +181,7 @@ class Mask2FormerModelTest(ModelTesterMixin, unittest.TestCase):
     test_pruning = False
     test_head_masking = False
     test_missing_keys = False
+    test_torchscript = False
 
     def setUp(self):
         self.model_tester = Mask2FormerModelTester(self)
@@ -197,6 +198,10 @@ class Mask2FormerModelTest(ModelTesterMixin, unittest.TestCase):
         config_and_inputs = self.model_tester.prepare_config_and_inputs()
         self.model_tester.create_and_check_mask2former_instance_segmentation_head_model(*config_and_inputs)
 
+    @unittest.skip(reason="Mask2Former does not support feedforward chunking")
+    def test_feed_forward_chunking(self):
+        pass
+    
     @unittest.skip(reason="Mask2Former does not use inputs_embeds")
     def test_inputs_embeds(self):
         pass
@@ -239,7 +244,7 @@ class Mask2FormerModelTest(ModelTesterMixin, unittest.TestCase):
             self.assertIsNotNone(model)
 
     def test_model_with_labels(self):
-        size = (self.model_tester.min_size,) * 2
+        size = (384, 384)
         inputs = {
             "pixel_values": torch.randn((2, 3, *size), device=torch_device),
             "mask_labels": torch.randn((2, 10, *size), device=torch_device),

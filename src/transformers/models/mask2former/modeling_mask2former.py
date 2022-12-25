@@ -936,12 +936,9 @@ class Mask2FormerPixelDecoderEncoderMultiscaleDeformableAttention(nn.Module):
         hidden_states: torch.Tensor,
         attention_mask: Optional[torch.Tensor] = None,
         encoder_hidden_states=None,
-        encoder_attention_mask=None,
         position_embeddings: Optional[torch.Tensor] = None,
         reference_points=None,
         spatial_shapes=None,
-        level_start_index=None,
-        output_attentions: bool = False,
     ):
         # add position embeddings to the hidden states before projecting to queries and keys
         if position_embeddings is not None:
@@ -1043,12 +1040,9 @@ class Mask2FormerPixelDecoderEncoderLayer(nn.Module):
             hidden_states=hidden_states,
             attention_mask=attention_mask,
             encoder_hidden_states=hidden_states,
-            encoder_attention_mask=attention_mask,
             position_embeddings=position_embeddings,
             reference_points=reference_points,
             spatial_shapes=spatial_shapes,
-            level_start_index=level_start_index,
-            output_attentions=output_attentions,
         )
 
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)

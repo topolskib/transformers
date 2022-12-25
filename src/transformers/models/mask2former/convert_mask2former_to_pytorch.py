@@ -131,7 +131,7 @@ def create_rename_keys(config):
     rename_keys.append(("sem_seg_head.pixel_decoder.transformer.level_embed", "model.pixel_level_module.decoder.level_embed"))
 
     # pixel decoder encoder layers
-    for i in range(config.decoder_config.encoder_layers):
+    for i in range(config.encoder_layers):
         rename_keys.append((f"sem_seg_head.pixel_decoder.transformer.encoder.layers.{i}.self_attn.sampling_offsets.weight", f"model.pixel_level_module.decoder.encoder.layers.{i}.self_attn.sampling_offsets.weight"))
         rename_keys.append((f"sem_seg_head.pixel_decoder.transformer.encoder.layers.{i}.self_attn.sampling_offsets.bias", f"model.pixel_level_module.decoder.encoder.layers.{i}.self_attn.sampling_offsets.bias"))
         rename_keys.append((f"sem_seg_head.pixel_decoder.transformer.encoder.layers.{i}.self_attn.attention_weights.weight", f"model.pixel_level_module.decoder.encoder.layers.{i}.self_attn.attention_weights.weight"))
@@ -160,7 +160,7 @@ def create_rename_keys(config):
     rename_keys.append(("sem_seg_head.pixel_decoder.layer_1.norm.bias", "model.pixel_level_module.decoder.layer_1.1.bias"))
 
     # transformer decoder
-    for i in range(config.decoder_config.decoder_layers - 1):
+    for i in range(config.decoder_layers - 1):
         rename_keys.append((f"sem_seg_head.predictor.transformer_self_attention_layers.{i}.self_attn.in_proj_weight", f"model.transformer_module.decoder.layers.{i}.self_attn.in_proj_weight"))
         rename_keys.append((f"sem_seg_head.predictor.transformer_self_attention_layers.{i}.self_attn.in_proj_bias", f"model.transformer_module.decoder.layers.{i}.self_attn.in_proj_bias"))
         rename_keys.append((f"sem_seg_head.predictor.transformer_self_attention_layers.{i}.self_attn.out_proj.weight", f"model.transformer_module.decoder.layers.{i}.self_attn.out_proj.weight"))
