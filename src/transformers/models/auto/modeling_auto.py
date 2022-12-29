@@ -149,6 +149,7 @@ MODEL_MAPPING_NAMES = OrderedDict(
         ("splinter", "SplinterModel"),
         ("squeezebert", "SqueezeBertModel"),
         ("swin", "SwinModel"),
+        ("focalnet", "FocalNetModel"),
         ("swin2sr", "Swin2SRModel"),
         ("swinv2", "Swinv2Model"),
         ("switch_transformers", "SwitchTransformersModel"),
@@ -375,6 +376,7 @@ MODEL_FOR_MASKED_IMAGE_MODELING_MAPPING_NAMES = OrderedDict(
     [
         ("deit", "DeiTForMaskedImageModeling"),
         ("swin", "SwinForMaskedImageModeling"),
+        ("focalnet", "FocalNetForMaskedImageModeling"),
         ("swinv2", "Swinv2ForMaskedImageModeling"),
         ("vit", "ViTForMaskedImageModeling"),
     ]
@@ -424,6 +426,7 @@ MODEL_FOR_IMAGE_CLASSIFICATION_MAPPING_NAMES = OrderedDict(
         ("resnet", "ResNetForImageClassification"),
         ("segformer", "SegformerForImageClassification"),
         ("swin", "SwinForImageClassification"),
+        ("focalnet", "FocalNetForImageClassification"),
         ("swinv2", "Swinv2ForImageClassification"),
         ("van", "VanForImageClassification"),
         ("vit", "ViTForImageClassification"),
@@ -911,6 +914,7 @@ MODEL_FOR_BACKBONE_MAPPING_NAMES = OrderedDict(
         ("nat", "NatBackbone"),
         ("resnet", "ResNetBackbone"),
         ("swin", "SwinBackbone"),
+        ("focalnet", "FocalNetBackbone"),
     ]
 )
 

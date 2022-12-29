@@ -156,6 +156,7 @@ from . import (
     splinter,
     squeezebert,
     swin,
+    focalnet,
     swin2sr,
     swinv2,
     switch_transformers,
