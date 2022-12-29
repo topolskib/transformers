@@ -3696,6 +3696,7 @@ if TYPE_CHECKING:
         FlavaTextConfig,
     )
     from .models.fnet import FNET_PRETRAINED_CONFIG_ARCHIVE_MAP, FNetConfig
+    from .models.focalnet import FOCALNET_PRETRAINED_CONFIG_ARCHIVE_MAP, FocalNetConfig
     from .models.fsmt import FSMT_PRETRAINED_CONFIG_ARCHIVE_MAP, FSMTConfig, FSMTTokenizer
     from .models.funnel import FUNNEL_PRETRAINED_CONFIG_ARCHIVE_MAP, FunnelConfig, FunnelTokenizer
     from .models.git import GIT_PRETRAINED_CONFIG_ARCHIVE_MAP, GitConfig, GitProcessor, GitVisionConfig
@@ -3819,7 +3820,6 @@ if TYPE_CHECKING:
     from .models.splinter import SPLINTER_PRETRAINED_CONFIG_ARCHIVE_MAP, SplinterConfig, SplinterTokenizer
     from .models.squeezebert import SQUEEZEBERT_PRETRAINED_CONFIG_ARCHIVE_MAP, SqueezeBertConfig, SqueezeBertTokenizer
     from .models.swin import SWIN_PRETRAINED_CONFIG_ARCHIVE_MAP, SwinConfig
-    from .models.focalnet import FOCALNET_PRETRAINED_CONFIG_ARCHIVE_MAP, FocalNetConfig
     from .models.swin2sr import SWIN2SR_PRETRAINED_CONFIG_ARCHIVE_MAP, Swin2SRConfig
     from .models.swinv2 import SWINV2_PRETRAINED_CONFIG_ARCHIVE_MAP, Swinv2Config
     from .models.switch_transformers import SWITCH_TRANSFORMERS_PRETRAINED_CONFIG_ARCHIVE_MAP, SwitchTransformersConfig
@@ -4724,6 +4724,14 @@ if TYPE_CHECKING:
             FNetModel,
             FNetPreTrainedModel,
         )
+        from .models.focalnet import (
+            FOCALNET_PRETRAINED_MODEL_ARCHIVE_LIST,
+            FocalNetBackbone,
+            FocalNetForImageClassification,
+            FocalNetForMaskedImageModeling,
+            FocalNetModel,
+            FocalNetPreTrainedModel,
+        )
         from .models.fsmt import FSMTForConditionalGeneration, FSMTModel, PretrainedFSMTModel
         from .models.funnel import (
             FUNNEL_PRETRAINED_MODEL_ARCHIVE_LIST,
@@ -5311,14 +5319,6 @@ if TYPE_CHECKING:
             SwinForMaskedImageModeling,
             SwinModel,
             SwinPreTrainedModel,
-        )
-        from .models.focalnet import (
-            FOCALNET_PRETRAINED_MODEL_ARCHIVE_LIST,
-            FocalNetBackbone,
-            FocalNetForImageClassification,
-            FocalNetForMaskedImageModeling,
-            FocalNetModel,
-            FocalNetPreTrainedModel,
         )
         from .models.swin2sr import (
             SWIN2SR_PRETRAINED_MODEL_ARCHIVE_LIST,
