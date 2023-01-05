@@ -40,6 +40,7 @@ from .utils import (
     is_timm_available,
     is_tokenizers_available,
     is_torch_available,
+    is_torchvision_available,
     is_vision_available,
     logging,
 )
@@ -579,6 +580,7 @@ _import_structure = {
         "is_tokenizers_available",
         "is_torch_available",
         "is_torch_tpu_available",
+        "is_torchvision_available",
         "is_vision_available",
         "logging",
     ],
@@ -857,6 +859,25 @@ else:
         ]
     )
 
+# Torchvision-backed objects
+try:
+    if not is_torchvision_available():
+        raise OptionalDependencyNotAvailable()
+except OptionalDependencyNotAvailable:
+    from .utils import dummy_torchvision_objects
+
+    _import_structure["utils.dummmy_torchvision_objects"] = [
+        name for name in dir(dummmy_torchvision_objects) if not name.startswith("_")
+    ]
+else:
+    _import_structure["models.deta"].extend(
+        [
+            "DETA_PRETRAINED_MODEL_ARCHIVE_LIST",
+            "DetaForObjectDetection",
+            "DetaModel",
+            "DetaPreTrainedModel",
+        ]
+    )
 
 # PyTorch-backed objects
 try:
@@ -1319,14 +1340,6 @@ else:
             "DeiTForMaskedImageModeling",
             "DeiTModel",
             "DeiTPreTrainedModel",
-        ]
-    )
-    _import_structure["models.deta"].extend(
-        [
-            "DETA_PRETRAINED_MODEL_ARCHIVE_LIST",
-            "DetaForObjectDetection",
-            "DetaModel",
-            "DetaPreTrainedModel",
         ]
     )
     _import_structure["models.dinat"].extend(
@@ -3954,6 +3967,7 @@ if TYPE_CHECKING:
         is_tokenizers_available,
         is_torch_available,
         is_torch_tpu_available,
+        is_torchvision_available,
         is_vision_available,
         logging,
     )
@@ -4170,6 +4184,19 @@ if TYPE_CHECKING:
             TableTransformerForObjectDetection,
             TableTransformerModel,
             TableTransformerPreTrainedModel,
+        )
+
+    try:
+        if not is_torchvision_available():
+            raise OptionalDependencyNotAvailable()
+    except OptionalDependencyNotAvailable:
+        from .utils.dummy_torchvision_objects import *
+    else:
+        from .models.deta import (
+            DETA_PRETRAINED_MODEL_ARCHIVE_LIST,
+            DetaForObjectDetection,
+            DetaModel,
+            DetaPreTrainedModel,
         )
 
     try:
@@ -4564,12 +4591,6 @@ if TYPE_CHECKING:
             DeiTForMaskedImageModeling,
             DeiTModel,
             DeiTPreTrainedModel,
-        )
-        from .models.deta import (
-            DETA_PRETRAINED_MODEL_ARCHIVE_LIST,
-            DetaForObjectDetection,
-            DetaModel,
-            DetaPreTrainedModel,
         )
         from .models.dinat import (
             DINAT_PRETRAINED_MODEL_ARCHIVE_LIST,
