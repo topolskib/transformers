@@ -1,14 +1,11 @@
-from transformers import SwinConfig, Mask2FormerDecoderConfig, Mask2FormerConfig, Mask2FormerForUniversalSegmentation
-import torch
+import pickle
 
-backbone_config = SwinConfig(embed_dim = 128, window_size=12, depths = (2, 2, 18, 2), num_heads = (4, 8, 16, 32), out_features=["stage1", "stage2", "stage3", "stage4"])
-decoder_config = Mask2FormerDecoderConfig(decoder_layers=9)
 
-config = Mask2FormerConfig(backbone_config=backbone_config, decoder_config=decoder_config)
+filepath = "/Users/nielsrogge/Documents/Mask2Former_checkpoints"
+with open(filepath, "rb") as f:
+    data = pickle.load(f)
 
-model = Mask2FormerForUniversalSegmentation(config)
+state_dict = data["model"]
 
-for name, param in model.named_parameters():
+for name, param in state_dict.items():
     print(name, param.shape)
-
-outputs = model(torch.randn(1, 3, 384, 384))

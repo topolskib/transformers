@@ -200,7 +200,7 @@ class Mask2FormerModelTest(ModelTesterMixin, unittest.TestCase):
     @unittest.skip(reason="Mask2Former does not support feedforward chunking")
     def test_feed_forward_chunking(self):
         pass
-    
+
     @unittest.skip(reason="Mask2Former does not use inputs_embeds")
     def test_inputs_embeds(self):
         pass
