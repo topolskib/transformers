@@ -81,6 +81,8 @@ def get_mask2former_config(model_name: str):
         # this should be ok
         config.num_labels = 65
         filename = "mapillary-vistas-id2label.json"
+    elif "youtubevis-2021" in model_name:
+        config.num_labels = 40
 
     # id2label = json.load(open(hf_hub_download(repo_id, filename, repo_type="dataset"), "r"))
     # id2label = {int(k): v for k, v in id2label.items()}
@@ -88,7 +90,7 @@ def get_mask2former_config(model_name: str):
     return config
 
 
-def create_rename_keys(config):
+def create_rename_keys(model_name, config):
     rename_keys = []
     # stem
     # fmt: off
@@ -191,7 +193,8 @@ def create_rename_keys(config):
     rename_keys.append(("sem_seg_head.predictor.decoder_norm.weight", "model.transformer_module.decoder.layernorm.weight"))
     rename_keys.append(("sem_seg_head.predictor.decoder_norm.bias", "model.transformer_module.decoder.layernorm.bias"))
     rename_keys.append(("sem_seg_head.predictor.query_embed.weight", "model.transformer_module.queries_embedder.weight"))
-    rename_keys.append(("sem_seg_head.predictor.static_query.weight", "model.transformer_module.queries_features.weight"))
+    if "youtube" not in model_name:
+        rename_keys.append(("sem_seg_head.predictor.static_query.weight", "model.transformer_module.queries_features.weight"))
     rename_keys.append(("sem_seg_head.predictor.level_embed.weight", "model.transformer_module.level_embed.weight"))
     rename_keys.append(("sem_seg_head.predictor.class_embed.weight", "class_predictor.weight"))
     rename_keys.append(("sem_seg_head.predictor.class_embed.bias", "class_predictor.bias"))
@@ -279,6 +282,7 @@ def convert_mask2former_checkpoint(model_name: str, pytorch_dump_folder_path: st
     model_name_to_filename = {
         "mask2former-swin-base-coco-panoptic": "mask2former_swin_base_coco_panoptic.pkl",
         "mask2former-swin-base-ade-semantic": "maskformer_swin_base_ade_panoptic.pkl",
+        "mask2former-swin-base-youtubevis-2021": "mask2former_swin_base_youtube.pkl",
     }
 
     filename = model_name_to_filename[model_name]
@@ -293,7 +297,7 @@ def convert_mask2former_checkpoint(model_name: str, pytorch_dump_folder_path: st
         print(name, param.shape)
 
     # rename keys
-    rename_keys = create_rename_keys(config)
+    rename_keys = create_rename_keys(model_name, config)
     for src, dest in rename_keys:
         rename_key(state_dict, src, dest)
     read_in_swin_q_k_v(state_dict, config.backbone_config)
@@ -361,7 +365,7 @@ if __name__ == "__main__":
         "--model_name",
         default="mask2former-swin-base-coco-panoptic",
         type=str,
-        choices=["mask2former-swin-base-coco-panoptic", "mask2former-swin-base-ade-semantic"],
+        choices=["mask2former-swin-base-coco-panoptic", "mask2former-swin-base-ade-semantic", "mask2former-swin-base-youtubevis-2021"],
         help=("Name of the Mask2Former model you'd like to convert",),
     )
     parser.add_argument(
