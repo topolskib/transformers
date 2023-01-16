@@ -193,7 +193,9 @@ def create_rename_keys(model_name, config):
     rename_keys.append(("sem_seg_head.predictor.decoder_norm.weight", "model.transformer_module.decoder.layernorm.weight"))
     rename_keys.append(("sem_seg_head.predictor.decoder_norm.bias", "model.transformer_module.decoder.layernorm.bias"))
     rename_keys.append(("sem_seg_head.predictor.query_embed.weight", "model.transformer_module.queries_embedder.weight"))
-    if "youtube" not in model_name:
+    if "youtube" in model_name:
+        rename_keys.append(("sem_seg_head.predictor.query_feat.weight", "model.transformer_module.queries_features.weight"))
+    else:
         rename_keys.append(("sem_seg_head.predictor.static_query.weight", "model.transformer_module.queries_features.weight"))
     rename_keys.append(("sem_seg_head.predictor.level_embed.weight", "model.transformer_module.level_embed.weight"))
     rename_keys.append(("sem_seg_head.predictor.class_embed.weight", "class_predictor.weight"))
@@ -312,10 +314,14 @@ def convert_mask2former_checkpoint(model_name: str, pytorch_dump_folder_path: st
     model.eval()
 
     missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
+
+    print("Missing keys:", missing_keys)
+    print("Unexpected keys:", unexpected_keys)
+
     assert missing_keys == [
-        "model.pixel_level_module.encoder.model.layernorm.weight",
-        "model.pixel_level_module.encoder.model.layernorm.bias",
-    ]
+            "model.pixel_level_module.encoder.model.layernorm.weight",
+            "model.pixel_level_module.encoder.model.layernorm.bias",
+        ]
     assert len(unexpected_keys) == 0
 
     # verify results
@@ -342,6 +348,12 @@ def convert_mask2former_checkpoint(model_name: str, pytorch_dump_folder_path: st
     elif model_name == "mask2former-swin-base-ade-semantic":
         expected_logits = torch.tensor(
             [[4.0837, -1.1718, -1.4966], [2.5418, -3.0524, -1.1140], [2.8320, -3.1094, -3.3143]]
+        )
+    elif model_name == "mask2former-swin-base-youtubevis-2021":
+        expected_logits = torch.tensor(
+            [[-5.7186, -2.6989, -3.8750],
+        [-5.6876, -2.4813, -3.6100],
+        [-5.5941, -2.8636, -4.1702]]
         )
     assert torch.allclose(outputs.class_queries_logits[0, :3, :3], expected_logits, atol=1e-4)
     print("Looks ok!")
