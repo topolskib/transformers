@@ -295,13 +295,13 @@ def main():
         size = image_processor.size["shortest_edge"]
     else:
         size = (image_processor.size["height"], image_processor.size["width"])
-    normalize = Normalize(mean=image_processor.image_mean, std=image_processor.image_std)
+    # normalize = Normalize(mean=image_processor.image_mean, std=image_processor.image_std)
     _train_transforms = Compose(
         [
             RandomResizedCrop(size),
             RandomHorizontalFlip(),
             ToTensor(),
-            normalize,
+            # normalize,
         ]
     )
     _val_transforms = Compose(
@@ -309,7 +309,7 @@ def main():
             Resize(size),
             CenterCrop(size),
             ToTensor(),
-            normalize,
+            # normalize,
         ]
     )
 
