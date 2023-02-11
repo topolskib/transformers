@@ -823,3 +823,37 @@ class Blip2ModelIntegrationTest(unittest.TestCase):
             [0, 3, 7, 152, 67, 839, 1],
         )
         self.assertEqual(generated_text, "san diego")
+
+    def test_inference_t5_int_8(self):
+        # multi-GPU doesn't work for the moment
+        torch_device = torch.device("cuda:0")
+
+        processor = Blip2Processor.from_pretrained("Salesforce/blip2-flan-t5-xl")
+        model = Blip2ForConditionalGeneration.from_pretrained(
+            "Salesforce/blip2-flan-t5-xl", device=0, load_in_8bit=True
+        )
+
+        # prepare image
+        image = prepare_img()
+        inputs = processor(images=image, return_tensors="pt").to(torch_device, torch.float16)
+
+        predictions = model.generate(**inputs)
+        generated_text = processor.batch_decode(predictions, skip_special_tokens=True)[0].strip()
+
+        # Test output
+        self.assertEqual(predictions[0].tolist(), [0, 2335, 1556, 28, 1782, 30, 8, 2608, 1])
+        self.assertEqual("woman playing with dog on the beach", generated_text)
+
+        # image and context
+        prompt = "Question: which city is this? Answer:"
+        inputs = processor(images=image, text=prompt, return_tensors="pt").to(torch_device, torch.float16)
+
+        predictions = model.generate(**inputs)
+        generated_text = processor.batch_decode(predictions, skip_special_tokens=True)[0].strip()
+
+        # Test output
+        self.assertEqual(
+            predictions[0].tolist(),
+            [0, 3, 7, 152, 67, 839, 1],
+        )
+        self.assertEqual(generated_text, "san diego")
