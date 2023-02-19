@@ -46,7 +46,13 @@ def convert_layoutreader_checkpoint(checkpoint_path, pytorch_dump_folder_path):
     config = LayoutReaderConfig()
     model = LayoutReaderForPreTraining(config)
     model.eval()
-    model.load_state_dict(new_state_dict)
+    missing_keys, unexpected_keys = model.load_state_dict(new_state_dict, strict=False)
+    assert missing_keys == [
+        "layoutreader.embeddings.position_ids",
+        "cls.seq_relationship.weight",
+        "cls.seq_relationship.bias",
+    ]
+    assert unexpected_keys == ["crit_mask_lm_smoothed.one_hot"]
 
     # TODO assert values
     # url = "http://images.cocodataset.org/val2017/000000039769.jpg"

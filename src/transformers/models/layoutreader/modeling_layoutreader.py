@@ -413,40 +413,6 @@ class LayoutReaderEncoder(nn.Module):
         )
 
 
-# Copied from transformers.models.bert.modeling_bert.BertPooler
-class LayoutReaderPooler(nn.Module):
-    def __init__(self, config):
-        super().__init__()
-        self.dense = nn.Linear(config.hidden_size, config.hidden_size)
-        self.activation = nn.Tanh()
-
-    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
-        # We "pool" the model by simply taking the hidden state corresponding
-        # to the first token.
-        first_token_tensor = hidden_states[:, 0]
-        pooled_output = self.dense(first_token_tensor)
-        pooled_output = self.activation(pooled_output)
-        return pooled_output
-
-
-# Copied from transformers.models.bert.modeling_bert.BertPredictionHeadTransform with Bert->LayoutReader
-class LayoutReaderPredictionHeadTransform(nn.Module):
-    def __init__(self, config):
-        super().__init__()
-        self.dense = nn.Linear(config.hidden_size, config.hidden_size)
-        if isinstance(config.hidden_act, str):
-            self.transform_act_fn = ACT2FN[config.hidden_act]
-        else:
-            self.transform_act_fn = config.hidden_act
-        self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
-
-    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
-        hidden_states = self.dense(hidden_states)
-        hidden_states = self.transform_act_fn(hidden_states)
-        hidden_states = self.LayerNorm(hidden_states)
-        return hidden_states
-
-
 # Copied from transformers.models.layoutlm.modeling_layoutlm.LayoutLMPreTrainedModel with LAYOUTLM->LAYOUTREADER,LayoutLM->LayoutReader,layoutlm->layoutreader
 class LayoutReaderPreTrainedModel(PreTrainedModel):
     """
@@ -677,7 +643,7 @@ class LayoutReaderModel(LayoutReaderPreTrainedModel):
             return_dict=return_dict,
         )
         sequence_output = encoder_outputs[0]
-        pooled_output = None # TODO remove pooler
+        pooled_output = None  # TODO remove pooler
 
         if not return_dict:
             return (sequence_output, pooled_output) + encoder_outputs[1:]
@@ -690,9 +656,27 @@ class LayoutReaderModel(LayoutReaderPreTrainedModel):
         )
 
 
-class LayoutReaderSPLMPredictionHead(nn.Module):
+# Copied from transformers.models.bert.modeling_bert.BertPredictionHeadTransform with Bert->LayoutReader
+class LayoutReaderPredictionHeadTransform(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        self.dense = nn.Linear(config.hidden_size, config.hidden_size)
+        if isinstance(config.hidden_act, str):
+            self.transform_act_fn = ACT2FN[config.hidden_act]
+        else:
+            self.transform_act_fn = config.hidden_act
+        self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+
+    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
+        hidden_states = self.dense(hidden_states)
+        hidden_states = self.transform_act_fn(hidden_states)
+        hidden_states = self.LayerNorm(hidden_states)
+        return hidden_states
+
+
+class LayoutReaderLMPredictionHead(nn.Module):
     def __init__(self, config, src_len):
-        super(LayoutReaderSPLMPredictionHead, self).__init__()
+        super(LayoutReaderLMPredictionHead, self).__init__()
         self.transform = LayoutReaderPredictionHeadTransform(config)
 
         # The output weights are the same as the input embeddings, but there is
@@ -704,7 +688,7 @@ class LayoutReaderSPLMPredictionHead(nn.Module):
             self.relax_projection = config.relax_projection
         else:
             self.relax_projection = 0
-        self.fp32_embedding = False # TODO add to config?
+        self.fp32_embedding = False  # TODO add to config?
 
         def convert_to_type(tensor):
             if self.fp32_embedding:
@@ -742,7 +726,7 @@ class LayoutReaderSPLMPredictionHead(nn.Module):
 class LayoutReaderPreTrainingHeads(nn.Module):
     def __init__(self, config, src_len, num_labels=2):
         super(LayoutReaderPreTrainingHeads, self).__init__()
-        self.predictions = LayoutReaderSPLMPredictionHead(config, src_len)
+        self.predictions = LayoutReaderLMPredictionHead(config, src_len)
         self.seq_relationship = nn.Linear(config.hidden_size, num_labels)
 
     def forward(self, sequence_output, pooled_output, src_emb, task_idx=None):
@@ -754,7 +738,16 @@ class LayoutReaderPreTrainingHeads(nn.Module):
         return prediction_scores, seq_relationship_score
 
 
-@add_start_docstrings("""LayoutReader Model with pretraining heads on top.""", LAYOUTREADER_START_DOCSTRING)
+@add_start_docstrings(
+    """LayoutReader model for reading order prediction.
+
+    ForPreTraining is a bad name, should actually become ForSeq2SeqDecoder.
+
+See: https://github.com/microsoft/unilm/blob/master/layoutreader/s2s_ft/modeling_decoding.py#L1129.
+
+""",
+    LAYOUTREADER_START_DOCSTRING,
+)
 class LayoutReaderForPreTraining(LayoutReaderPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
