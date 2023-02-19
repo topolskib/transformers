@@ -99,6 +99,7 @@ from . import (
     layoutlm,
     layoutlmv2,
     layoutlmv3,
+    layoutreader,
     layoutxlm,
     led,
     levit,

@@ -344,6 +344,7 @@ _import_structure = {
         "LayoutLMv3Processor",
         "LayoutLMv3Tokenizer",
     ],
+    "models.layoutreader": ["LAYOUTREADER_PRETRAINED_CONFIG_ARCHIVE_MAP", "LayoutReaderConfig"],
     "models.layoutxlm": ["LayoutXLMProcessor"],
     "models.led": ["LED_PRETRAINED_CONFIG_ARCHIVE_MAP", "LEDConfig", "LEDTokenizer"],
     "models.levit": ["LEVIT_PRETRAINED_CONFIG_ARCHIVE_MAP", "LevitConfig"],
@@ -1767,6 +1768,14 @@ else:
             "LayoutLMv3ForTokenClassification",
             "LayoutLMv3Model",
             "LayoutLMv3PreTrainedModel",
+        ]
+    )
+    _import_structure["models.layoutreader"].extend(
+        [
+            "LAYOUTREADER_PRETRAINED_MODEL_ARCHIVE_LIST",
+            "LayoutReaderForPreTraining",
+            "LayoutReaderModel",
+            "LayoutReaderPreTrainedModel",
         ]
     )
     _import_structure["models.led"].extend(
@@ -3960,6 +3969,7 @@ if TYPE_CHECKING:
         LayoutLMv3Processor,
         LayoutLMv3Tokenizer,
     )
+    from .models.layoutreader import LAYOUTREADER_PRETRAINED_CONFIG_ARCHIVE_MAP, LayoutReaderConfig
     from .models.layoutxlm import LayoutXLMProcessor
     from .models.led import LED_PRETRAINED_CONFIG_ARCHIVE_MAP, LEDConfig, LEDTokenizer
     from .models.levit import LEVIT_PRETRAINED_CONFIG_ARCHIVE_MAP, LevitConfig
@@ -5163,6 +5173,12 @@ if TYPE_CHECKING:
             LayoutLMv3ForTokenClassification,
             LayoutLMv3Model,
             LayoutLMv3PreTrainedModel,
+        )
+        from .models.layoutreader import (
+            LAYOUTREADER_PRETRAINED_MODEL_ARCHIVE_LIST,
+            LayoutReaderForPreTraining,
+            LayoutReaderModel,
+            LayoutReaderPreTrainedModel,
         )
         from .models.led import (
             LED_PRETRAINED_MODEL_ARCHIVE_LIST,
