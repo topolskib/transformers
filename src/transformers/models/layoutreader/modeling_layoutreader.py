@@ -30,7 +30,7 @@ from ...modeling_outputs import (
     MaskedLMOutput,
 )
 from ...modeling_utils import PreTrainedModel
-from ...pytorch_utils import apply_chunking_to_forward, find_pruneable_heads_and_indices, prune_linear_layer
+from ...pytorch_utils import find_pruneable_heads_and_indices, prune_linear_layer
 from ...utils import add_start_docstrings, add_start_docstrings_to_model_forward, logging, replace_return_docstrings
 from .configuration_layoutreader import LayoutReaderConfig
 
@@ -49,170 +49,206 @@ LAYOUTREADER_PRETRAINED_MODEL_ARCHIVE_LIST = [
 LayoutReaderLayerNorm = nn.LayerNorm
 
 
-# Copied from transformers.models.layoutlm.modeling_layoutlm.LayoutLMEmbeddings with LayoutLM->LayoutReader
 class LayoutReaderEmbeddings(nn.Module):
     """Construct the embeddings from word, position and token_type embeddings."""
 
     def __init__(self, config):
         super(LayoutReaderEmbeddings, self).__init__()
-        self.word_embeddings = nn.Embedding(config.vocab_size, config.hidden_size, padding_idx=config.pad_token_id)
-        self.position_embeddings = nn.Embedding(config.max_position_embeddings, config.hidden_size)
+
+        # TODO remove this, always use word embeddings
+        # self.only_layout = config.layoutlm_only_layout_flag
+
+        self.word_embeddings = nn.Embedding(config.vocab_size, config.hidden_size, padding_idx=0)
+
         self.x_position_embeddings = nn.Embedding(config.max_2d_position_embeddings, config.hidden_size)
         self.y_position_embeddings = nn.Embedding(config.max_2d_position_embeddings, config.hidden_size)
         self.h_position_embeddings = nn.Embedding(config.max_2d_position_embeddings, config.hidden_size)
         self.w_position_embeddings = nn.Embedding(config.max_2d_position_embeddings, config.hidden_size)
+
         self.token_type_embeddings = nn.Embedding(config.type_vocab_size, config.hidden_size)
 
-        self.LayerNorm = LayoutReaderLayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+        # TODO remove this
+        # if hasattr(config, "fp32_embedding"):
+        #     self.fp32_embedding = config.fp32_embedding
+        # else:
+        #     self.fp32_embedding = False
+
+        self.position_embeddings = nn.Embedding(config.max_position_embeddings, config.hidden_size)
+
+        # self.LayerNorm is not snake-cased to stick with TensorFlow model variable name and be able to load
+        # any TensorFlow checkpoint file
+        self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=1e-5)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
-        self.register_buffer("position_ids", torch.arange(config.max_position_embeddings).expand((1, -1)))
-
-    def forward(
-        self,
-        input_ids=None,
-        bbox=None,
-        token_type_ids=None,
-        position_ids=None,
-        inputs_embeds=None,
-    ):
-        if input_ids is not None:
-            input_shape = input_ids.size()
-        else:
-            input_shape = inputs_embeds.size()[:-1]
-
-        seq_length = input_shape[1]
-
-        device = input_ids.device if input_ids is not None else inputs_embeds.device
-
+    def forward(self, input_ids, bbox, token_type_ids=None, position_ids=None, task_idx=None):
+        seq_length = input_ids.size(1)
         if position_ids is None:
-            position_ids = self.position_ids[:, :seq_length]
-
+            position_ids = torch.arange(seq_length, dtype=torch.long, device=input_ids.device)
+            position_ids = position_ids.unsqueeze(0).expand_as(input_ids)
         if token_type_ids is None:
-            token_type_ids = torch.zeros(input_shape, dtype=torch.long, device=device)
+            token_type_ids = torch.zeros_like(input_ids)
 
-        if inputs_embeds is None:
-            inputs_embeds = self.word_embeddings(input_ids)
-
-        words_embeddings = inputs_embeds
         position_embeddings = self.position_embeddings(position_ids)
-        try:
-            left_position_embeddings = self.x_position_embeddings(bbox[:, :, 0])
-            upper_position_embeddings = self.y_position_embeddings(bbox[:, :, 1])
-            right_position_embeddings = self.x_position_embeddings(bbox[:, :, 2])
-            lower_position_embeddings = self.y_position_embeddings(bbox[:, :, 3])
-        except IndexError as e:
-            raise IndexError("The `bbox`coordinate values should be within 0-1000 range.") from e
 
+        left_position_embeddings = self.x_position_embeddings(bbox[:, :, 0])
+        upper_position_embeddings = self.y_position_embeddings(bbox[:, :, 1])
+        right_position_embeddings = self.x_position_embeddings(bbox[:, :, 2])
+        lower_position_embeddings = self.y_position_embeddings(bbox[:, :, 3])
         h_position_embeddings = self.h_position_embeddings(bbox[:, :, 3] - bbox[:, :, 1])
         w_position_embeddings = self.w_position_embeddings(bbox[:, :, 2] - bbox[:, :, 0])
-        token_type_embeddings = self.token_type_embeddings(token_type_ids)
 
         embeddings = (
-            words_embeddings
-            + position_embeddings
+            position_embeddings
             + left_position_embeddings
             + upper_position_embeddings
             + right_position_embeddings
             + lower_position_embeddings
             + h_position_embeddings
             + w_position_embeddings
-            + token_type_embeddings
         )
+
+        words_embeddings = self.word_embeddings(input_ids)
+        embeddings = embeddings + words_embeddings
+
+        if self.token_type_embeddings is not None:
+            embeddings = embeddings + self.token_type_embeddings(token_type_ids)
+
+        # if self.fp32_embedding:
+        #     embeddings = embeddings.half()
         embeddings = self.LayerNorm(embeddings)
         embeddings = self.dropout(embeddings)
         return embeddings
 
 
 class LayoutReaderSelfAttention(nn.Module):
-    # Copied from transformers.models.bert.modeling_bert.BertSelfAttention.__init__ with Bert->LayoutReader
-    def __init__(self, config, position_embedding_type=None):
-        super().__init__()
-        if config.hidden_size % config.num_attention_heads != 0 and not hasattr(config, "embedding_size"):
+    def __init__(self, config):
+        super(LayoutReaderSelfAttention, self).__init__()
+        if config.hidden_size % config.num_attention_heads != 0:
             raise ValueError(
-                f"The hidden size ({config.hidden_size}) is not a multiple of the number of attention "
-                f"heads ({config.num_attention_heads})"
+                "The hidden size (%d) is not a multiple of the number of attention "
+                "heads (%d)" % (config.hidden_size, config.num_attention_heads)
             )
-
         self.num_attention_heads = config.num_attention_heads
         self.attention_head_size = int(config.hidden_size / config.num_attention_heads)
         self.all_head_size = self.num_attention_heads * self.attention_head_size
 
-        self.query = nn.Linear(config.hidden_size, self.all_head_size)
-        self.key = nn.Linear(config.hidden_size, self.all_head_size)
-        self.value = nn.Linear(config.hidden_size, self.all_head_size)
+        # TODO remove this
+        # if hasattr(config, "num_qkv") and (config.num_qkv > 1):
+        #     self.num_qkv = config.num_qkv
+        # else:
+        #
+        self.num_qkv = 1
+
+        self.query = nn.Linear(config.hidden_size, self.all_head_size * self.num_qkv)
+        self.key = nn.Linear(config.hidden_size, self.all_head_size * self.num_qkv)
+        self.value = nn.Linear(config.hidden_size, self.all_head_size * self.num_qkv)
 
         self.dropout = nn.Dropout(config.attention_probs_dropout_prob)
-        self.position_embedding_type = position_embedding_type or getattr(
-            config, "position_embedding_type", "absolute"
-        )
-        if self.position_embedding_type == "relative_key" or self.position_embedding_type == "relative_key_query":
-            self.max_position_embeddings = config.max_position_embeddings
-            self.distance_embedding = nn.Embedding(2 * config.max_position_embeddings - 1, self.attention_head_size)
 
-        self.is_decoder = config.is_decoder
+        # TODO remove this
+        # if hasattr(config, "seg_emb") and config.seg_emb:
+        #     self.b_q_s = nn.Parameter(torch.zeros(1, self.num_attention_heads, 1, self.attention_head_size))
+        #     self.seg_emb = nn.Embedding(config.type_vocab_size, self.all_head_size)
+        # else:
+        self.b_q_s = None
+        self.seg_emb = None
 
-    def transpose_for_scores(self, x: torch.Tensor) -> torch.Tensor:
-        new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
-        x = x.view(new_x_shape)
+    def transpose_for_scores(self, x, mask_qkv=None):
+        if self.num_qkv > 1:
+            sz = x.size()[:-1] + (self.num_qkv, self.num_attention_heads, self.all_head_size)
+            # (batch, pos, num_qkv, head, head_hid)
+            x = x.view(*sz)
+            if mask_qkv is None:
+                x = x[:, :, 0, :, :]
+            elif isinstance(mask_qkv, int):
+                x = x[:, :, mask_qkv, :, :]
+            else:
+                # mask_qkv: (batch, pos)
+                if mask_qkv.size(1) > sz[1]:
+                    mask_qkv = mask_qkv[:, : sz[1]]
+                # -> x: (batch, pos, head, head_hid)
+                x = x.gather(2, mask_qkv.view(sz[0], sz[1], 1, 1, 1).expand(sz[0], sz[1], 1, sz[3], sz[4])).squeeze(2)
+        else:
+            sz = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
+            # (batch, pos, head, head_hid)
+            x = x.view(*sz)
+        # (batch, head, pos, head_hid)
         return x.permute(0, 2, 1, 3)
 
     def forward(
         self,
-        hidden_states: torch.Tensor,
-        attention_mask: Optional[torch.FloatTensor] = None,
-        head_mask: Optional[torch.FloatTensor] = None,
-        output_attentions: Optional[bool] = False,
-    ) -> Tuple[torch.Tensor]:
-        query_layer = self.transpose_for_scores(self.query(hidden_states))
-        key_layer = self.transpose_for_scores(self.key(hidden_states))
-        value_layer = self.transpose_for_scores(self.value(hidden_states))
+        hidden_states,
+        attention_mask,
+        history_states=None,
+        mask_qkv=None,
+        seg_ids=None,
+        key_history=None,
+        value_history=None,
+        key_cache=None,
+        value_cache=None,
+    ):
+        if history_states is None:
+            mixed_query_layer = self.query(hidden_states)
+            # possible issue: https://github.com/NVIDIA/apex/issues/131
+            mixed_key_layer = nn.functional.linear(hidden_states, self.key.weight)
+            mixed_value_layer = self.value(hidden_states)
+        else:
+            x_states = torch.cat((history_states, hidden_states), dim=1)
+            mixed_query_layer = self.query(hidden_states)
+            # possible issue: https://github.com/NVIDIA/apex/issues/131
+            mixed_key_layer = nn.functional.linear(x_states, self.key.weight)
+            mixed_value_layer = self.value(x_states)
+
+        if key_cache is not None and isinstance(key_cache, list):
+            key_cache.append(mixed_key_layer)
+            mixed_key_layer = torch.cat(key_cache, dim=1)
+
+        if value_cache is not None and isinstance(value_cache, list):
+            value_cache.append(mixed_value_layer)
+            mixed_value_layer = torch.cat(value_cache, dim=1)
+
+        query_layer = self.transpose_for_scores(mixed_query_layer, mask_qkv)
+        key_layer = self.transpose_for_scores(mixed_key_layer, mask_qkv)
+        value_layer = self.transpose_for_scores(mixed_value_layer, mask_qkv)
+
+        if key_history is not None and not isinstance(key_history, list):
+            key_layer = torch.cat((key_history, key_layer), dim=-2)
+            value_layer = torch.cat((value_history, value_layer), dim=-2)
 
         # Take the dot product between "query" and "key" to get the raw attention scores.
-        attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
+        # (batch, head, pos, pos)
+        attention_scores = torch.matmul(query_layer / math.sqrt(self.attention_head_size), key_layer.transpose(-1, -2))
 
-        if self.position_embedding_type == "relative_key" or self.position_embedding_type == "relative_key_query":
-            query_length, key_length = query_layer.shape[2], key_layer.shape[2]
-            position_ids_l = torch.arange(query_length, dtype=torch.long, device=hidden_states.device).view(-1, 1)
-            position_ids_r = torch.arange(key_length, dtype=torch.long, device=hidden_states.device).view(1, -1)
-            distance = position_ids_l - position_ids_r
+        if self.seg_emb is not None:
+            seg_rep = self.seg_emb(seg_ids)
+            # (batch, pos, head, head_hid)
+            seg_rep = seg_rep.view(
+                seg_rep.size(0), seg_rep.size(1), self.num_attention_heads, self.attention_head_size
+            )
+            qs = torch.einsum("bnih,bjnh->bnij", query_layer + self.b_q_s, seg_rep)
+            attention_scores = attention_scores + qs
 
-            positional_embedding = self.distance_embedding(distance + self.max_position_embeddings - 1)
-            positional_embedding = positional_embedding.to(dtype=query_layer.dtype)  # fp16 compatibility
-
-            if self.position_embedding_type == "relative_key":
-                relative_position_scores = torch.einsum("bhld,lrd->bhlr", query_layer, positional_embedding)
-                attention_scores = attention_scores + relative_position_scores
-            elif self.position_embedding_type == "relative_key_query":
-                relative_position_scores_query = torch.einsum("bhld,lrd->bhlr", query_layer, positional_embedding)
-                relative_position_scores_key = torch.einsum("bhrd,lrd->bhlr", key_layer, positional_embedding)
-                attention_scores = attention_scores + relative_position_scores_query + relative_position_scores_key
-
-        attention_scores = attention_scores / math.sqrt(self.attention_head_size)
-        if attention_mask is not None:
-            # Apply the attention mask is (precomputed for all layers in LayoutReaderModel forward() function)
-            attention_scores = attention_scores + attention_mask
+        # Apply the attention mask is (precomputed for all layers in BertModel forward() function)
+        attention_scores = attention_scores + attention_mask
 
         # Normalize the attention scores to probabilities.
-        attention_probs = nn.functional.softmax(attention_scores, dim=-1)
+        attention_probs = nn.Softmax(dim=-1)(attention_scores)
 
         # This is actually dropping out entire tokens to attend to, which might
         # seem a bit unusual, but is taken from the original Transformer paper.
         attention_probs = self.dropout(attention_probs)
 
-        # Mask heads if we want to
-        if head_mask is not None:
-            attention_probs = attention_probs * head_mask
-
         context_layer = torch.matmul(attention_probs, value_layer)
-
         context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
         new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
-        context_layer = context_layer.view(new_context_layer_shape)
+        context_layer = context_layer.view(*new_context_layer_shape)
 
-        outputs = (context_layer, attention_probs) if output_attentions else (context_layer,)
+        if isinstance(key_history, list):
+            key_history.append(key_layer)
+        if isinstance(value_history, list):
+            value_history.append(value_layer)
 
-        return outputs
+        return context_layer
 
 
 # Copied from transformers.models.bert.modeling_bert.BertSelfOutput with Bert->LayoutReader
@@ -230,11 +266,10 @@ class LayoutReaderSelfOutput(nn.Module):
         return hidden_states
 
 
-# Copied from transformers.models.bert.modeling_bert.BertAttention with Bert->LayoutReader
 class LayoutReaderAttention(nn.Module):
-    def __init__(self, config, position_embedding_type=None):
+    def __init__(self, config):
         super().__init__()
-        self.self = LayoutReaderSelfAttention(config, position_embedding_type=position_embedding_type)
+        self.self = LayoutReaderSelfAttention(config)
         self.output = LayoutReaderSelfOutput(config)
         self.pruned_heads = set()
 
@@ -258,20 +293,25 @@ class LayoutReaderAttention(nn.Module):
 
     def forward(
         self,
-        hidden_states: torch.Tensor,
-        attention_mask: Optional[torch.FloatTensor] = None,
-        head_mask: Optional[torch.FloatTensor] = None,
-        output_attentions: Optional[bool] = False,
-    ) -> Tuple[torch.Tensor]:
-        self_outputs = self.self(
-            hidden_states,
+        input_tensor,
+        attention_mask,
+        history_states=None,
+        mask_qkv=None,
+        seg_ids=None,
+        key_history=None,
+        value_history=None,
+    ):
+        self_output = self.self(
+            input_tensor,
             attention_mask,
-            head_mask,
-            output_attentions,
+            history_states=history_states,
+            mask_qkv=mask_qkv,
+            seg_ids=seg_ids,
+            key_history=key_history,
+            value_history=value_history,
         )
-        attention_output = self.output(self_outputs[0], hidden_states)
-        outputs = (attention_output,) + self_outputs[1:]  # add attentions if we output them
-        return outputs
+        attention_output = self.output(self_output, input_tensor)
+        return attention_output
 
 
 # Copied from transformers.models.bert.modeling_bert.BertIntermediate
@@ -308,35 +348,30 @@ class LayoutReaderOutput(nn.Module):
 class LayoutReaderLayer(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.chunk_size_feed_forward = config.chunk_size_feed_forward
-        self.seq_len_dim = 1
         self.attention = LayoutReaderAttention(config)
         self.intermediate = LayoutReaderIntermediate(config)
         self.output = LayoutReaderOutput(config)
 
     def forward(
         self,
-        hidden_states: torch.Tensor,
-        attention_mask: Optional[torch.FloatTensor] = None,
-        head_mask: Optional[torch.FloatTensor] = None,
-        output_attentions: Optional[bool] = False,
-    ) -> Tuple[torch.Tensor]:
-        self_attention_outputs = self.attention(
+        hidden_states,
+        attention_mask,
+        history_states=None,
+        mask_qkv=None,
+        seg_ids=None,
+        key_history=None,
+        value_history=None,
+    ):
+        attention_output = self.attention(
             hidden_states,
             attention_mask,
-            head_mask,
-            output_attentions=output_attentions,
+            history_states=history_states,
+            mask_qkv=mask_qkv,
+            seg_ids=seg_ids,
+            key_history=key_history,
+            value_history=value_history,
         )
-        attention_output = self_attention_outputs[0]
 
-        layer_output = apply_chunking_to_forward(
-            self.feed_forward_chunk, self.chunk_size_feed_forward, self.seq_len_dim, attention_output
-        )
-        outputs = (layer_output,) + self_attention_outputs[1:]  # add self attentions if we output attention weights
-
-        return outputs
-
-    def feed_forward_chunk(self, attention_output):
         intermediate_output = self.intermediate(attention_output)
         layer_output = self.output(intermediate_output, attention_output)
         return layer_output
@@ -351,66 +386,51 @@ class LayoutReaderEncoder(nn.Module):
 
     def forward(
         self,
-        hidden_states: torch.Tensor,
-        attention_mask: Optional[torch.FloatTensor] = None,
-        head_mask: Optional[torch.FloatTensor] = None,
-        output_attentions: Optional[bool] = False,
-        output_hidden_states: Optional[bool] = False,
-        return_dict: Optional[bool] = True,
-    ) -> Union[Tuple[torch.Tensor], BaseModelOutput]:
-        all_hidden_states = () if output_hidden_states else None
-        all_self_attentions = () if output_attentions else None
+        hidden_states,
+        attention_mask,
+        output_all_encoded_layers=True,
+        prev_embedding=None,
+        prev_encoded_layers=None,
+        mask_qkv=None,
+        seg_ids=None,
+        key_history=None,
+        value_history=None,
+    ):
+        # history embedding and encoded layer must be simultanously given
+        assert (prev_embedding is None) == (prev_encoded_layers is None)
 
-        for i, layer_module in enumerate(self.layer):
-            if output_hidden_states:
-                all_hidden_states = all_hidden_states + (hidden_states,)
-
-            layer_head_mask = head_mask[i] if head_mask is not None else None
-
-            if self.gradient_checkpointing and self.training:
-
-                def create_custom_forward(module):
-                    def custom_forward(*inputs):
-                        return module(*inputs, output_attentions)
-
-                    return custom_forward
-
-                layer_outputs = torch.utils.checkpoint.checkpoint(
-                    create_custom_forward(layer_module),
+        all_encoder_layers = []
+        if (prev_embedding is not None) and (prev_encoded_layers is not None):
+            history_states = prev_embedding
+            for i, layer_module in enumerate(self.layer):
+                hidden_states = layer_module(
+                    hidden_states, attention_mask, history_states=history_states, mask_qkv=mask_qkv, seg_ids=seg_ids
+                )
+                if output_all_encoded_layers:
+                    all_encoder_layers.append(hidden_states)
+                if prev_encoded_layers is not None:
+                    history_states = prev_encoded_layers[i]
+        else:
+            for i, layer_module in enumerate(self.layer):
+                set_key = None
+                if isinstance(key_history, list):
+                    set_key = key_history if len(key_history) < len(self.layer) else key_history[i]
+                set_value = None
+                if isinstance(value_history, list):
+                    set_value = value_history if len(key_history) < len(self.layer) else value_history[i]
+                hidden_states = layer_module(
                     hidden_states,
                     attention_mask,
-                    layer_head_mask,
+                    mask_qkv=mask_qkv,
+                    seg_ids=seg_ids,
+                    key_history=set_key,
+                    value_history=set_value,
                 )
-            else:
-                layer_outputs = layer_module(
-                    hidden_states,
-                    attention_mask,
-                    layer_head_mask,
-                    output_attentions,
-                )
-
-            hidden_states = layer_outputs[0]
-            if output_attentions:
-                all_self_attentions = all_self_attentions + (layer_outputs[1],)
-
-        if output_hidden_states:
-            all_hidden_states = all_hidden_states + (hidden_states,)
-
-        if not return_dict:
-            return tuple(
-                v
-                for v in [
-                    hidden_states,
-                    all_hidden_states,
-                    all_self_attentions,
-                ]
-                if v is not None
-            )
-        return BaseModelOutput(
-            last_hidden_state=hidden_states,
-            hidden_states=all_hidden_states,
-            attentions=all_self_attentions,
-        )
+                if output_all_encoded_layers:
+                    all_encoder_layers.append(hidden_states)
+        if not output_all_encoded_layers:
+            all_encoder_layers.append(hidden_states)
+        return all_encoder_layers
 
 
 # Copied from transformers.models.layoutlm.modeling_layoutlm.LayoutLMPreTrainedModel with LAYOUTLM->LAYOUTREADER,LayoutLM->LayoutReader,layoutlm->layoutreader
@@ -538,122 +558,75 @@ class LayoutReaderModel(LayoutReaderPreTrainedModel):
         for layer, heads in heads_to_prune.items():
             self.encoder.layer[layer].attention.prune_heads(heads)
 
+    # def rescale_some_parameters(self):
+    #     for layer_id, layer in enumerate(self.encoder.layer):
+    #         layer.attention.output.dense.weight.data.div_(
+    #             math.sqrt(2.0 * (layer_id + 1)))
+    #         layer.output.dense.weight.data.div_(math.sqrt(2.0 * (layer_id + 1)))
+
+    def get_extended_attention_mask(self, input_ids, token_type_ids, attention_mask):
+        if attention_mask is None:
+            attention_mask = torch.ones_like(input_ids)
+        if token_type_ids is None:
+            token_type_ids = torch.zeros_like(input_ids)
+
+        # We create a 3D attention mask from a 2D tensor mask.
+        # Sizes are [batch_size, 1, 1, to_seq_length]
+        # So we can broadcast to [batch_size, num_heads, from_seq_length, to_seq_length]
+        # this attention mask is more simple than the triangular masking of causal attention
+        # used in OpenAI GPT, we just need to prepare the broadcast dimension here.
+        if attention_mask.dim() == 2:
+            extended_attention_mask = attention_mask.unsqueeze(1).unsqueeze(2)
+        elif attention_mask.dim() == 3:
+            extended_attention_mask = attention_mask.unsqueeze(1)
+        else:
+            raise NotImplementedError
+
+        # Since attention_mask is 1.0 for positions we want to attend and 0.0 for
+        # masked positions, this operation will create a tensor which is 0.0 for
+        # positions we want to attend and -10000.0 for masked positions.
+        # Since we are adding it to the raw scores before the softmax, this is
+        # effectively the same as removing these entirely.
+        extended_attention_mask = extended_attention_mask.to(dtype=next(self.parameters()).dtype)  # fp16 compatibility
+        extended_attention_mask = (1.0 - extended_attention_mask) * -10000.0
+        return extended_attention_mask
+
     @add_start_docstrings_to_model_forward(LAYOUTREADER_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
     @replace_return_docstrings(output_type=BaseModelOutput, config_class=_CONFIG_FOR_DOC)
     def forward(
         self,
-        input_ids: Optional[torch.LongTensor] = None,
-        bbox: Optional[torch.LongTensor] = None,
-        attention_mask: Optional[torch.FloatTensor] = None,
-        token_type_ids: Optional[torch.LongTensor] = None,
-        position_ids: Optional[torch.LongTensor] = None,
-        head_mask: Optional[torch.FloatTensor] = None,
-        inputs_embeds: Optional[torch.FloatTensor] = None,
-        output_attentions: Optional[bool] = None,
-        output_hidden_states: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
-    ) -> Union[Tuple, BaseModelOutput]:
-        r"""
+        input_ids,
+        token_type_ids,
+        position_ids,
+        attention_mask,
+        output_all_encoded_layers=True,
+        prev_embedding=None,
+        prev_encoded_layers=None,
+        mask_qkv=None,
+        task_idx=None,
+    ):
+        """
         Returns:
-
-        Examples:
-
-        ```python
-        >>> from transformers import AutoTokenizer, LayoutReaderModel
-        >>> import torch
-
-        >>> tokenizer = AutoTokenizer.from_pretrained("microsoft/layoutreader-base")
-        >>> model = LayoutReaderModel.from_pretrained("microsoft/layoutreader-base")
-
-        >>> words = ["Hello", "world"]
-        >>> normalized_word_boxes = [637, 773, 693, 782], [698, 773, 733, 782]
-
-        >>> token_boxes = []
-        >>> for word, box in zip(words, normalized_word_boxes):
-        ...     word_tokens = tokenizer.tokenize(word)
-        ...     token_boxes.extend([box] * len(word_tokens))
-        >>> # add bounding boxes of cls + sep tokens
-        >>> token_boxes = [[0, 0, 0, 0]] + token_boxes + [[1000, 1000, 1000, 1000]]
-
-        >>> encoding = tokenizer(" ".join(words), return_tensors="pt")
-        >>> input_ids = encoding["input_ids"]
-        >>> attention_mask = encoding["attention_mask"]
-        >>> token_type_ids = encoding["token_type_ids"]
-        >>> bbox = torch.tensor([token_boxes])
-
-        >>> outputs = model(
-        ...     input_ids=input_ids, bbox=bbox, attention_mask=attention_mask, token_type_ids=token_type_ids
-        ... )
-
-        >>> last_hidden_states = outputs.last_hidden_state
-        ```"""
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        output_hidden_states = (
-            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
-        )
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-
-        if input_ids is not None and inputs_embeds is not None:
-            raise ValueError("You cannot specify both input_ids and inputs_embeds at the same time")
-        elif input_ids is not None:
-            input_shape = input_ids.size()
-        elif inputs_embeds is not None:
-            input_shape = inputs_embeds.size()[:-1]
-        else:
-            raise ValueError("You have to specify either input_ids or inputs_embeds")
-
-        device = input_ids.device if input_ids is not None else inputs_embeds.device
-
-        if attention_mask is None:
-            attention_mask = torch.ones(input_shape, device=device)
-        if token_type_ids is None:
-            token_type_ids = torch.zeros(input_shape, dtype=torch.long, device=device)
-
-        if bbox is None:
-            bbox = torch.zeros(input_shape + (4,), dtype=torch.long, device=device)
-
-        extended_attention_mask = attention_mask.unsqueeze(1).unsqueeze(2)
-
-        extended_attention_mask = extended_attention_mask.to(dtype=self.dtype)
-        extended_attention_mask = (1.0 - extended_attention_mask) * torch.finfo(self.dtype).min
-
-        if head_mask is not None:
-            if head_mask.dim() == 1:
-                head_mask = head_mask.unsqueeze(0).unsqueeze(0).unsqueeze(-1).unsqueeze(-1)
-                head_mask = head_mask.expand(self.config.num_hidden_layers, -1, -1, -1, -1)
-            elif head_mask.dim() == 2:
-                head_mask = head_mask.unsqueeze(1).unsqueeze(-1).unsqueeze(-1)
-            head_mask = head_mask.to(dtype=next(self.parameters()).dtype)
-        else:
-            head_mask = [None] * self.config.num_hidden_layers
+        """
+        extended_attention_mask = self.get_extended_attention_mask(input_ids[:, :, 0], token_type_ids, attention_mask)
 
         embedding_output = self.embeddings(
-            input_ids=input_ids,
-            bbox=bbox,
-            position_ids=position_ids,
-            token_type_ids=token_type_ids,
-            inputs_embeds=inputs_embeds,
+            input_ids[:, :, 0], input_ids[:, :, 1:], token_type_ids, position_ids, task_idx=task_idx
         )
-        encoder_outputs = self.encoder(
+        encoded_layers = self.encoder(
             embedding_output,
             extended_attention_mask,
-            head_mask=head_mask,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
+            output_all_encoded_layers=output_all_encoded_layers,
+            prev_embedding=prev_embedding,
+            prev_encoded_layers=prev_encoded_layers,
+            mask_qkv=mask_qkv,
+            seg_ids=token_type_ids,
         )
-        sequence_output = encoder_outputs[0]
-        pooled_output = None  # TODO remove pooler
+        encoded_layers[-1]
+        if not output_all_encoded_layers:
+            encoded_layers = encoded_layers[-1]
 
-        if not return_dict:
-            return (sequence_output, pooled_output) + encoder_outputs[1:]
-
-        return BaseModelOutput(
-            last_hidden_state=sequence_output,
-            pooler_output=pooled_output,
-            hidden_states=encoder_outputs.hidden_states,
-            attentions=encoder_outputs.attentions,
-        )
+        return embedding_output, encoded_layers
 
 
 # Copied from transformers.models.bert.modeling_bert.BertPredictionHeadTransform with Bert->LayoutReader
@@ -737,6 +710,17 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
 
         self.layoutreader = LayoutReaderModel(config)
         self.cls = LayoutReaderLMPredictionHead(config, src_len=config.max_source_length)
+
+        self.layout_flag = True  # TODO remove this attribute
+        self.mask_word_id = config.mask_word_id
+        self.beam_size = config.beam_size
+        self.length_penalty = config.length_penalty
+        self.eos_id = config.eos_id
+        self.sos_id = config.sos_id
+        self.forbid_duplicate_ngrams = config.forbid_duplicate_ngrams
+        self.forbid_ignore_set = config.forbid_ignore_set
+        self.ngram_size = config.ngram_size
+        self.pos_shift = config.pos_shift
 
         # Initialize weights and apply final processing
         self.post_init()
@@ -849,7 +833,7 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
         )
 
     def generate(self, input_ids, token_type_ids, position_ids, attention_mask, task_idx=None, mask_qkv=None):
-        if self.search_beam_size > 1:
+        if self.config.beam_size > 1:
             return self.beam_search(
                 input_ids, token_type_ids, position_ids, attention_mask, task_idx=task_idx, mask_qkv=mask_qkv
             )
@@ -900,7 +884,7 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
             curr_token_type_ids = token_type_ids[:, start_pos : next_pos + 1]
             curr_attention_mask = attention_mask[:, start_pos : next_pos + 1, : next_pos + 1]
             curr_position_ids = position_ids[:, start_pos : next_pos + 1]
-            new_embedding, new_encoded_layers, _ = self.layoutreader(
+            new_embedding, new_encoded_layers = self.layoutreader(
                 x_input_ids,
                 curr_token_type_ids,
                 curr_position_ids,
@@ -1006,7 +990,7 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
                 sos_ids = input_ids.new_zeros(batch_size, 1, 5)
                 sos_ids[:, :, 0] = self.sos_id
 
-        K = self.search_beam_size
+        K = self.config.beam_size
 
         total_scores = []
         beam_masks = []
@@ -1035,7 +1019,7 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
             curr_token_type_ids = token_type_ids[:, start_pos : next_pos + 1]
             curr_attention_mask = attention_mask[:, start_pos : next_pos + 1, : next_pos + 1]
             curr_position_ids = position_ids[:, start_pos : next_pos + 1]
-            new_embedding, new_encoded_layers, _ = self.layoutreader(
+            new_embedding, new_encoded_layers = self.layoutreader(
                 x_input_ids,
                 curr_token_type_ids,
                 curr_position_ids,

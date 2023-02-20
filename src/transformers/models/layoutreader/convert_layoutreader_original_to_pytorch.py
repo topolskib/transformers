@@ -20,6 +20,7 @@ URL: https://github.com/microsoft/unilm/tree/master/layoutreader"""
 import argparse
 
 import torch
+from huggingface_hub import hf_hub_download
 
 from transformers import LayoutReaderConfig, LayoutReaderForSeq2SeqDecoding
 
@@ -49,8 +50,22 @@ def convert_layoutreader_checkpoint(checkpoint_path, pytorch_dump_folder_path, p
     model = LayoutReaderForSeq2SeqDecoding(config)
     model.eval()
     missing_keys, unexpected_keys = model.load_state_dict(new_state_dict, strict=False)
-    assert missing_keys == ["layoutreader.embeddings.position_ids"]
+    assert missing_keys == []
     assert unexpected_keys == ["crit_mask_lm_smoothed.one_hot"]
+
+    # Generate
+    filepath = hf_hub_download(repo_id="nielsr/layoutreader-dummy-data", repo_type="dataset", filename="batch.pt")
+    batch = torch.load(filepath, map_location="cpu")
+    input_ids, token_type_ids, position_ids, input_mask, mask_qkv, task_idx = tuple(batch)
+
+    model.generate(
+        input_ids=input_ids,
+        token_type_ids=token_type_ids,
+        position_ids=position_ids,
+        attention_mask=input_mask,
+        task_idx=task_idx,
+        mask_qkv=mask_qkv,
+    )
 
     # TODO assert values
     # url = "http://images.cocodataset.org/val2017/000000039769.jpg"

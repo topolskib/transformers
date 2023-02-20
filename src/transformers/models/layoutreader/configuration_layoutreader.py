@@ -69,6 +69,8 @@ class LayoutReaderConfig(PretrainedConfig):
             just in case (e.g., 1024).
         max_source_length (`int`, *optional*, defaults to 513):
             Max source length.
+        beam_size (`int`, *optional*, defaults to 1):
+            Beam size for beam search.
 
     Examples:
 
@@ -104,6 +106,16 @@ class LayoutReaderConfig(PretrainedConfig):
         position_embedding_type="absolute",
         max_2d_position_embeddings=1024,
         max_source_length=513,
+        # generate arguments
+        mask_word_id=103,
+        beam_size=1,
+        length_penalty=0,
+        eos_id=102,
+        sos_id=102,
+        forbid_duplicate_ngrams=True,
+        forbid_ignore_set={1012},
+        ngram_size=3,
+        pos_shift=False,
         **kwargs,
     ):
         super().__init__(pad_token_id=pad_token_id, **kwargs)
@@ -122,3 +134,14 @@ class LayoutReaderConfig(PretrainedConfig):
         self.position_embedding_type = position_embedding_type
         self.max_2d_position_embeddings = max_2d_position_embeddings
         self.max_source_length = max_source_length
+
+        # generate attributes
+        self.mask_word_id = mask_word_id
+        self.beam_size = beam_size
+        self.length_penalty = length_penalty
+        self.eos_id = eos_id
+        self.sos_id = sos_id
+        self.forbid_duplicate_ngrams = forbid_duplicate_ngrams
+        self.forbid_ignore_set = forbid_ignore_set
+        self.ngram_size = ngram_size
+        self.pos_shift = pos_shift
