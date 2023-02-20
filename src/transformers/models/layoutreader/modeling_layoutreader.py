@@ -604,7 +604,6 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
         self.layoutreader = LayoutReaderModel(config)
         self.cls = LayoutReaderLMPredictionHead(config, src_len=config.max_source_length)
 
-        self.layout_flag = True  # TODO remove this attribute
         self.mask_word_id = config.mask_word_id
         self.beam_size = config.beam_size
         self.length_penalty = config.length_penalty
@@ -636,19 +635,13 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
         prev_encoded_layers = None
         curr_ids = input_ids
 
-        if not self.layout_flag:
-            mask_ids = input_ids.new(batch_size, 1).fill_(self.mask_word_id)
-        else:
-            mask_ids = input_ids.new_zeros(batch_size, 1, 5)
-            mask_ids[:, :, 0] = self.mask_word_id
+        mask_ids = input_ids.new_zeros(batch_size, 1, 5)
+        mask_ids[:, :, 0] = self.mask_word_id
 
         next_pos = input_length
         if self.pos_shift:
-            if not self.layout_flag:
-                sos_ids = input_ids.new(batch_size, 1).fill_(self.sos_id)
-            else:
-                sos_ids = input_ids.new_zeros(batch_size, 1, 5)
-                sos_ids[:, :, 0] = self.sos_id
+            sos_ids = input_ids.new_zeros(batch_size, 1, 5)
+            sos_ids[:, :, 0] = self.sos_id
 
         src_embedding = None
 
@@ -733,21 +726,16 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
                         torch.cat((x[0], x[1][:, :-1, :]), dim=1) for x in zip(prev_encoded_layers, new_encoded_layers)
                     ]
 
-            if not self.layout_flag:
-                index = max_ids
-                curr_ids = torch.gather(input_ids, 1, index)
-            else:
-                _, _, dim = input_ids.shape
-                index = max_ids.unsqueeze(-1)
-                index = index.expand(index.shape[0], index.shape[1], dim)
-                # index = index.repeat(1, 1, dim)
-                curr_ids = torch.gather(input_ids, 1, index)
+            _, _, dim = input_ids.shape
+            index = max_ids.unsqueeze(-1)
+            index = index.expand(index.shape[0], index.shape[1], dim)
+            # index = index.repeat(1, 1, dim)
+            curr_ids = torch.gather(input_ids, 1, index)
 
             next_pos += 1
 
         return torch.cat(output_ids, dim=1)
 
-    # TODO: do the same with beam search as forward()
     def beam_search(self, input_ids, token_type_ids, position_ids, attention_mask, mask_qkv=None):
         input_shape = list(input_ids.size())
         batch_size = input_shape[0]
@@ -758,19 +746,13 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
         prev_embedding = None
         prev_encoded_layers = None
         curr_ids = input_ids
-        if not self.layout_flag:
-            mask_ids = input_ids.new(batch_size, 1).fill_(self.mask_word_id)
-        else:
-            mask_ids = input_ids.new_zeros(batch_size, 1, 5)
-            mask_ids[:, :, 0] = self.mask_word_id
+        mask_ids = input_ids.new_zeros(batch_size, 1, 5)
+        mask_ids[:, :, 0] = self.mask_word_id
 
         next_pos = input_length
         if self.pos_shift:
-            if not self.layout_flag:
-                sos_ids = input_ids.new(batch_size, 1).fill_(self.sos_id)
-            else:
-                sos_ids = input_ids.new_zeros(batch_size, 1, 5)
-                sos_ids[:, :, 0] = self.sos_id
+            sos_ids = input_ids.new_zeros(batch_size, 1, 5)
+            sos_ids[:, :, 0] = self.sos_id
 
         K = self.config.beam_size
 
