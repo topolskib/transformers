@@ -66,7 +66,6 @@ def convert_layoutreader_checkpoint(checkpoint_path, pytorch_dump_folder_path, p
             attention_mask=input_mask,
             mask_qkv=mask_qkv,
         )
-        print("Output_ids:", output_ids)
 
     # assert values
     # fmt: off
@@ -110,6 +109,19 @@ def convert_layoutreader_checkpoint(checkpoint_path, pytorch_dump_folder_path, p
     # fmt: on
 
     assert expected_output_ids == output_ids[0].tolist()
+    print("Looks ok!")
+
+    # try beam search
+    model.config.beam_size = 5
+    with torch.no_grad():
+        output_ids = model.beam_search(
+            input_ids=input_ids,
+            token_type_ids=token_type_ids,
+            position_ids=position_ids,
+            attention_mask=input_mask,
+            mask_qkv=mask_qkv,
+        )
+        print("Output ids after beam search:", output_ids)
 
     if pytorch_dump_folder_path is not None:
         print(f"Saving model and tokenizer to {pytorch_dump_folder_path}")

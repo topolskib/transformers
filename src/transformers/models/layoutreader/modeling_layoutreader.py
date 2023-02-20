@@ -119,46 +119,16 @@ class LayoutReaderSelfAttention(nn.Module):
         self.attention_head_size = int(config.hidden_size / config.num_attention_heads)
         self.all_head_size = self.num_attention_heads * self.attention_head_size
 
-        # TODO remove this
-        # if hasattr(config, "num_qkv") and (config.num_qkv > 1):
-        #     self.num_qkv = config.num_qkv
-        # else:
-        #
-        self.num_qkv = 1
-
-        self.query = nn.Linear(config.hidden_size, self.all_head_size * self.num_qkv)
-        self.key = nn.Linear(config.hidden_size, self.all_head_size * self.num_qkv)
-        self.value = nn.Linear(config.hidden_size, self.all_head_size * self.num_qkv)
+        self.query = nn.Linear(config.hidden_size, self.all_head_size)
+        self.key = nn.Linear(config.hidden_size, self.all_head_size)
+        self.value = nn.Linear(config.hidden_size, self.all_head_size)
 
         self.dropout = nn.Dropout(config.attention_probs_dropout_prob)
 
-        # TODO remove this
-        # if hasattr(config, "seg_emb") and config.seg_emb:
-        #     self.b_q_s = nn.Parameter(torch.zeros(1, self.num_attention_heads, 1, self.attention_head_size))
-        #     self.seg_emb = nn.Embedding(config.type_vocab_size, self.all_head_size)
-        # else:
-        self.b_q_s = None
-        self.seg_emb = None
-
     def transpose_for_scores(self, x, mask_qkv=None):
-        if self.num_qkv > 1:
-            sz = x.size()[:-1] + (self.num_qkv, self.num_attention_heads, self.all_head_size)
-            # (batch, pos, num_qkv, head, head_hid)
-            x = x.view(*sz)
-            if mask_qkv is None:
-                x = x[:, :, 0, :, :]
-            elif isinstance(mask_qkv, int):
-                x = x[:, :, mask_qkv, :, :]
-            else:
-                # mask_qkv: (batch, pos)
-                if mask_qkv.size(1) > sz[1]:
-                    mask_qkv = mask_qkv[:, : sz[1]]
-                # -> x: (batch, pos, head, head_hid)
-                x = x.gather(2, mask_qkv.view(sz[0], sz[1], 1, 1, 1).expand(sz[0], sz[1], 1, sz[3], sz[4])).squeeze(2)
-        else:
-            sz = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
-            # (batch, pos, head, head_hid)
-            x = x.view(*sz)
+        sz = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
+        # (batch, pos, head, head_hid)
+        x = x.view(*sz)
         # (batch, head, pos, head_hid)
         return x.permute(0, 2, 1, 3)
 
@@ -170,8 +140,6 @@ class LayoutReaderSelfAttention(nn.Module):
         mask_qkv=None,
         key_history=None,
         value_history=None,
-        key_cache=None,
-        value_cache=None,
     ):
         if history_states is None:
             mixed_query_layer = self.query(hidden_states)
@@ -184,14 +152,6 @@ class LayoutReaderSelfAttention(nn.Module):
             # possible issue: https://github.com/NVIDIA/apex/issues/131
             mixed_key_layer = nn.functional.linear(x_states, self.key.weight)
             mixed_value_layer = self.value(x_states)
-
-        if key_cache is not None and isinstance(key_cache, list):
-            key_cache.append(mixed_key_layer)
-            mixed_key_layer = torch.cat(key_cache, dim=1)
-
-        if value_cache is not None and isinstance(value_cache, list):
-            value_cache.append(mixed_value_layer)
-            mixed_value_layer = torch.cat(value_cache, dim=1)
 
         query_layer = self.transpose_for_scores(mixed_query_layer, mask_qkv)
         key_layer = self.transpose_for_scores(mixed_key_layer, mask_qkv)
@@ -798,7 +758,6 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
         prev_embedding = None
         prev_encoded_layers = None
         curr_ids = input_ids
-        # mask_ids = input_ids.new(batch_size, 1).fill_(self.mask_word_id)
         if not self.layout_flag:
             mask_ids = input_ids.new(batch_size, 1).fill_(self.mask_word_id)
         else:
