@@ -115,7 +115,6 @@ class LayoutReaderConfig(PretrainedConfig):
         forbid_duplicate_ngrams=True,
         forbid_ignore_set=[1012],
         ngram_size=3,
-        pos_shift=False,
         **kwargs,
     ):
         super().__init__(pad_token_id=pad_token_id, **kwargs)
@@ -144,4 +143,3 @@ class LayoutReaderConfig(PretrainedConfig):
         self.forbid_duplicate_ngrams = forbid_duplicate_ngrams
         self.forbid_ignore_set = forbid_ignore_set
         self.ngram_size = ngram_size
-        self.pos_shift = pos_shift

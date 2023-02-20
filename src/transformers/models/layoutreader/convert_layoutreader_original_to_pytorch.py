@@ -60,7 +60,8 @@ def convert_layoutreader_checkpoint(checkpoint_path, pytorch_dump_folder_path, p
 
     with torch.no_grad():
         output_ids = model.generate(
-            input_ids=input_ids,
+            input_ids=input_ids[:, :, 0],
+            bbox=input_ids[:, :, 1:],
             token_type_ids=token_type_ids,
             position_ids=position_ids,
             attention_mask=input_mask,
@@ -115,7 +116,8 @@ def convert_layoutreader_checkpoint(checkpoint_path, pytorch_dump_folder_path, p
     model.config.beam_size = 5
     with torch.no_grad():
         output_ids = model.beam_search(
-            input_ids=input_ids,
+            input_ids=input_ids[:, :, 0],
+            bbox=input_ids[:, :, 1:],
             token_type_ids=token_type_ids,
             position_ids=position_ids,
             attention_mask=input_mask,

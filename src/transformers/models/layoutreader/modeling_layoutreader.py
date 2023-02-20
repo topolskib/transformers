@@ -332,7 +332,6 @@ class LayoutReaderEncoder(nn.Module):
         return_dict: Optional[bool] = True,
     ):
         all_hidden_states = () if output_hidden_states else None
-        all_self_attentions = () if output_attentions else None
 
         # history embedding and encoded layer must be simultanously given
         assert (prev_embedding is None) == (prev_encoded_layers is None)
@@ -342,7 +341,7 @@ class LayoutReaderEncoder(nn.Module):
             for i, layer_module in enumerate(self.layer):
                 if output_hidden_states:
                     all_hidden_states = all_hidden_states + (hidden_states,)
-                
+
                 hidden_states = layer_module(
                     hidden_states,
                     attention_mask,
@@ -355,7 +354,7 @@ class LayoutReaderEncoder(nn.Module):
             for i, layer_module in enumerate(self.layer):
                 if output_hidden_states:
                     all_hidden_states = all_hidden_states + (hidden_states,)
-                
+
                 set_key = None
                 if isinstance(key_history, list):
                     set_key = key_history if len(key_history) < len(self.layer) else key_history[i]
@@ -372,7 +371,7 @@ class LayoutReaderEncoder(nn.Module):
 
         if output_hidden_states:
             all_hidden_states = all_hidden_states + (hidden_states,)
-                    
+
         return all_hidden_states
 
 
@@ -533,6 +532,7 @@ class LayoutReaderModel(LayoutReaderPreTrainedModel):
     def forward(
         self,
         input_ids,
+        bbox,
         token_type_ids,
         position_ids,
         attention_mask,
@@ -546,9 +546,15 @@ class LayoutReaderModel(LayoutReaderPreTrainedModel):
         """
         Returns:
         """
-        extended_attention_mask = self.get_extended_attention_mask(input_ids[:, :, 0], token_type_ids, attention_mask)
+        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
+        output_hidden_states = (
+            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
+        )
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
-        embedding_output = self.embeddings(input_ids[:, :, 0], input_ids[:, :, 1:], token_type_ids, position_ids)
+        extended_attention_mask = self.get_extended_attention_mask(input_ids, token_type_ids, attention_mask)
+
+        embedding_output = self.embeddings(input_ids, bbox, token_type_ids, position_ids)
 
         encoded_layers = self.encoder(
             embedding_output,
@@ -560,6 +566,8 @@ class LayoutReaderModel(LayoutReaderPreTrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
+
+        # TODO add return_dict support
 
         return embedding_output, encoded_layers[1:]
 
@@ -622,7 +630,6 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
         self.forbid_duplicate_ngrams = config.forbid_duplicate_ngrams
         self.forbid_ignore_set = config.forbid_ignore_set
         self.ngram_size = config.ngram_size
-        self.pos_shift = config.pos_shift
 
         # Initialize weights and apply final processing
         self.post_init()
@@ -630,9 +637,12 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
     def get_input_embeddings(self):
         return self.layoutreader.embeddings.word_embeddings
 
-    def generate(self, input_ids, token_type_ids, position_ids, attention_mask, mask_qkv=None):
+    def generate(self, input_ids, bbox, token_type_ids, position_ids, attention_mask, mask_qkv=None):
         if self.config.beam_size > 1:
-            return self.beam_search(input_ids, token_type_ids, position_ids, attention_mask, mask_qkv=mask_qkv)
+            return self.beam_search(input_ids, bbox, token_type_ids, position_ids, attention_mask, mask_qkv=mask_qkv)
+
+        print("Shape of input_ids: ", input_ids.size())
+        print("Shape of bbox: ", bbox.size())
 
         input_shape = list(input_ids.size())
         batch_size = input_shape[0]
@@ -644,32 +654,33 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
         prev_embedding = None
         prev_encoded_layers = None
         curr_ids = input_ids
+        curr_bbox = bbox
 
-        mask_ids = input_ids.new_zeros(batch_size, 1, 5)
-        mask_ids[:, :, 0] = self.mask_word_id
+        mask_ids = torch.full((batch_size, 1), self.mask_word_id)
+        mask_bbox = torch.zeros((batch_size, 1, 4), dtype=torch.long)
 
         next_pos = input_length
-        if self.pos_shift:
-            sos_ids = input_ids.new_zeros(batch_size, 1, 5)
-            sos_ids[:, :, 0] = self.sos_id
+        # if self.pos_shift:
+        #     sos_ids = torch.full((batch_size, 1), self.sos_id)
 
         src_embedding = None
 
         while next_pos < output_length:
             curr_length = list(curr_ids.size())[1]
 
-            if self.pos_shift:
-                if next_pos == input_length:
-                    x_input_ids = torch.cat((curr_ids, sos_ids), dim=1)
-                    start_pos = 0
-                else:
-                    x_input_ids = curr_ids
-                    start_pos = next_pos
-            else:
-                start_pos = next_pos - curr_length
-                if next_pos < 520:
-                    print("Current ids:", curr_ids[0].tolist())
-                x_input_ids = torch.cat((curr_ids, mask_ids), dim=1)
+            # if self.pos_shift:
+            #     if next_pos == input_length:
+            #         x_input_ids = torch.cat((curr_ids, sos_ids), dim=1)
+            #         mask_bbox = torch.zeros((batch_size, 1, 4), dtype=torch.long)
+            #         x_bbox = torch.cat((curr_bbox, mask_bbox), dim=1)
+            #         start_pos = 0
+            #     else:
+            #         x_input_ids = curr_ids
+            #         x_bbox = curr_bbox
+            #         start_pos = next_pos
+            start_pos = next_pos - curr_length
+            x_input_ids = torch.cat((curr_ids, mask_ids), dim=1)
+            x_bbox = torch.cat((curr_bbox, mask_bbox), dim=1)
 
             curr_token_type_ids = token_type_ids[:, start_pos : next_pos + 1]
             curr_attention_mask = attention_mask[:, start_pos : next_pos + 1, : next_pos + 1]
@@ -678,8 +689,12 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
             if next_pos < 520:
                 print("Input ids:", x_input_ids[0].tolist())
 
+            # print("Shape of input ids:", x_input_ids.shape)
+            # print("Shape of bbox:", x_bbox.shape)
+
             new_embedding, new_encoded_layers = self.layoutreader(
                 x_input_ids,
+                x_bbox,
                 curr_token_type_ids,
                 curr_position_ids,
                 curr_attention_mask,
@@ -713,40 +728,44 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
             _, max_ids = torch.max(prediction_scores, dim=-1)
             output_ids.append(max_ids)
 
-            if self.pos_shift:
-                if prev_embedding is None:
-                    prev_embedding = new_embedding
-                else:
-                    prev_embedding = torch.cat((prev_embedding, new_embedding), dim=1)
-                if prev_encoded_layers is None:
-                    prev_encoded_layers = [x for x in new_encoded_layers]
-                else:
-                    prev_encoded_layers = [
-                        torch.cat((x[0], x[1]), dim=1) for x in zip(prev_encoded_layers, new_encoded_layers)
-                    ]
+            # if self.pos_shift:
+            #     if prev_embedding is None:
+            #         prev_embedding = new_embedding
+            #     else:
+            #         prev_embedding = torch.cat((prev_embedding, new_embedding), dim=1)
+            #     if prev_encoded_layers is None:
+            #         prev_encoded_layers = [x for x in new_encoded_layers]
+            #     else:
+            #         prev_encoded_layers = [
+            #             torch.cat((x[0], x[1]), dim=1) for x in zip(prev_encoded_layers, new_encoded_layers)
+            #         ]
+            # else:
+            if prev_embedding is None:
+                prev_embedding = new_embedding[:, :-1, :]
             else:
-                if prev_embedding is None:
-                    prev_embedding = new_embedding[:, :-1, :]
-                else:
-                    prev_embedding = torch.cat((prev_embedding, new_embedding[:, :-1, :]), dim=1)
-                if prev_encoded_layers is None:
-                    prev_encoded_layers = [x[:, :-1, :] for x in new_encoded_layers]
-                else:
-                    prev_encoded_layers = [
-                        torch.cat((x[0], x[1][:, :-1, :]), dim=1) for x in zip(prev_encoded_layers, new_encoded_layers)
-                    ]
+                prev_embedding = torch.cat((prev_embedding, new_embedding[:, :-1, :]), dim=1)
+            if prev_encoded_layers is None:
+                prev_encoded_layers = [x[:, :-1, :] for x in new_encoded_layers]
+            else:
+                prev_encoded_layers = [
+                    torch.cat((x[0], x[1][:, :-1, :]), dim=1) for x in zip(prev_encoded_layers, new_encoded_layers)
+                ]
 
-            _, _, dim = input_ids.shape
-            index = max_ids.unsqueeze(-1)
-            index = index.expand(index.shape[0], index.shape[1], dim)
-            # index = index.repeat(1, 1, dim)
+            # _, _, dim = input_ids.shape
+            index = max_ids
+            # index = max_ids.unsqueeze(-1)
+            # print("Shape of input_ids:", input_ids.shape)
+            # print("Shape of index:", index.shape)
+            # index = index.expand(index.shape[0], index.shape[1], dim)
             curr_ids = torch.gather(input_ids, 1, index)
+            index = index.expand(index.shape[0], index.shape[1], 4)
+            curr_bbox = torch.gather(bbox, 1, index)
 
             next_pos += 1
 
         return torch.cat(output_ids, dim=1)
 
-    def beam_search(self, input_ids, token_type_ids, position_ids, attention_mask, mask_qkv=None):
+    def beam_search(self, input_ids, bbox, token_type_ids, position_ids, attention_mask, mask_qkv=None):
         input_shape = list(input_ids.size())
         batch_size = input_shape[0]
         input_length = input_shape[1]
@@ -756,13 +775,15 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
         prev_embedding = None
         prev_encoded_layers = None
         curr_ids = input_ids
-        mask_ids = input_ids.new_zeros(batch_size, 1, 5)
-        mask_ids[:, :, 0] = self.mask_word_id
+        curr_bbox = bbox
+        
+        mask_ids = torch.full((batch_size, 1), self.mask_word_id)
+        mask_bbox = torch.zeros((batch_size, 1, 4), dtype=torch.long)
 
         next_pos = input_length
-        if self.pos_shift:
-            sos_ids = input_ids.new_zeros(batch_size, 1, 5)
-            sos_ids[:, :, 0] = self.sos_id
+        # if self.pos_shift:
+        #     sos_ids = input_ids.new_zeros(batch_size, 1, 5)
+        #     sos_ids[:, :, 0] = self.sos_id
 
         K = self.config.beam_size
 
@@ -779,22 +800,29 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
         while next_pos < output_length:
             curr_length = list(curr_ids.size())[1]
 
-            if self.pos_shift:
-                if next_pos == input_length:
-                    x_input_ids = torch.cat((curr_ids, sos_ids), dim=1)
-                    start_pos = 0
-                else:
-                    x_input_ids = curr_ids
-                    start_pos = next_pos
-            else:
-                start_pos = next_pos - curr_length
-                x_input_ids = torch.cat((curr_ids, mask_ids), dim=1)
+            # if self.pos_shift:
+            #     if next_pos == input_length:
+            #         x_input_ids = torch.cat((curr_ids, sos_ids), dim=1)
+            #         start_pos = 0
+            #     else:
+            #         x_input_ids = curr_ids
+            #         start_pos = next_pos
+            # else:
+            start_pos = next_pos - curr_length
+            print("Shape of curr_ids:", curr_ids.shape)
+            print("Shape of mask_ids:", mask_ids.shape)
+            print("Shape of curr_bbox:", curr_bbox.shape)
+            print("Shape of mask_bbox:", mask_bbox.shape)
+            x_input_ids = torch.cat((curr_ids, mask_ids), dim=1)
+            x_bbox = torch.cat((curr_bbox, mask_bbox), dim=1)
 
             curr_token_type_ids = token_type_ids[:, start_pos : next_pos + 1]
             curr_attention_mask = attention_mask[:, start_pos : next_pos + 1, : next_pos + 1]
             curr_position_ids = position_ids[:, start_pos : next_pos + 1]
+            print("we are here")
             new_embedding, new_encoded_layers = self.layoutreader(
                 x_input_ids,
+                x_bbox,
                 curr_token_type_ids,
                 curr_position_ids,
                 curr_attention_mask,
@@ -862,39 +890,48 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
 
             is_first = prev_embedding is None
 
-            if self.pos_shift:
-                if prev_embedding is None:
-                    prev_embedding = first_expand(new_embedding)
-                else:
-                    prev_embedding = torch.cat((prev_embedding, new_embedding), dim=1)
-                    prev_embedding = select_beam_items(prev_embedding, back_ptrs)
-                if prev_encoded_layers is None:
-                    prev_encoded_layers = [first_expand(x) for x in new_encoded_layers]
-                else:
-                    prev_encoded_layers = [
-                        torch.cat((x[0], x[1]), dim=1) for x in zip(prev_encoded_layers, new_encoded_layers)
-                    ]
-                    prev_encoded_layers = [select_beam_items(x, back_ptrs) for x in prev_encoded_layers]
+            # if self.pos_shift:
+            #     if prev_embedding is None:
+            #         prev_embedding = first_expand(new_embedding)
+            #     else:
+            #         prev_embedding = torch.cat((prev_embedding, new_embedding), dim=1)
+            #         prev_embedding = select_beam_items(prev_embedding, back_ptrs)
+            #     if prev_encoded_layers is None:
+            #         prev_encoded_layers = [first_expand(x) for x in new_encoded_layers]
+            #     else:
+            #         prev_encoded_layers = [
+            #             torch.cat((x[0], x[1]), dim=1) for x in zip(prev_encoded_layers, new_encoded_layers)
+            #         ]
+            #         prev_encoded_layers = [select_beam_items(x, back_ptrs) for x in prev_encoded_layers]
+            # else:
+            if prev_embedding is None:
+                prev_embedding = first_expand(new_embedding[:, :-1, :])
             else:
-                if prev_embedding is None:
-                    prev_embedding = first_expand(new_embedding[:, :-1, :])
-                else:
-                    prev_embedding = torch.cat((prev_embedding, new_embedding[:, :-1, :]), dim=1)
-                    prev_embedding = select_beam_items(prev_embedding, back_ptrs)
-                if prev_encoded_layers is None:
-                    prev_encoded_layers = [first_expand(x[:, :-1, :]) for x in new_encoded_layers]
-                else:
-                    prev_encoded_layers = [
-                        torch.cat((x[0], x[1][:, :-1, :]), dim=1) for x in zip(prev_encoded_layers, new_encoded_layers)
-                    ]
-                    prev_encoded_layers = [select_beam_items(x, back_ptrs) for x in prev_encoded_layers]
+                prev_embedding = torch.cat((prev_embedding, new_embedding[:, :-1, :]), dim=1)
+                prev_embedding = select_beam_items(prev_embedding, back_ptrs)
+            if prev_encoded_layers is None:
+                prev_encoded_layers = [first_expand(x[:, :-1, :]) for x in new_encoded_layers]
+            else:
+                prev_encoded_layers = [
+                    torch.cat((x[0], x[1][:, :-1, :]), dim=1) for x in zip(prev_encoded_layers, new_encoded_layers)
+                ]
+                prev_encoded_layers = [select_beam_items(x, back_ptrs) for x in prev_encoded_layers]
 
             max_ids = torch.reshape(k_ids, [batch_size * K, 1])
 
             if len(input_ids.shape) == 2:
                 expand_input_ids = first_expand(input_ids)
                 index = max_ids
+                print("Shape of expand_input_ids:", expand_input_ids.shape)
+                print("Shape of index:", index.shape)
                 curr_ids = torch.gather(expand_input_ids, 1, index)
+
+                expand_bbox = first_expand(bbox)
+                print("Shape of expand_bbox:", expand_bbox.shape)
+                index = max_ids.unsqueeze(-1)
+                index = index.expand(index.shape[0], index.shape[1], 4)
+                print("Shape of index:", index.shape)
+                curr_bbox = torch.gather(expand_bbox, 1, index)
             else:
                 expand_input_ids = first_expand(input_ids)
 
@@ -903,12 +940,15 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
                 index = index.expand(index.shape[0], index.shape[1], dim)
 
                 curr_ids = torch.gather(expand_input_ids, 1, index)
+                index = index.expand(index.shape[0], index.shape[1], 4)
+                curr_bbox = torch.gather(bbox, 1, index)
 
             if is_first:
                 token_type_ids = first_expand(token_type_ids)
                 position_ids = first_expand(position_ids)
                 attention_mask = first_expand(attention_mask)
                 mask_ids = first_expand(mask_ids)
+                mask_bbox = first_expand(mask_bbox)
                 if mask_qkv is not None:
                     mask_qkv = first_expand(mask_qkv)
 
