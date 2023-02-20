@@ -641,9 +641,6 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
         if self.config.beam_size > 1:
             return self.beam_search(input_ids, bbox, token_type_ids, position_ids, attention_mask, mask_qkv=mask_qkv)
 
-        print("Shape of input_ids: ", input_ids.size())
-        print("Shape of bbox: ", bbox.size())
-
         input_shape = list(input_ids.size())
         batch_size = input_shape[0]
         input_length = input_shape[1]
@@ -686,12 +683,6 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
             curr_attention_mask = attention_mask[:, start_pos : next_pos + 1, : next_pos + 1]
             curr_position_ids = position_ids[:, start_pos : next_pos + 1]
 
-            if next_pos < 520:
-                print("Input ids:", x_input_ids[0].tolist())
-
-            # print("Shape of input ids:", x_input_ids.shape)
-            # print("Shape of bbox:", x_bbox.shape)
-
             new_embedding, new_encoded_layers = self.layoutreader(
                 x_input_ids,
                 x_bbox,
@@ -708,20 +699,10 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
                 # note: cut three embedding: CLS (1st), ..., SEP (-2nd), next to pred (-1st)
                 # note: (NEW) the sep is kept for ignore index in loss func (for padding's index)
                 # NOTE: only remove the next to pred token
-                print("Shape of new_embedding:", new_embedding.shape)
                 src_embedding = new_embedding[:, :-1, :]
-                print("Src embedding:", src_embedding.shape)
 
             last_hidden = new_encoded_layers[-1][:, -1:, :]
-            if next_pos == 514:
-                print("Shape of new_encoded_layers:", new_encoded_layers[-1].shape)
-                print("Shape of last_hidden:", last_hidden.shape)
             prediction_scores = self.cls(last_hidden, src_embedding)
-
-            if next_pos < 520:
-                print("Time step:", next_pos)
-                print("Shape of prediction_scores:", prediction_scores.shape)
-                print("--------------------")
 
             # print("First values of prediction_scores:", prediction_scores[0,:3,:3])
             # print_flag = False
@@ -809,17 +790,12 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
             #         start_pos = next_pos
             # else:
             start_pos = next_pos - curr_length
-            print("Shape of curr_ids:", curr_ids.shape)
-            print("Shape of mask_ids:", mask_ids.shape)
-            print("Shape of curr_bbox:", curr_bbox.shape)
-            print("Shape of mask_bbox:", mask_bbox.shape)
             x_input_ids = torch.cat((curr_ids, mask_ids), dim=1)
             x_bbox = torch.cat((curr_bbox, mask_bbox), dim=1)
 
             curr_token_type_ids = token_type_ids[:, start_pos : next_pos + 1]
             curr_attention_mask = attention_mask[:, start_pos : next_pos + 1, : next_pos + 1]
             curr_position_ids = position_ids[:, start_pos : next_pos + 1]
-            print("we are here")
             new_embedding, new_encoded_layers = self.layoutreader(
                 x_input_ids,
                 x_bbox,
@@ -922,15 +898,11 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
             if len(input_ids.shape) == 2:
                 expand_input_ids = first_expand(input_ids)
                 index = max_ids
-                print("Shape of expand_input_ids:", expand_input_ids.shape)
-                print("Shape of index:", index.shape)
                 curr_ids = torch.gather(expand_input_ids, 1, index)
 
                 expand_bbox = first_expand(bbox)
-                print("Shape of expand_bbox:", expand_bbox.shape)
                 index = max_ids.unsqueeze(-1)
                 index = index.expand(index.shape[0], index.shape[1], 4)
-                print("Shape of index:", index.shape)
                 curr_bbox = torch.gather(expand_bbox, 1, index)
             else:
                 expand_input_ids = first_expand(input_ids)
