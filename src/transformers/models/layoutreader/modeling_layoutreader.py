@@ -16,6 +16,7 @@
 
 
 import math
+from typing import Optional
 
 import numpy as np
 import torch
@@ -321,32 +322,40 @@ class LayoutReaderEncoder(nn.Module):
         self,
         hidden_states,
         attention_mask,
-        output_all_encoded_layers=True,
         prev_embedding=None,
         prev_encoded_layers=None,
         mask_qkv=None,
         key_history=None,
         value_history=None,
+        output_attentions: Optional[bool] = False,
+        output_hidden_states: Optional[bool] = False,
+        return_dict: Optional[bool] = True,
     ):
+        all_hidden_states = () if output_hidden_states else None
+        all_self_attentions = () if output_attentions else None
+
         # history embedding and encoded layer must be simultanously given
         assert (prev_embedding is None) == (prev_encoded_layers is None)
 
-        all_encoder_layers = []
         if (prev_embedding is not None) and (prev_encoded_layers is not None):
             history_states = prev_embedding
             for i, layer_module in enumerate(self.layer):
+                if output_hidden_states:
+                    all_hidden_states = all_hidden_states + (hidden_states,)
+                
                 hidden_states = layer_module(
                     hidden_states,
                     attention_mask,
                     history_states=history_states,
                     mask_qkv=mask_qkv,
                 )
-                if output_all_encoded_layers:
-                    all_encoder_layers.append(hidden_states)
                 if prev_encoded_layers is not None:
                     history_states = prev_encoded_layers[i]
         else:
             for i, layer_module in enumerate(self.layer):
+                if output_hidden_states:
+                    all_hidden_states = all_hidden_states + (hidden_states,)
+                
                 set_key = None
                 if isinstance(key_history, list):
                     set_key = key_history if len(key_history) < len(self.layer) else key_history[i]
@@ -360,11 +369,11 @@ class LayoutReaderEncoder(nn.Module):
                     key_history=set_key,
                     value_history=set_value,
                 )
-                if output_all_encoded_layers:
-                    all_encoder_layers.append(hidden_states)
-        if not output_all_encoded_layers:
-            all_encoder_layers.append(hidden_states)
-        return all_encoder_layers
+
+        if output_hidden_states:
+            all_hidden_states = all_hidden_states + (hidden_states,)
+                    
+        return all_hidden_states
 
 
 # Copied from transformers.models.layoutlm.modeling_layoutlm.LayoutLMPreTrainedModel with LAYOUTLM->LAYOUTREADER,LayoutLM->LayoutReader,layoutlm->layoutreader
@@ -527,10 +536,12 @@ class LayoutReaderModel(LayoutReaderPreTrainedModel):
         token_type_ids,
         position_ids,
         attention_mask,
-        output_all_encoded_layers=True,
         prev_embedding=None,
         prev_encoded_layers=None,
         mask_qkv=None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
     ):
         """
         Returns:
@@ -542,16 +553,15 @@ class LayoutReaderModel(LayoutReaderPreTrainedModel):
         encoded_layers = self.encoder(
             embedding_output,
             extended_attention_mask,
-            output_all_encoded_layers=output_all_encoded_layers,
             prev_embedding=prev_embedding,
             prev_encoded_layers=prev_encoded_layers,
             mask_qkv=mask_qkv,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
         )
-        encoded_layers[-1]
-        if not output_all_encoded_layers:
-            encoded_layers = encoded_layers[-1]
 
-        return embedding_output, encoded_layers
+        return embedding_output, encoded_layers[1:]
 
 
 # Copied from transformers.models.bert.modeling_bert.BertPredictionHeadTransform with Bert->LayoutReader
@@ -673,7 +683,7 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
                 curr_token_type_ids,
                 curr_position_ids,
                 curr_attention_mask,
-                output_all_encoded_layers=True,
+                output_hidden_states=True,
                 prev_embedding=prev_embedding,
                 prev_encoded_layers=prev_encoded_layers,
                 mask_qkv=mask_qkv,
@@ -788,7 +798,7 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
                 curr_token_type_ids,
                 curr_position_ids,
                 curr_attention_mask,
-                output_all_encoded_layers=True,
+                output_hidden_states=True,
                 prev_embedding=prev_embedding,
                 prev_encoded_layers=prev_encoded_layers,
                 mask_qkv=mask_qkv,
