@@ -52,9 +52,6 @@ class LayoutReaderEmbeddings(nn.Module):
     def __init__(self, config):
         super(LayoutReaderEmbeddings, self).__init__()
 
-        # TODO remove this, always use word embeddings
-        # self.only_layout = config.layoutlm_only_layout_flag
-
         self.word_embeddings = nn.Embedding(config.vocab_size, config.hidden_size, padding_idx=0)
 
         self.x_position_embeddings = nn.Embedding(config.max_2d_position_embeddings, config.hidden_size)
@@ -63,12 +60,6 @@ class LayoutReaderEmbeddings(nn.Module):
         self.w_position_embeddings = nn.Embedding(config.max_2d_position_embeddings, config.hidden_size)
 
         self.token_type_embeddings = nn.Embedding(config.type_vocab_size, config.hidden_size)
-
-        # TODO remove this
-        # if hasattr(config, "fp32_embedding"):
-        #     self.fp32_embedding = config.fp32_embedding
-        # else:
-        #     self.fp32_embedding = False
 
         self.position_embeddings = nn.Embedding(config.max_position_embeddings, config.hidden_size)
 
@@ -110,10 +101,9 @@ class LayoutReaderEmbeddings(nn.Module):
         if self.token_type_embeddings is not None:
             embeddings = embeddings + self.token_type_embeddings(token_type_ids)
 
-        # if self.fp32_embedding:
-        #     embeddings = embeddings.half()
         embeddings = self.LayerNorm(embeddings)
         embeddings = self.dropout(embeddings)
+
         return embeddings
 
 
@@ -216,14 +206,15 @@ class LayoutReaderSelfAttention(nn.Module):
         # (batch, head, pos, pos)
         attention_scores = torch.matmul(query_layer / math.sqrt(self.attention_head_size), key_layer.transpose(-1, -2))
 
-        if self.seg_emb is not None:
-            seg_rep = self.seg_emb(seg_ids)
-            # (batch, pos, head, head_hid)
-            seg_rep = seg_rep.view(
-                seg_rep.size(0), seg_rep.size(1), self.num_attention_heads, self.attention_head_size
-            )
-            qs = torch.einsum("bnih,bjnh->bnij", query_layer + self.b_q_s, seg_rep)
-            attention_scores = attention_scores + qs
+        # TODO remove this
+        # if self.seg_emb is not None:
+        #     seg_rep = self.seg_emb(seg_ids)
+        #     # (batch, pos, head, head_hid)
+        #     seg_rep = seg_rep.view(
+        #         seg_rep.size(0), seg_rep.size(1), self.num_attention_heads, self.attention_head_size
+        #     )
+        #     qs = torch.einsum("bnih,bjnh->bnij", query_layer + self.b_q_s, seg_rep)
+        #     attention_scores = attention_scores + qs
 
         # Apply the attention mask is (precomputed for all layers in BertModel forward() function)
         attention_scores = attention_scores + attention_mask
@@ -770,11 +761,17 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
                     start_pos = next_pos
             else:
                 start_pos = next_pos - curr_length
+                if next_pos < 520:
+                    print("Current ids:", curr_ids[0].tolist())
                 x_input_ids = torch.cat((curr_ids, mask_ids), dim=1)
 
             curr_token_type_ids = token_type_ids[:, start_pos : next_pos + 1]
             curr_attention_mask = attention_mask[:, start_pos : next_pos + 1, : next_pos + 1]
             curr_position_ids = position_ids[:, start_pos : next_pos + 1]
+
+            if next_pos < 520:
+                print("Input ids:", x_input_ids[0].tolist())
+
             new_embedding, new_encoded_layers = self.layoutreader(
                 x_input_ids,
                 curr_token_type_ids,
@@ -790,10 +787,23 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
                 # note: cut three embedding: CLS (1st), ..., SEP (-2nd), next to pred (-1st)
                 # note: (NEW) the sep is kept for ignore index in loss func (for padding's index)
                 # NOTE: only remove the next to pred token
+                print("Shape of new_embedding:", new_embedding.shape)
                 src_embedding = new_embedding[:, :-1, :]
+                print("Src embedding:", src_embedding.shape)
 
             last_hidden = new_encoded_layers[-1][:, -1:, :]
+            if next_pos == 514:
+                print("Shape of new_encoded_layers:", new_encoded_layers[-1].shape)
+                print("Shape of last_hidden:", last_hidden.shape)
             prediction_scores = self.cls(last_hidden, src_embedding, task_idx=task_idx)
+
+            if next_pos < 520:
+                print("Time step:", next_pos)
+                print("Shape of prediction_scores:", prediction_scores.shape)
+                print("--------------------")
+
+            # print("First values of prediction_scores:", prediction_scores[0,:3,:3])
+            # print_flag = False
             _, max_ids = torch.max(prediction_scores, dim=-1)
             output_ids.append(max_ids)
 
