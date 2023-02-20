@@ -58,14 +58,14 @@ def convert_layoutreader_checkpoint(checkpoint_path, pytorch_dump_folder_path, p
     batch = torch.load(filepath, map_location="cpu")
     input_ids, token_type_ids, position_ids, input_mask, mask_qkv, task_idx = tuple(batch)
 
-    model.generate(
-        input_ids=input_ids,
-        token_type_ids=token_type_ids,
-        position_ids=position_ids,
-        attention_mask=input_mask,
-        task_idx=task_idx,
-        mask_qkv=mask_qkv,
-    )
+    # model.generate(
+    #     input_ids=input_ids,
+    #     token_type_ids=token_type_ids,
+    #     position_ids=position_ids,
+    #     attention_mask=input_mask,
+    #     task_idx=task_idx,
+    #     mask_qkv=mask_qkv,
+    # )
 
     # TODO assert values
     # url = "http://images.cocodataset.org/val2017/000000039769.jpg"

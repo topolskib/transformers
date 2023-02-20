@@ -16,18 +16,15 @@
 
 
 import math
-from typing import Optional, Tuple, Union
 
 import numpy as np
 import torch
 import torch.utils.checkpoint
 from torch import nn
-from torch.nn import CrossEntropyLoss
 
 from ...activations import ACT2FN
 from ...modeling_outputs import (
     BaseModelOutput,
-    MaskedLMOutput,
 )
 from ...modeling_utils import PreTrainedModel
 from ...pytorch_utils import find_pruneable_heads_and_indices, prune_linear_layer
@@ -728,110 +725,6 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
     def get_input_embeddings(self):
         return self.layoutreader.embeddings.word_embeddings
 
-    # def get_output_embeddings(self):
-    #     return self.cls.predictions.decoder
-
-    # def set_output_embeddings(self, new_embeddings):
-    #     self.cls.predictions.decoder = new_embeddings
-
-    @add_start_docstrings_to_model_forward(LAYOUTREADER_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
-    @replace_return_docstrings(output_type=MaskedLMOutput, config_class=_CONFIG_FOR_DOC)
-    def forward(
-        self,
-        input_ids: Optional[torch.LongTensor] = None,
-        bbox: Optional[torch.LongTensor] = None,
-        attention_mask: Optional[torch.FloatTensor] = None,
-        token_type_ids: Optional[torch.LongTensor] = None,
-        position_ids: Optional[torch.LongTensor] = None,
-        head_mask: Optional[torch.FloatTensor] = None,
-        inputs_embeds: Optional[torch.FloatTensor] = None,
-        labels: Optional[torch.LongTensor] = None,
-        output_attentions: Optional[bool] = None,
-        output_hidden_states: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
-    ) -> Union[Tuple, MaskedLMOutput]:
-        r"""
-        labels (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
-            Labels for computing the masked language modeling loss. Indices should be in `[-100, 0, ...,
-            config.vocab_size]` (see `input_ids` docstring) Tokens with indices set to `-100` are ignored (masked), the
-            loss is only computed for the tokens with labels in `[0, ..., config.vocab_size]`
-
-        Returns:
-
-        Examples:
-
-        ```python
-        >>> from transformers import AutoTokenizer, LayoutReaderForMaskedLM
-        >>> import torch
-
-        >>> tokenizer = AutoTokenizer.from_pretrained("microsoft/layoutreader-base")
-        >>> model = LayoutReaderForMaskedLM.from_pretrained("microsoft/layoutreader-base")
-
-        >>> words = ["Hello", "[MASK]"]
-        >>> normalized_word_boxes = [637, 773, 693, 782], [698, 773, 733, 782]
-
-        >>> token_boxes = []
-        >>> for word, box in zip(words, normalized_word_boxes):
-        ...     word_tokens = tokenizer.tokenize(word)
-        ...     token_boxes.extend([box] * len(word_tokens))
-        >>> # add bounding boxes of cls + sep tokens
-        >>> token_boxes = [[0, 0, 0, 0]] + token_boxes + [[1000, 1000, 1000, 1000]]
-
-        >>> encoding = tokenizer(" ".join(words), return_tensors="pt")
-        >>> input_ids = encoding["input_ids"]
-        >>> attention_mask = encoding["attention_mask"]
-        >>> token_type_ids = encoding["token_type_ids"]
-        >>> bbox = torch.tensor([token_boxes])
-
-        >>> labels = tokenizer("Hello world", return_tensors="pt")["input_ids"]
-
-        >>> outputs = model(
-        ...     input_ids=input_ids,
-        ...     bbox=bbox,
-        ...     attention_mask=attention_mask,
-        ...     token_type_ids=token_type_ids,
-        ...     labels=labels,
-        ... )
-
-        >>> loss = outputs.loss
-        ```"""
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-
-        outputs = self.layoutreader(
-            input_ids,
-            bbox,
-            attention_mask=attention_mask,
-            token_type_ids=token_type_ids,
-            position_ids=position_ids,
-            head_mask=head_mask,
-            inputs_embeds=inputs_embeds,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
-        )
-
-        sequence_output = outputs[0]
-        prediction_scores = self.cls(sequence_output)
-
-        masked_lm_loss = None
-        if labels is not None:
-            loss_fct = CrossEntropyLoss()
-            masked_lm_loss = loss_fct(
-                prediction_scores.view(-1, self.config.vocab_size),
-                labels.view(-1),
-            )
-
-        if not return_dict:
-            output = (prediction_scores,) + outputs[2:]
-            return ((masked_lm_loss,) + output) if masked_lm_loss is not None else output
-
-        return MaskedLMOutput(
-            loss=masked_lm_loss,
-            logits=prediction_scores,
-            hidden_states=outputs.hidden_states,
-            attentions=outputs.attentions,
-        )
-
     def generate(self, input_ids, token_type_ids, position_ids, attention_mask, task_idx=None, mask_qkv=None):
         if self.config.beam_size > 1:
             return self.beam_search(
@@ -877,8 +770,6 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
                     start_pos = next_pos
             else:
                 start_pos = next_pos - curr_length
-                # if self.layout_flag:
-                #     mask_ids[:, -1, 1:] = curr_ids[:, , 1:]
                 x_input_ids = torch.cat((curr_ids, mask_ids), dim=1)
 
             curr_token_type_ids = token_type_ids[:, start_pos : next_pos + 1]
@@ -939,27 +830,6 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
                 # index = index.repeat(1, 1, dim)
                 curr_ids = torch.gather(input_ids, 1, index)
 
-            # if len(input_ids.shape) == 2:
-            #     real_input_ids = input_ids[:, 1:]
-            #     index = max_ids
-            #     curr_ids = torch.gather(real_input_ids, 1, index)
-            # else:
-            #     real_input_ids = input_ids[:, 1:, :]
-            #     _, _, dim = real_input_ids.shape
-            #     index = max_ids.unsqueeze(-1)
-            #     index = index.expand(index.shape[0], index.shape[1], dim)
-            #     curr_ids = torch.gather(real_input_ids, 1, index)
-
-            # # note: real input ids only include the ids for real data (remove the cls and sep)
-            # real_input_ids = input_ids[:, 1: -1, :]
-            #
-            # _, _, dim = real_input_ids.shape
-            # index = max_ids.unsqueeze(-1)
-            # index = index.expand(index.shape[0], index.shape[1], dim)
-            #
-            # curr_ids = torch.gather(real_input_ids, 1, index)
-            # curr_ids = real_input_ids[:, max_ids, :]
-            # curr_ids = max_ids
             next_pos += 1
 
         return torch.cat(output_ids, dim=1)
@@ -1070,15 +940,6 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
             step_ids.append(k_ids)
             beam_masks.append(torch.eq(k_ids, self.eos_id).type_as(kk_scores))
             total_scores.append(k_scores)
-
-            # def first_expand(x):
-            #     input_shape = list(x.size())
-            #     expanded_shape = input_shape[:1] + [1] + input_shape[1:]
-            #     x = torch.reshape(x, expanded_shape)
-            #     repeat_count = [1, K] + [1] * (len(input_shape) - 1)
-            #     x = x.repeat(*repeat_count)
-            #     x = torch.reshape(x, [input_shape[0] * K] + input_shape[1:])
-            #     return x
 
             def select_beam_items(x, ids):
                 id_shape = list(ids.size())

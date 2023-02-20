@@ -113,7 +113,7 @@ class LayoutReaderConfig(PretrainedConfig):
         eos_id=102,
         sos_id=102,
         forbid_duplicate_ngrams=True,
-        forbid_ignore_set={1012},
+        forbid_ignore_set=[1012],
         ngram_size=3,
         pos_shift=False,
         **kwargs,
