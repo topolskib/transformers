@@ -36,7 +36,7 @@ except OptionalDependencyNotAvailable:
 else:
     _import_structure["modeling_layoutreader"] = [
         "LAYOUTREADER_PRETRAINED_MODEL_ARCHIVE_LIST",
-        "LayoutReaderForPreTraining",
+        "LayoutReaderForSeq2SeqDecoding",
         "LayoutReaderModel",
         "LayoutReaderPreTrainedModel",
     ]
@@ -55,7 +55,7 @@ if TYPE_CHECKING:
     else:
         from .modeling_layoutreader import (
             LAYOUTREADER_PRETRAINED_MODEL_ARCHIVE_LIST,
-            LayoutReaderForPreTraining,
+            LayoutReaderForSeq2SeqDecoding,
             LayoutReaderModel,
             LayoutReaderPreTrainedModel,
         )

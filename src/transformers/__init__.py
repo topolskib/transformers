@@ -1773,7 +1773,7 @@ else:
     _import_structure["models.layoutreader"].extend(
         [
             "LAYOUTREADER_PRETRAINED_MODEL_ARCHIVE_LIST",
-            "LayoutReaderForPreTraining",
+            "LayoutReaderForSeq2SeqDecoding",
             "LayoutReaderModel",
             "LayoutReaderPreTrainedModel",
         ]
@@ -5176,7 +5176,7 @@ if TYPE_CHECKING:
         )
         from .models.layoutreader import (
             LAYOUTREADER_PRETRAINED_MODEL_ARCHIVE_LIST,
-            LayoutReaderForPreTraining,
+            LayoutReaderForSeq2SeqDecoding,
             LayoutReaderModel,
             LayoutReaderPreTrainedModel,
         )

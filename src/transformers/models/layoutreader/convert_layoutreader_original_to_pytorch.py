@@ -21,12 +21,14 @@ import argparse
 
 import torch
 
-from transformers import LayoutReaderConfig, LayoutReaderForPreTraining
+from transformers import LayoutReaderConfig, LayoutReaderForSeq2SeqDecoding
 
 
 def rename_key(name):
     if "bert" in name:
         name = name.replace("bert", "layoutreader")
+    if "cls.predictions" in name:
+        name = name.replace("cls.predictions", "cls")
 
     return name
 
@@ -39,19 +41,15 @@ def convert_state_dict(orig_state_dict):
     return orig_state_dict
 
 
-def convert_layoutreader_checkpoint(checkpoint_path, pytorch_dump_folder_path):
+def convert_layoutreader_checkpoint(checkpoint_path, pytorch_dump_folder_path, push_to_hub=False):
     original_state_dict = torch.load(checkpoint_path, map_location="cpu")
     new_state_dict = convert_state_dict(original_state_dict)
 
     config = LayoutReaderConfig()
-    model = LayoutReaderForPreTraining(config)
+    model = LayoutReaderForSeq2SeqDecoding(config)
     model.eval()
     missing_keys, unexpected_keys = model.load_state_dict(new_state_dict, strict=False)
-    assert missing_keys == [
-        "layoutreader.embeddings.position_ids",
-        "cls.seq_relationship.weight",
-        "cls.seq_relationship.bias",
-    ]
+    assert missing_keys == ["layoutreader.embeddings.position_ids"]
     assert unexpected_keys == ["crit_mask_lm_smoothed.one_hot"]
 
     # TODO assert values
@@ -71,6 +69,11 @@ def convert_layoutreader_checkpoint(checkpoint_path, pytorch_dump_folder_path):
         model.save_pretrained(pytorch_dump_folder_path)
         # tokenizer.save_pretrained(pytorch_dump_folder_path)
 
+    if push_to_hub:
+        print("Saving model and tokenizer to the hub")
+        model.push_to_hub("nielsr/layoutreader-readingbank")
+        # tokenizer.push_to_hub(pytorch_dump_folder_path)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -87,6 +90,9 @@ if __name__ == "__main__":
         type=str,
         help="Path to the output PyTorch model directory.",
     )
+    parser.add_argument(
+        "--push_to_hub", action="store_true", help="Whether or not to push the converted model to the 🤗 hub."
+    )
 
     args = parser.parse_args()
-    convert_layoutreader_checkpoint(args.checkpoint_path, args.pytorch_dump_folder_path)
+    convert_layoutreader_checkpoint(args.checkpoint_path, args.pytorch_dump_folder_path, args.push_to_hub)

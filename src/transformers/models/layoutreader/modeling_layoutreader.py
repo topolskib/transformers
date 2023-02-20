@@ -716,44 +716,27 @@ class LayoutReaderLMPredictionHead(nn.Module):
             hidden_states = torch.einsum(
                 "btf,bsf->bts", self.type_converter(hidden_states), self.type_converter(src_emb)
             ) + self.type_converter(self.bias)
-            # hidden_states = F.linear(self.type_converter(hidden_states), self.type_converter(
-            #     self.decoder.weight), self.type_converter(self.bias))
         else:
             hidden_states = torch.einsum("btf,bsf->bts", hidden_states, src_emb) + self.bias
         return hidden_states
 
 
-class LayoutReaderPreTrainingHeads(nn.Module):
-    def __init__(self, config, src_len, num_labels=2):
-        super(LayoutReaderPreTrainingHeads, self).__init__()
-        self.predictions = LayoutReaderLMPredictionHead(config, src_len)
-        self.seq_relationship = nn.Linear(config.hidden_size, num_labels)
-
-    def forward(self, sequence_output, pooled_output, src_emb, task_idx=None):
-        prediction_scores = self.predictions(sequence_output, src_emb, task_idx)
-        if pooled_output is None:
-            seq_relationship_score = None
-        else:
-            seq_relationship_score = self.seq_relationship(pooled_output)
-        return prediction_scores, seq_relationship_score
-
-
 @add_start_docstrings(
     """LayoutReader model for reading order prediction.
 
-    ForPreTraining is a bad name, should actually become ForSeq2SeqDecoder.
+    ForSeq2SeqDecoding is a bad name, should actually become ForSeq2SeqDecoder.
 
 See: https://github.com/microsoft/unilm/blob/master/layoutreader/s2s_ft/modeling_decoding.py#L1129.
 
 """,
     LAYOUTREADER_START_DOCSTRING,
 )
-class LayoutReaderForPreTraining(LayoutReaderPreTrainedModel):
+class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
 
         self.layoutreader = LayoutReaderModel(config)
-        self.cls = LayoutReaderPreTrainingHeads(config, src_len=config.max_source_length, num_labels=config.num_labels)
+        self.cls = LayoutReaderLMPredictionHead(config, src_len=config.max_source_length)
 
         # Initialize weights and apply final processing
         self.post_init()
@@ -935,7 +918,7 @@ class LayoutReaderForPreTraining(LayoutReaderPreTrainedModel):
                 src_embedding = new_embedding[:, :-1, :]
 
             last_hidden = new_encoded_layers[-1][:, -1:, :]
-            prediction_scores, _ = self.cls(last_hidden, None, src_embedding, task_idx=task_idx)
+            prediction_scores = self.cls(last_hidden, src_embedding, task_idx=task_idx)
             _, max_ids = torch.max(prediction_scores, dim=-1)
             output_ids.append(max_ids)
 
@@ -1079,7 +1062,7 @@ class LayoutReaderForPreTraining(LayoutReaderPreTrainedModel):
                 src_embedding = first_expand(src_embedding)
 
             last_hidden = new_encoded_layers[-1][:, -1:, :]
-            prediction_scores, _ = self.cls(last_hidden, None, src_embedding, task_idx=task_idx)
+            prediction_scores = self.cls(last_hidden, src_embedding, task_idx=task_idx)
             log_scores = torch.nn.functional.log_softmax(prediction_scores, dim=-1)
             # if forbid_word_mask is not None:
             #     log_scores += (forbid_word_mask * -10000.0)
