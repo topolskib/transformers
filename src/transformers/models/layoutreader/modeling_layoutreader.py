@@ -653,8 +653,9 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
         curr_ids = input_ids
         curr_bbox = bbox
 
-        mask_ids = torch.full((batch_size, 1), self.mask_word_id)
-        mask_bbox = torch.zeros((batch_size, 1, 4), dtype=torch.long)
+        device = input_ids.device
+        mask_ids = torch.full((batch_size, 1), self.mask_word_id, device=device)
+        mask_bbox = torch.zeros((batch_size, 1, 4), dtype=torch.long, device=device)
 
         next_pos = input_length
         # if self.pos_shift:
@@ -757,9 +758,10 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
         prev_encoded_layers = None
         curr_ids = input_ids
         curr_bbox = bbox
-        
-        mask_ids = torch.full((batch_size, 1), self.mask_word_id)
-        mask_bbox = torch.zeros((batch_size, 1, 4), dtype=torch.long)
+
+        device = input_ids.device
+        mask_ids = torch.full((batch_size, 1), self.mask_word_id, device=device)
+        mask_bbox = torch.zeros((batch_size, 1, 4), dtype=torch.long, device=device)
 
         next_pos = input_length
         # if self.pos_shift:
