@@ -56,7 +56,7 @@ def convert_layoutreader_checkpoint(checkpoint_path, pytorch_dump_folder_path, p
     # Generate
     filepath = hf_hub_download(repo_id="nielsr/layoutreader-dummy-data", repo_type="dataset", filename="batch.pt")
     batch = torch.load(filepath, map_location="cpu")
-    input_ids, token_type_ids, position_ids, input_mask, mask_qkv, task_idx = tuple(batch)
+    input_ids, token_type_ids, position_ids, input_mask, mask_qkv, _ = tuple(batch)
 
     with torch.no_grad():
         output_ids = model.generate(
@@ -64,14 +64,13 @@ def convert_layoutreader_checkpoint(checkpoint_path, pytorch_dump_folder_path, p
             token_type_ids=token_type_ids,
             position_ids=position_ids,
             attention_mask=input_mask,
-            task_idx=task_idx,
             mask_qkv=mask_qkv,
         )
         print("Output_ids:", output_ids)
 
     # assert values
     # fmt: off
-    torch.tensor([[  1,   2,   3,   4,   5,   6,   7,   8,   9,  10,  11,  12,  13,  14,
+    expected_output_ids = [  1,   2,   3,   4,   5,   6,   7,   8,   9,  10,  11,  12,  13,  14,
           15,  16,  17,  18,  19,  20,  21,  22,  23,  24,  62,  72,  73,  74,
           25,  26,  27,  28,  29,  44,  45,  46,  47,  48,  63,  64,  65,  66,
           67,  75,  76,  77,  78,  79,  93,  94,  95,  96,  97, 103, 104, 105,
@@ -107,10 +106,10 @@ def convert_layoutreader_checkpoint(checkpoint_path, pytorch_dump_folder_path, p
          266, 266, 266, 116, 116, 116, 210, 266, 242, 242, 242, 242, 242, 242,
          242, 242, 242, 242, 242, 242, 242, 242, 242, 242, 242, 242, 242, 242,
          242, 242, 242, 242, 242, 242, 242, 242, 242, 242, 242, 242, 242, 242,
-         242, 242, 242, 242, 242, 242, 242]])
+         242, 242, 242, 242, 242, 242, 242]
     # fmt: on
 
-    assert torch.allclose(output_ids, output_ids, atol=1e-3)
+    assert expected_output_ids == output_ids[0].tolist()
 
     if pytorch_dump_folder_path is not None:
         print(f"Saving model and tokenizer to {pytorch_dump_folder_path}")

@@ -68,7 +68,7 @@ class LayoutReaderEmbeddings(nn.Module):
         self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=1e-5)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
-    def forward(self, input_ids, bbox, token_type_ids=None, position_ids=None, task_idx=None):
+    def forward(self, input_ids, bbox, token_type_ids=None, position_ids=None):
         seq_length = input_ids.size(1)
         if position_ids is None:
             position_ids = torch.arange(seq_length, dtype=torch.long, device=input_ids.device)
@@ -376,7 +376,10 @@ class LayoutReaderEncoder(nn.Module):
             history_states = prev_embedding
             for i, layer_module in enumerate(self.layer):
                 hidden_states = layer_module(
-                    hidden_states, attention_mask, history_states=history_states, mask_qkv=mask_qkv,
+                    hidden_states,
+                    attention_mask,
+                    history_states=history_states,
+                    mask_qkv=mask_qkv,
                 )
                 if output_all_encoded_layers:
                     all_encoder_layers.append(hidden_states)
@@ -568,16 +571,14 @@ class LayoutReaderModel(LayoutReaderPreTrainedModel):
         prev_embedding=None,
         prev_encoded_layers=None,
         mask_qkv=None,
-        task_idx=None,
     ):
         """
         Returns:
         """
         extended_attention_mask = self.get_extended_attention_mask(input_ids[:, :, 0], token_type_ids, attention_mask)
 
-        embedding_output = self.embeddings(
-            input_ids[:, :, 0], input_ids[:, :, 1:], token_type_ids, position_ids, task_idx=task_idx
-        )
+        embedding_output = self.embeddings(input_ids[:, :, 0], input_ids[:, :, 1:], token_type_ids, position_ids)
+
         encoded_layers = self.encoder(
             embedding_output,
             extended_attention_mask,
@@ -618,43 +619,11 @@ class LayoutReaderLMPredictionHead(nn.Module):
 
         # The output weights are the same as the input embeddings, but there is
         # an output-only bias for each token.
-
         self.bias = nn.Parameter(torch.zeros(src_len))
 
-        if hasattr(config, "relax_projection") and (config.relax_projection > 1):
-            self.relax_projection = config.relax_projection
-        else:
-            self.relax_projection = 0
-        self.fp32_embedding = False  # TODO add to config?
-
-        def convert_to_type(tensor):
-            if self.fp32_embedding:
-                return tensor.half()
-            else:
-                return tensor
-
-        self.type_converter = convert_to_type
-        self.converted = False
-
-    def forward(self, hidden_states, src_emb, task_idx=None):
-        if not self.converted:
-            self.converted = True
-            if self.fp32_embedding:
-                self.transform.half()
-        hidden_states = self.transform(self.type_converter(hidden_states))
-        if self.relax_projection > 1:
-            num_batch = hidden_states.size(0)
-            num_pos = hidden_states.size(1)
-            # (batch, num_pos, relax_projection*hid) -> (batch, num_pos, relax_projection, hid) -> (batch, num_pos, hid)
-            hidden_states = hidden_states.view(num_batch, num_pos, self.relax_projection, -1)[
-                torch.arange(0, num_batch).long(), :, task_idx, :
-            ]
-        if self.fp32_embedding:
-            hidden_states = torch.einsum(
-                "btf,bsf->bts", self.type_converter(hidden_states), self.type_converter(src_emb)
-            ) + self.type_converter(self.bias)
-        else:
-            hidden_states = torch.einsum("btf,bsf->bts", hidden_states, src_emb) + self.bias
+    def forward(self, hidden_states, src_emb):
+        hidden_states = self.transform(hidden_states)
+        hidden_states = torch.einsum("btf,bsf->bts", hidden_states, src_emb) + self.bias
         return hidden_states
 
 
@@ -692,11 +661,9 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
     def get_input_embeddings(self):
         return self.layoutreader.embeddings.word_embeddings
 
-    def generate(self, input_ids, token_type_ids, position_ids, attention_mask, task_idx=None, mask_qkv=None):
+    def generate(self, input_ids, token_type_ids, position_ids, attention_mask, mask_qkv=None):
         if self.config.beam_size > 1:
-            return self.beam_search(
-                input_ids, token_type_ids, position_ids, attention_mask, task_idx=task_idx, mask_qkv=mask_qkv
-            )
+            return self.beam_search(input_ids, token_type_ids, position_ids, attention_mask, mask_qkv=mask_qkv)
 
         input_shape = list(input_ids.size())
         batch_size = input_shape[0]
@@ -771,7 +738,7 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
             if next_pos == 514:
                 print("Shape of new_encoded_layers:", new_encoded_layers[-1].shape)
                 print("Shape of last_hidden:", last_hidden.shape)
-            prediction_scores = self.cls(last_hidden, src_embedding, task_idx=task_idx)
+            prediction_scores = self.cls(last_hidden, src_embedding)
 
             if next_pos < 520:
                 print("Time step:", next_pos)
@@ -821,7 +788,7 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
         return torch.cat(output_ids, dim=1)
 
     # TODO: do the same with beam search as forward()
-    def beam_search(self, input_ids, token_type_ids, position_ids, attention_mask, task_idx=None, mask_qkv=None):
+    def beam_search(self, input_ids, token_type_ids, position_ids, attention_mask, mask_qkv=None):
         input_shape = list(input_ids.size())
         batch_size = input_shape[0]
         input_length = input_shape[1]
@@ -902,7 +869,7 @@ class LayoutReaderForSeq2SeqDecoding(LayoutReaderPreTrainedModel):
                 src_embedding = first_expand(src_embedding)
 
             last_hidden = new_encoded_layers[-1][:, -1:, :]
-            prediction_scores = self.cls(last_hidden, src_embedding, task_idx=task_idx)
+            prediction_scores = self.cls(last_hidden, src_embedding)
             log_scores = torch.nn.functional.log_softmax(prediction_scores, dim=-1)
             # if forbid_word_mask is not None:
             #     log_scores += (forbid_word_mask * -10000.0)
