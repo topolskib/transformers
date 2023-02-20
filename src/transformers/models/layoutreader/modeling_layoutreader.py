@@ -168,7 +168,6 @@ class LayoutReaderSelfAttention(nn.Module):
         attention_mask,
         history_states=None,
         mask_qkv=None,
-        seg_ids=None,
         key_history=None,
         value_history=None,
         key_cache=None,
@@ -205,16 +204,6 @@ class LayoutReaderSelfAttention(nn.Module):
         # Take the dot product between "query" and "key" to get the raw attention scores.
         # (batch, head, pos, pos)
         attention_scores = torch.matmul(query_layer / math.sqrt(self.attention_head_size), key_layer.transpose(-1, -2))
-
-        # TODO remove this
-        # if self.seg_emb is not None:
-        #     seg_rep = self.seg_emb(seg_ids)
-        #     # (batch, pos, head, head_hid)
-        #     seg_rep = seg_rep.view(
-        #         seg_rep.size(0), seg_rep.size(1), self.num_attention_heads, self.attention_head_size
-        #     )
-        #     qs = torch.einsum("bnih,bjnh->bnij", query_layer + self.b_q_s, seg_rep)
-        #     attention_scores = attention_scores + qs
 
         # Apply the attention mask is (precomputed for all layers in BertModel forward() function)
         attention_scores = attention_scores + attention_mask
@@ -285,7 +274,6 @@ class LayoutReaderAttention(nn.Module):
         attention_mask,
         history_states=None,
         mask_qkv=None,
-        seg_ids=None,
         key_history=None,
         value_history=None,
     ):
@@ -294,7 +282,6 @@ class LayoutReaderAttention(nn.Module):
             attention_mask,
             history_states=history_states,
             mask_qkv=mask_qkv,
-            seg_ids=seg_ids,
             key_history=key_history,
             value_history=value_history,
         )
@@ -346,7 +333,6 @@ class LayoutReaderLayer(nn.Module):
         attention_mask,
         history_states=None,
         mask_qkv=None,
-        seg_ids=None,
         key_history=None,
         value_history=None,
     ):
@@ -355,7 +341,6 @@ class LayoutReaderLayer(nn.Module):
             attention_mask,
             history_states=history_states,
             mask_qkv=mask_qkv,
-            seg_ids=seg_ids,
             key_history=key_history,
             value_history=value_history,
         )
@@ -380,7 +365,6 @@ class LayoutReaderEncoder(nn.Module):
         prev_embedding=None,
         prev_encoded_layers=None,
         mask_qkv=None,
-        seg_ids=None,
         key_history=None,
         value_history=None,
     ):
@@ -392,7 +376,7 @@ class LayoutReaderEncoder(nn.Module):
             history_states = prev_embedding
             for i, layer_module in enumerate(self.layer):
                 hidden_states = layer_module(
-                    hidden_states, attention_mask, history_states=history_states, mask_qkv=mask_qkv, seg_ids=seg_ids
+                    hidden_states, attention_mask, history_states=history_states, mask_qkv=mask_qkv,
                 )
                 if output_all_encoded_layers:
                     all_encoder_layers.append(hidden_states)
@@ -410,7 +394,6 @@ class LayoutReaderEncoder(nn.Module):
                     hidden_states,
                     attention_mask,
                     mask_qkv=mask_qkv,
-                    seg_ids=seg_ids,
                     key_history=set_key,
                     value_history=set_value,
                 )
@@ -518,7 +501,7 @@ LAYOUTREADER_INPUTS_DOCSTRING = r"""
 
 
 @add_start_docstrings(
-    "The bare LayoutReader Model transformer outputting raw hidden-states without any specific head on top.",
+    "The bare LayoutReader Transformer model outputting raw hidden-states without any specific head on top.",
     LAYOUTREADER_START_DOCSTRING,
 )
 class LayoutReaderModel(LayoutReaderPreTrainedModel):
@@ -545,12 +528,6 @@ class LayoutReaderModel(LayoutReaderPreTrainedModel):
         """
         for layer, heads in heads_to_prune.items():
             self.encoder.layer[layer].attention.prune_heads(heads)
-
-    # def rescale_some_parameters(self):
-    #     for layer_id, layer in enumerate(self.encoder.layer):
-    #         layer.attention.output.dense.weight.data.div_(
-    #             math.sqrt(2.0 * (layer_id + 1)))
-    #         layer.output.dense.weight.data.div_(math.sqrt(2.0 * (layer_id + 1)))
 
     def get_extended_attention_mask(self, input_ids, token_type_ids, attention_mask):
         if attention_mask is None:
@@ -608,7 +585,6 @@ class LayoutReaderModel(LayoutReaderPreTrainedModel):
             prev_embedding=prev_embedding,
             prev_encoded_layers=prev_encoded_layers,
             mask_qkv=mask_qkv,
-            seg_ids=token_type_ids,
         )
         encoded_layers[-1]
         if not output_all_encoded_layers:
