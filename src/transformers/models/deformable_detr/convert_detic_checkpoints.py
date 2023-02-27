@@ -27,7 +27,12 @@ import torch
 from huggingface_hub import cached_download, hf_hub_url
 from PIL import Image
 
-from transformers import DeformableDetrConfig, DeformableDetrImageProcessor, DeformableDetrForObjectDetection
+from transformers import (
+    DeformableDetrConfig,
+    DeformableDetrForObjectDetection,
+    DeformableDetrImageProcessor,
+    ResNetConfig,
+)
 from transformers.utils import logging
 
 
@@ -35,48 +40,189 @@ logging.set_verbosity_info()
 logger = logging.get_logger(__name__)
 
 
-def rename_key(orig_key):
-    if "backbone.0.body" in orig_key:
-        orig_key = orig_key.replace("backbone.0.body", "backbone.conv_encoder.model")
-    if "transformer" in orig_key:
-        orig_key = orig_key.replace("transformer.", "")
-    if "norm1" in orig_key:
-        if "encoder" in orig_key:
-            orig_key = orig_key.replace("norm1", "self_attn_layer_norm")
-        else:
-            orig_key = orig_key.replace("norm1", "encoder_attn_layer_norm")
-    if "norm2" in orig_key:
-        if "encoder" in orig_key:
-            orig_key = orig_key.replace("norm2", "final_layer_norm")
-        else:
-            orig_key = orig_key.replace("norm2", "self_attn_layer_norm")
-    if "norm3" in orig_key:
-        orig_key = orig_key.replace("norm3", "final_layer_norm")
-    if "linear1" in orig_key:
-        orig_key = orig_key.replace("linear1", "fc1")
-    if "linear2" in orig_key:
-        orig_key = orig_key.replace("linear2", "fc2")
-    if "query_embed" in orig_key:
-        orig_key = orig_key.replace("query_embed", "query_position_embeddings")
-    if "cross_attn" in orig_key:
-        orig_key = orig_key.replace("cross_attn", "encoder_attn")
+def get_config():
+    backbone_config = ResNetConfig()
+    config = DeformableDetrConfig(
+        use_timm_backbone=False, backbone_config=backbone_config, with_box_refine=True, two_stage=True
+    )
 
-    return orig_key
+    # set labels
+    config.num_labels = 91
+    repo_id = "huggingface/label-files"
+    filename = "coco-detection-id2label.json"
+    id2label = json.load(open(cached_download(hf_hub_url(repo_id, filename, repo_type="dataset")), "r"))
+    id2label = {int(k): v for k, v in id2label.items()}
+    config.id2label = id2label
+    config.label2id = {v: k for k, v in id2label.items()}
+
+    return config
 
 
-def read_in_q_k_v(state_dict):
+def create_rename_keys(config):
+    # here we list all keys to be renamed (original name on the left, our name on the right)
+    rename_keys = []
+
+    # stem
+    # fmt: off
+    rename_keys.append(("detr.backbone.0.backbone.stem.conv1.weight", "model.backbone.conv_encoder.model.embedder.embedder.convolution.weight"))
+    rename_keys.append(("detr.backbone.0.backbone.stem.conv1.norm.weight", "model.backbone.conv_encoder.model.embedder.embedder.normalization.weight"))
+    rename_keys.append(("detr.backbone.0.backbone.stem.conv1.norm.bias", "model.backbone.conv_encoder.model.embedder.embedder.normalization.bias"))
+    rename_keys.append(("detr.backbone.0.backbone.stem.conv1.norm.running_mean", "model.backbone.conv_encoder.model.embedder.embedder.normalization.running_mean"))
+    rename_keys.append(("detr.backbone.0.backbone.stem.conv1.norm.running_var", "model.backbone.conv_encoder.model.embedder.embedder.normalization.running_var"))
+
+    # stages
+    for stage_idx in range(len(config.backbone_config.depths)):
+        for layer_idx in range(config.backbone_config.depths[stage_idx]):
+            # shortcut
+            if layer_idx == 0:
+                rename_keys.append(
+                    (
+                        f"detr.backbone.0.backbone.res{stage_idx+2}.{layer_idx}.shortcut.weight",
+                        f"model.backbone.conv_encoder.model.encoder.stages.{stage_idx}.layers.{layer_idx}.shortcut.convolution.weight",
+                    )
+                )
+                rename_keys.append(
+                    (
+                        f"detr.backbone.0.backbone.res{stage_idx+2}.{layer_idx}.shortcut.norm.weight",
+                        f"model.backbone.conv_encoder.model.encoder.stages.{stage_idx}.layers.{layer_idx}.shortcut.normalization.weight",
+                    )
+                )
+                rename_keys.append(
+                    (
+                        f"detr.backbone.0.backbone.res{stage_idx+2}.{layer_idx}.shortcut.norm.bias",
+                        f"model.backbone.conv_encoder.model.encoder.stages.{stage_idx}.layers.{layer_idx}.shortcut.normalization.bias",
+                    )
+                )
+                rename_keys.append(
+                    (
+                        f"detr.backbone.0.backbone.res{stage_idx+2}.{layer_idx}.shortcut.norm.running_mean",
+                        f"model.backbone.conv_encoder.model.encoder.stages.{stage_idx}.layers.{layer_idx}.shortcut.normalization.running_mean",
+                    )
+                )
+                rename_keys.append(
+                    (
+                        f"detr.backbone.0.backbone.res{stage_idx+2}.{layer_idx}.shortcut.norm.running_var",
+                        f"model.backbone.conv_encoder.model.encoder.stages.{stage_idx}.layers.{layer_idx}.shortcut.normalization.running_var",
+                    )
+                )
+            # 3 convs
+            for i in range(3):
+                rename_keys.append(
+                    (
+                        f"detr.backbone.0.backbone.res{stage_idx+2}.{layer_idx}.conv{i+1}.weight",
+                        f"model.backbone.conv_encoder.model.encoder.stages.{stage_idx}.layers.{layer_idx}.layer.{i}.convolution.weight",
+                    )
+                )
+                rename_keys.append(
+                    (
+                        f"detr.backbone.0.backbone.res{stage_idx+2}.{layer_idx}.conv{i+1}.norm.weight",
+                        f"model.backbone.conv_encoder.model.encoder.stages.{stage_idx}.layers.{layer_idx}.layer.{i}.normalization.weight",
+                    )
+                )
+                rename_keys.append(
+                    (
+                        f"detr.backbone.0.backbone.res{stage_idx+2}.{layer_idx}.conv{i+1}.norm.bias",
+                        f"model.backbone.conv_encoder.model.encoder.stages.{stage_idx}.layers.{layer_idx}.layer.{i}.normalization.bias",
+                    )
+                )
+                rename_keys.append(
+                    (
+                        f"detr.backbone.0.backbone.res{stage_idx+2}.{layer_idx}.conv{i+1}.norm.running_mean",
+                        f"model.backbone.conv_encoder.model.encoder.stages.{stage_idx}.layers.{layer_idx}.layer.{i}.normalization.running_mean",
+                    )
+                )
+                rename_keys.append(
+                    (
+                        f"detr.backbone.0.backbone.res{stage_idx+2}.{layer_idx}.conv{i+1}.norm.running_var",
+                        f"model.backbone.conv_encoder.model.encoder.stages.{stage_idx}.layers.{layer_idx}.layer.{i}.normalization.running_var",
+                    )
+                )
+    
+    # input projection layers
+    rename_keys.append(("detr.input_proj.0.0.weight", "model.input_proj.0.0.weight"))
+    rename_keys.append(("detr.input_proj.0.0.bias", "model.input_proj.0.0.bias"))
+    rename_keys.append(("detr.input_proj.0.1.weight", "model.input_proj.0.1.weight"))
+    rename_keys.append(("detr.input_proj.0.1.bias", "model.input_proj.0.1.bias"))
+    rename_keys.append(("detr.input_proj.1.0.weight", "model.input_proj.1.0.weight"))
+    rename_keys.append(("detr.input_proj.1.0.bias", "model.input_proj.1.0.bias"))
+    rename_keys.append(("detr.input_proj.1.1.weight", "model.input_proj.1.1.weight"))
+    rename_keys.append(("detr.input_proj.1.1.bias", "model.input_proj.1.1.bias"))
+    rename_keys.append(("detr.input_proj.2.0.weight", "model.input_proj.2.0.weight"))
+    rename_keys.append(("detr.input_proj.2.0.bias", "model.input_proj.2.0.bias"))
+    rename_keys.append(("detr.input_proj.2.1.weight", "model.input_proj.2.1.weight"))
+    rename_keys.append(("detr.input_proj.2.1.bias", "model.input_proj.2.1.bias"))
+    rename_keys.append(("detr.input_proj.3.0.weight", "model.input_proj.3.0.weight"))
+    rename_keys.append(("detr.input_proj.3.0.bias", "model.input_proj.3.0.bias"))
+    rename_keys.append(("detr.input_proj.3.1.weight", "model.input_proj.3.1.weight"))
+    rename_keys.append(("detr.input_proj.3.1.bias", "model.input_proj.3.1.bias"))
+
+    # Transformer encoder
+    for layer_idx in range(config.encoder_layers):
+        rename_keys.append((f"detr.transformer.encoder.layers.{layer_idx}.self_attn.sampling_offsets.weight", f"model.encoder.layers.{layer_idx}.self_attn.sampling_offsets.weight"))
+        rename_keys.append((f"detr.transformer.encoder.layers.{layer_idx}.self_attn.sampling_offsets.bias", f"model.encoder.layers.{layer_idx}.self_attn.sampling_offsets.bias"))
+        rename_keys.append((f"detr.transformer.encoder.layers.{layer_idx}.self_attn.attention_weights.weight", f"model.encoder.layers.{layer_idx}.self_attn.attention_weights.weight"))
+        rename_keys.append((f"detr.transformer.encoder.layers.{layer_idx}.self_attn.attention_weights.bias", f"model.encoder.layers.{layer_idx}.self_attn.attention_weights.bias"))
+        rename_keys.append((f"detr.transformer.encoder.layers.{layer_idx}.self_attn.value_proj.weight", f"model.encoder.layers.{layer_idx}.self_attn.value_proj.weight"))
+        rename_keys.append((f"detr.transformer.encoder.layers.{layer_idx}.self_attn.value_proj.bias", f"model.encoder.layers.{layer_idx}.self_attn.value_proj.bias"))
+        rename_keys.append((f"detr.transformer.encoder.layers.{layer_idx}.self_attn.output_proj.weight", f"model.encoder.layers.{layer_idx}.self_attn.output_proj.weight"))
+        rename_keys.append((f"detr.transformer.encoder.layers.{layer_idx}.self_attn.output_proj.bias", f"model.encoder.layers.{layer_idx}.self_attn.output_proj.bias"))
+        # TODO check whether norm1 is self attention layer norm
+        rename_keys.append((f"detr.transformer.encoder.layers.{layer_idx}.norm1.weight", f"model.encoder.layers.{layer_idx}.self_attn_layer_norm.weight"))
+        rename_keys.append((f"detr.transformer.encoder.layers.{layer_idx}.norm1.bias", f"model.encoder.layers.{layer_idx}.self_attn_layer_norm.bias"))
+        rename_keys.append((f"detr.transformer.encoder.layers.{layer_idx}.linear1.weight", f"model.encoder.layers.{layer_idx}.fc1.weight"))
+        rename_keys.append((f"detr.transformer.encoder.layers.{layer_idx}.linear1.bias", f"model.encoder.layers.{layer_idx}.fc1.bias"))
+        rename_keys.append((f"detr.transformer.encoder.layers.{layer_idx}.linear2.weight", f"model.encoder.layers.{layer_idx}.fc2.weight"))
+        rename_keys.append((f"detr.transformer.encoder.layers.{layer_idx}.linear2.bias", f"model.encoder.layers.{layer_idx}.fc2.bias"))
+        rename_keys.append((f"detr.transformer.encoder.layers.{layer_idx}.norm2.weight", f"model.encoder.layers.{layer_idx}.final_layer_norm.weight"))
+        rename_keys.append((f"detr.transformer.encoder.layers.{layer_idx}.norm2.bias", f"model.encoder.layers.{layer_idx}.final_layer_norm.bias"))
+
+    # Transformer decoder
+    for layer_idx in range(config.decoder_layers):
+        rename_keys.append((f"detr.transformer.decoder.layers.{layer_idx}.cross_attn.sampling_offsets.weight", f"model.decoder.layers.{layer_idx}.encoder_attn.sampling_offsets.weight"))
+        rename_keys.append((f"detr.transformer.decoder.layers.{layer_idx}.cross_attn.sampling_offsets.bias", f"model.decoder.layers.{layer_idx}.encoder_attn.sampling_offsets.bias"))
+        rename_keys.append((f"detr.transformer.decoder.layers.{layer_idx}.cross_attn.attention_weights.weight", f"model.decoder.layers.{layer_idx}.encoder_attn.attention_weights.weight"))
+        rename_keys.append((f"detr.transformer.decoder.layers.{layer_idx}.cross_attn.attention_weights.bias", f"model.decoder.layers.{layer_idx}.encoder_attn.attention_weights.bias"))
+        rename_keys.append((f"detr.transformer.decoder.layers.{layer_idx}.cross_attn.value_proj.weight", f"model.decoder.layers.{layer_idx}.encoder_attn.value_proj.weight"))
+        rename_keys.append((f"detr.transformer.decoder.layers.{layer_idx}.cross_attn.value_proj.bias", f"model.decoder.layers.{layer_idx}.encoder_attn.value_proj.bias"))
+        rename_keys.append((f"detr.transformer.decoder.layers.{layer_idx}.cross_attn.output_proj.weight", f"model.decoder.layers.{layer_idx}.encoder_attn.output_proj.weight"))
+        rename_keys.append((f"detr.transformer.decoder.layers.{layer_idx}.cross_attn.output_proj.bias", f"model.decoder.layers.{layer_idx}.encoder_attn.output_proj.bias"))
+        # TODO check layernorms
+        rename_keys.append((f"detr.transformer.decoder.layers.{layer_idx}.norm1.weight", f"model.decoder.layers.{layer_idx}.encoder_attn_layer_norm.weight"))
+        rename_keys.append((f"detr.transformer.decoder.layers.{layer_idx}.norm1.bias", f"model.decoder.layers.{layer_idx}.encoder_attn_layer_norm.bias"))
+        rename_keys.append((f"detr.transformer.decoder.layers.{layer_idx}.self_attn.out_proj.weight", f"model.decoder.layers.{layer_idx}.self_attn.out_proj.weight"))
+        rename_keys.append((f"detr.transformer.decoder.layers.{layer_idx}.self_attn.out_proj.bias", f"model.decoder.layers.{layer_idx}.self_attn.out_proj.bias"))
+        rename_keys.append((f"detr.transformer.decoder.layers.{layer_idx}.norm2.weight", f"model.decoder.layers.{layer_idx}.self_attn_layer_norm.weight"))
+        rename_keys.append((f"detr.transformer.decoder.layers.{layer_idx}.norm2.bias", f"model.decoder.layers.{layer_idx}.self_attn_layer_norm.bias"))
+        rename_keys.append((f"detr.transformer.decoder.layers.{layer_idx}.linear1.weight", f"model.decoder.layers.{layer_idx}.fc1.weight"))
+        rename_keys.append((f"detr.transformer.decoder.layers.{layer_idx}.linear1.bias", f"model.decoder.layers.{layer_idx}.fc1.bias"))
+        rename_keys.append((f"detr.transformer.decoder.layers.{layer_idx}.linear2.weight", f"model.decoder.layers.{layer_idx}.fc2.weight"))
+        rename_keys.append((f"detr.transformer.decoder.layers.{layer_idx}.linear2.bias", f"model.decoder.layers.{layer_idx}.fc2.bias"))
+        rename_keys.append((f"detr.transformer.decoder.layers.{layer_idx}.norm3.weight", f"model.decoder.layers.{layer_idx}.final_layer_norm.weight"))
+        rename_keys.append((f"detr.transformer.decoder.layers.{layer_idx}.norm3.bias", f"model.decoder.layers.{layer_idx}.final_layer_norm.bias"))
+    
+    # fmt: on
+    
+    return rename_keys
+
+
+def rename_key(state_dict, old, new):
+    val = state_dict.pop(old)
+    state_dict[new] = val
+
+
+def read_in_q_k_v(state_dict, config):
     # transformer decoder self-attention layers
-    for i in range(6):
+    for layer_idx in range(config.decoder_layers):
         # read in weights + bias of input projection layer of self-attention
-        in_proj_weight = state_dict.pop(f"decoder.layers.{i}.self_attn.in_proj_weight")
-        in_proj_bias = state_dict.pop(f"decoder.layers.{i}.self_attn.in_proj_bias")
+        in_proj_weight = state_dict.pop(f"detr.transformer.decoder.layers.{layer_idx}.self_attn.in_proj_weight")
+        in_proj_bias = state_dict.pop(f"detr.transformer.decoder.layers.{layer_idx}.self_attn.in_proj_bias")
         # next, add query, keys and values (in that order) to the state dict
-        state_dict[f"decoder.layers.{i}.self_attn.q_proj.weight"] = in_proj_weight[:256, :]
-        state_dict[f"decoder.layers.{i}.self_attn.q_proj.bias"] = in_proj_bias[:256]
-        state_dict[f"decoder.layers.{i}.self_attn.k_proj.weight"] = in_proj_weight[256:512, :]
-        state_dict[f"decoder.layers.{i}.self_attn.k_proj.bias"] = in_proj_bias[256:512]
-        state_dict[f"decoder.layers.{i}.self_attn.v_proj.weight"] = in_proj_weight[-256:, :]
-        state_dict[f"decoder.layers.{i}.self_attn.v_proj.bias"] = in_proj_bias[-256:]
+        state_dict[f"model.decoder.layers.{layer_idx}.self_attn.q_proj.weight"] = in_proj_weight[:256, :]
+        state_dict[f"model.decoder.layers.{layer_idx}.self_attn.q_proj.bias"] = in_proj_bias[:256]
+        state_dict[f"model.decoder.layers.{layer_idx}.self_attn.k_proj.weight"] = in_proj_weight[256:512, :]
+        state_dict[f"model.decoder.layers.{layer_idx}.self_attn.k_proj.bias"] = in_proj_bias[256:512]
+        state_dict[f"model.decoder.layers.{layer_idx}.self_attn.v_proj.weight"] = in_proj_weight[-256:, :]
+        state_dict[f"model.decoder.layers.{layer_idx}.self_attn.v_proj.bias"] = in_proj_bias[-256:]
 
 
 # We will verify our results on an image of cute cats
@@ -89,7 +235,7 @@ def prepare_img():
 
 @torch.no_grad()
 def convert_deformable_detr_checkpoint(
-    checkpoint_path,
+    model_name,
     single_scale,
     dilation,
     with_box_refine,
@@ -101,22 +247,8 @@ def convert_deformable_detr_checkpoint(
     Copy/paste/tweak model's weights to our Deformable DETR structure.
     """
 
-    # load default config
-    config = DeformableDetrConfig()
-    # set config attributes
-    if single_scale:
-        config.num_feature_levels = 1
-    config.dilation = dilation
-    config.with_box_refine = with_box_refine
-    config.two_stage = two_stage
-    # set labels
-    config.num_labels = 91
-    repo_id = "huggingface/label-files"
-    filename = "coco-detection-id2label.json"
-    id2label = json.load(open(cached_download(hf_hub_url(repo_id, filename, repo_type="dataset")), "r"))
-    id2label = {int(k): v for k, v in id2label.items()}
-    config.id2label = id2label
-    config.label2id = {v: k for k, v in id2label.items()}
+    # load config
+    config = get_config()
 
     # load image processor
     processor = DeformableDetrImageProcessor(format="coco_detection")
@@ -124,34 +256,37 @@ def convert_deformable_detr_checkpoint(
     # prepare image
     img = prepare_img()
     encoding = processor(images=img, return_tensors="pt")
-    pixel_values = encoding["pixel_values"]
+    encoding["pixel_values"]
 
     logger.info("Converting model...")
 
     # load original state dict
     url = "https://dl.fbaipublicfiles.com/detic/Detic_DeformDETR_LI_R50_4x_ft4x.pth"
     state_dict = torch.hub.load_state_dict_from_url(url, map_location="cpu")["model"]
-    
+
     # rename keys
-    for key in state_dict.copy().keys():
-        val = state_dict.pop(key)
-        state_dict[rename_key(key)] = val
-    # query, key and value matrices need special treatment
-    read_in_q_k_v(state_dict)
+    for src, dest in create_rename_keys(config):
+        rename_key(state_dict, src, dest)
+    
+    # query, key and value matrices of decoder need special treatment
+    read_in_q_k_v(state_dict, config)
+    
     # important: we need to prepend a prefix to each of the base model keys as the head models use different attributes for them
-    prefix = "model."
-    for key in state_dict.copy().keys():
-        if not key.startswith("class_embed") and not key.startswith("bbox_embed"):
-            val = state_dict.pop(key)
-            state_dict[prefix + key] = val
+    # prefix = "model."
+    # for key in state_dict.copy().keys():
+    #     if not key.startswith("class_embed") and not key.startswith("bbox_embed"):
+    #         val = state_dict.pop(key)
+    #         state_dict[prefix + key] = val
     # finally, create HuggingFace model and load state dict
     model = DeformableDetrForObjectDetection(config)
-    model.load_state_dict(state_dict)
+    missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
+    print("Missing keys:", missing_keys)
+    print("Unexpected keys:", unexpected_keys)
     model.eval()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model.to(device)
-    
+
     # TODO verify our conversion
     # outputs = model(pixel_values.to(device))
 
