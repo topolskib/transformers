@@ -306,13 +306,16 @@ def convert_deformable_detr_checkpoint(model_name, pytorch_dump_folder_path, pus
     # verify our conversion
     outputs = model(pixel_values.to(device))
 
-    expected_logits = torch.tensor(
-        [[-8.4442, -6.9143, -4.8993], [-9.2303, -7.5461, -5.7119], [-6.3788, -6.6090, -6.2570]]
-    )
-    expected_boxes = torch.tensor([[0.5486, 0.2752, 0.0554], [0.1688, 0.1989, 0.2109], [0.1688, 0.1991, 0.2110]])
-
-    print("Logits:", outputs.logits[0, :3, :3])
-    print("Boxes:", outputs.pred_boxes[0, :3, :3])
+    if model_name == "deformable-detr-detic":
+        expected_logits = torch.tensor(
+            [[-8.4442, -6.9143, -4.8993], [-9.2303, -7.5461, -5.7119], [-6.3788, -6.6090, -6.2570]]
+        )
+        expected_boxes = torch.tensor([[0.5486, 0.2752, 0.0554], [0.1688, 0.1989, 0.2109], [0.1688, 0.1991, 0.2110]])
+    elif model_name == "deformable-detr-box-supervised":
+        expected_logits = torch.tensor(
+            [[-5.2632, -6.1146, -3.0053], [-6.2580, -5.6745, -5.2027], [-7.1642, -6.2351, -5.7986]]
+        )
+        expected_boxes = torch.tensor([[0.5488, 0.2747, 0.0559], [0.1691, 0.1986, 0.2122], [0.7656, 0.4035, 0.4640]])
 
     assert torch.allclose(outputs.logits[0, :3, :3], expected_logits.to(device), atol=1e-4)
     assert torch.allclose(outputs.pred_boxes[0, :3, :3], expected_boxes.to(device), atol=1e-4)
