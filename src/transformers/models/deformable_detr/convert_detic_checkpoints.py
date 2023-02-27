@@ -19,10 +19,12 @@ URL: https://github.com/facebookresearch/Detic
 
 
 import argparse
+import json
 from pathlib import Path
 
 import requests
 import torch
+from huggingface_hub import hf_hub_download
 from PIL import Image
 
 from transformers import (
@@ -41,16 +43,19 @@ logger = logging.get_logger(__name__)
 def get_config():
     backbone_config = ResNetConfig(out_features=["stage2", "stage3", "stage4"])
     config = DeformableDetrConfig(
-        use_timm_backbone=False, backbone_config=backbone_config, with_box_refine=True, two_stage=True, num_labels=1203
+        use_timm_backbone=False,
+        backbone_config=backbone_config,
+        with_box_refine=True,
+        two_stage=True,
     )
 
-    # TODO add id2label mappings
-    # repo_id = "huggingface/label-files"
-    # filename = "coco-detection-id2label.json"
-    # id2label = json.load(open(cached_download(hf_hub_url(repo_id, filename, repo_type="dataset")), "r"))
-    # id2label = {int(k): v for k, v in id2label.items()}
-    # config.id2label = id2label
-    # config.label2id = {v: k for k, v in id2label.items()}
+    # add labels
+    repo_id = "huggingface/label-files"
+    filename = "lvis-id2label.json"
+    id2label = json.load(open(hf_hub_download(repo_id, filename, repo_type="dataset"), "r"))
+    id2label = {int(k): v for k, v in id2label.items()}
+    config.id2label = id2label
+    config.label2id = {v: k for k, v in id2label.items()}
 
     return config
 
