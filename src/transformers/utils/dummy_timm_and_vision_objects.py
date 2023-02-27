@@ -33,30 +33,6 @@ class ConditionalDetrPreTrainedModel(metaclass=DummyObject):
         requires_backends(self, ["timm", "vision"])
 
 
-DEFORMABLE_DETR_PRETRAINED_MODEL_ARCHIVE_LIST = None
-
-
-class DeformableDetrForObjectDetection(metaclass=DummyObject):
-    _backends = ["timm", "vision"]
-
-    def __init__(self, *args, **kwargs):
-        requires_backends(self, ["timm", "vision"])
-
-
-class DeformableDetrModel(metaclass=DummyObject):
-    _backends = ["timm", "vision"]
-
-    def __init__(self, *args, **kwargs):
-        requires_backends(self, ["timm", "vision"])
-
-
-class DeformableDetrPreTrainedModel(metaclass=DummyObject):
-    _backends = ["timm", "vision"]
-
-    def __init__(self, *args, **kwargs):
-        requires_backends(self, ["timm", "vision"])
-
-
 DETR_PRETRAINED_MODEL_ARCHIVE_LIST = None
 
 

@@ -869,14 +869,6 @@ except OptionalDependencyNotAvailable:
         name for name in dir(dummy_timm_and_vision_objects) if not name.startswith("_")
     ]
 else:
-    _import_structure["models.deformable_detr"].extend(
-        [
-            "DEFORMABLE_DETR_PRETRAINED_MODEL_ARCHIVE_LIST",
-            "DeformableDetrForObjectDetection",
-            "DeformableDetrModel",
-            "DeformableDetrPreTrainedModel",
-        ]
-    )
     _import_structure["models.detr"].extend(
         [
             "DETR_PRETRAINED_MODEL_ARCHIVE_LIST",
@@ -1386,6 +1378,14 @@ else:
             "DecisionTransformerGPT2PreTrainedModel",
             "DecisionTransformerModel",
             "DecisionTransformerPreTrainedModel",
+        ]
+    )
+    _import_structure["models.deformable_detr"].extend(
+        [
+            "DEFORMABLE_DETR_PRETRAINED_MODEL_ARCHIVE_LIST",
+            "DeformableDetrForObjectDetection",
+            "DeformableDetrModel",
+            "DeformableDetrPreTrainedModel",
         ]
     )
     _import_structure["models.deit"].extend(
@@ -4383,12 +4383,6 @@ if TYPE_CHECKING:
             ConditionalDetrModel,
             ConditionalDetrPreTrainedModel,
         )
-        from .models.deformable_detr import (
-            DEFORMABLE_DETR_PRETRAINED_MODEL_ARCHIVE_LIST,
-            DeformableDetrForObjectDetection,
-            DeformableDetrModel,
-            DeformableDetrPreTrainedModel,
-        )
         from .models.detr import (
             DETR_PRETRAINED_MODEL_ARCHIVE_LIST,
             DetrForObjectDetection,
@@ -4811,6 +4805,12 @@ if TYPE_CHECKING:
             DecisionTransformerGPT2PreTrainedModel,
             DecisionTransformerModel,
             DecisionTransformerPreTrainedModel,
+        )
+        from .models.deformable_detr import (
+            DEFORMABLE_DETR_PRETRAINED_MODEL_ARCHIVE_LIST,
+            DeformableDetrForObjectDetection,
+            DeformableDetrModel,
+            DeformableDetrPreTrainedModel,
         )
         from .models.deit import (
             DEIT_PRETRAINED_MODEL_ARCHIVE_LIST,

@@ -19,12 +19,10 @@ URL: https://github.com/facebookresearch/Detic
 
 
 import argparse
-import json
 from pathlib import Path
 
 import requests
 import torch
-from huggingface_hub import cached_download, hf_hub_url
 from PIL import Image
 
 from transformers import (
@@ -41,19 +39,18 @@ logger = logging.get_logger(__name__)
 
 
 def get_config():
-    backbone_config = ResNetConfig()
+    backbone_config = ResNetConfig(out_features=["stage2", "stage3", "stage4"])
     config = DeformableDetrConfig(
-        use_timm_backbone=False, backbone_config=backbone_config, with_box_refine=True, two_stage=True
+        use_timm_backbone=False, backbone_config=backbone_config, with_box_refine=True, two_stage=True, num_labels=1203
     )
 
-    # set labels
-    config.num_labels = 91
-    repo_id = "huggingface/label-files"
-    filename = "coco-detection-id2label.json"
-    id2label = json.load(open(cached_download(hf_hub_url(repo_id, filename, repo_type="dataset")), "r"))
-    id2label = {int(k): v for k, v in id2label.items()}
-    config.id2label = id2label
-    config.label2id = {v: k for k, v in id2label.items()}
+    # TODO add id2label mappings
+    # repo_id = "huggingface/label-files"
+    # filename = "coco-detection-id2label.json"
+    # id2label = json.load(open(cached_download(hf_hub_url(repo_id, filename, repo_type="dataset")), "r"))
+    # id2label = {int(k): v for k, v in id2label.items()}
+    # config.id2label = id2label
+    # config.label2id = {v: k for k, v in id2label.items()}
 
     return config
 
@@ -199,9 +196,36 @@ def create_rename_keys(config):
         rename_keys.append((f"detr.transformer.decoder.layers.{layer_idx}.linear2.bias", f"model.decoder.layers.{layer_idx}.fc2.bias"))
         rename_keys.append((f"detr.transformer.decoder.layers.{layer_idx}.norm3.weight", f"model.decoder.layers.{layer_idx}.final_layer_norm.weight"))
         rename_keys.append((f"detr.transformer.decoder.layers.{layer_idx}.norm3.bias", f"model.decoder.layers.{layer_idx}.final_layer_norm.bias"))
-    
+
+    # intermediate class and bbox embeddings
+    for layer_idx in range(config.decoder_layers + 1):
+        rename_keys.append((f"detr.transformer.decoder.class_embed.{layer_idx}.weight", f"model.decoder.class_embed.{layer_idx}.weight"))
+        rename_keys.append((f"detr.transformer.decoder.class_embed.{layer_idx}.bias", f"model.decoder.class_embed.{layer_idx}.bias"))
+        for i in range(3):
+            rename_keys.append((f"detr.transformer.decoder.bbox_embed.{layer_idx}.layers.{i}.weight", f"model.decoder.bbox_embed.{layer_idx}.layers.{i}.weight"))
+            rename_keys.append((f"detr.transformer.decoder.bbox_embed.{layer_idx}.layers.{i}.bias", f"model.decoder.bbox_embed.{layer_idx}.layers.{i}.bias"))
+
+    # embeddings on top
+    for layer_idx in range(config.decoder_layers + 1):
+        rename_keys.append((f"detr.class_embed.{layer_idx}.weight", f"class_embed.{layer_idx}.weight"))
+        rename_keys.append((f"detr.class_embed.{layer_idx}.bias", f"class_embed.{layer_idx}.bias"))
+        for i in range(3):
+            rename_keys.append((f"detr.bbox_embed.{layer_idx}.layers.{i}.weight", f"bbox_embed.{layer_idx}.layers.{i}.weight"))
+            rename_keys.append((f"detr.bbox_embed.{layer_idx}.layers.{i}.bias", f"bbox_embed.{layer_idx}.layers.{i}.bias"))
+
+    # remaining things
+    rename_keys.append(("detr.transformer.level_embed", "model.level_embed"))
+    rename_keys.append(("detr.transformer.enc_output.weight", "model.enc_output.weight"))
+    rename_keys.append(("detr.transformer.enc_output.bias", "model.enc_output.bias"))
+    rename_keys.append(("detr.transformer.enc_output_norm.weight", "model.enc_output_norm.weight"))
+    rename_keys.append(("detr.transformer.enc_output_norm.bias", "model.enc_output_norm.bias"))
+    rename_keys.append(("detr.transformer.pos_trans.weight", "model.pos_trans.weight"))
+    rename_keys.append(("detr.transformer.pos_trans.bias", "model.pos_trans.bias"))
+    rename_keys.append(("detr.transformer.pos_trans_norm.weight", "model.pos_trans_norm.weight"))
+    rename_keys.append(("detr.transformer.pos_trans_norm.bias", "model.pos_trans_norm.bias"))
+
     # fmt: on
-    
+
     return rename_keys
 
 
@@ -228,21 +252,13 @@ def read_in_q_k_v(state_dict, config):
 # We will verify our results on an image of cute cats
 def prepare_img():
     url = "http://images.cocodataset.org/val2017/000000039769.jpg"
-    im = Image.open(requests.get(url, stream=True).raw)
+    image = Image.open(requests.get(url, stream=True).raw)
 
-    return im
+    return image
 
 
 @torch.no_grad()
-def convert_deformable_detr_checkpoint(
-    model_name,
-    single_scale,
-    dilation,
-    with_box_refine,
-    two_stage,
-    pytorch_dump_folder_path,
-    push_to_hub,
-):
+def convert_deformable_detr_checkpoint(model_name, pytorch_dump_folder_path, push_to_hub):
     """
     Copy/paste/tweak model's weights to our Deformable DETR structure.
     """
@@ -254,91 +270,72 @@ def convert_deformable_detr_checkpoint(
     processor = DeformableDetrImageProcessor(format="coco_detection")
 
     # prepare image
-    img = prepare_img()
-    encoding = processor(images=img, return_tensors="pt")
-    encoding["pixel_values"]
-
-    logger.info("Converting model...")
+    image = prepare_img()
+    pixel_values = processor(images=image, return_tensors="pt").pixel_values
 
     # load original state dict
-    url = "https://dl.fbaipublicfiles.com/detic/Detic_DeformDETR_LI_R50_4x_ft4x.pth"
-    state_dict = torch.hub.load_state_dict_from_url(url, map_location="cpu")["model"]
+    name_to_url = {
+        "deformable-detr-detic": "https://dl.fbaipublicfiles.com/detic/Detic_DeformDETR_LI_R50_4x_ft4x.pth",
+        "deformable-detr-box-supervised": "https://dl.fbaipublicfiles.com/detic/BoxSup-DeformDETR_L_R50_4x.pth",
+    }
+    checkpoint_url = name_to_url[model_name]
+    state_dict = torch.hub.load_state_dict_from_url(checkpoint_url, map_location="cpu")["model"]
 
     # rename keys
     for src, dest in create_rename_keys(config):
         rename_key(state_dict, src, dest)
-    
+
     # query, key and value matrices of decoder need special treatment
     read_in_q_k_v(state_dict, config)
-    
-    # important: we need to prepend a prefix to each of the base model keys as the head models use different attributes for them
-    # prefix = "model."
-    # for key in state_dict.copy().keys():
-    #     if not key.startswith("class_embed") and not key.startswith("bbox_embed"):
-    #         val = state_dict.pop(key)
-    #         state_dict[prefix + key] = val
+
     # finally, create HuggingFace model and load state dict
     model = DeformableDetrForObjectDetection(config)
     missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
-    print("Missing keys:", missing_keys)
-    print("Unexpected keys:", unexpected_keys)
-    model.eval()
+    assert len(missing_keys) == 0
+    assert unexpected_keys == ["criterion.fed_loss_weight"]
 
+    model.eval()
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model.to(device)
 
-    # TODO verify our conversion
-    # outputs = model(pixel_values.to(device))
+    # verify our conversion
+    outputs = model(pixel_values.to(device))
 
-    # expected_logits = torch.tensor(
-    #     [[-9.6645, -4.3449, -5.8705], [-9.7035, -3.8504, -5.0724], [-10.5634, -5.3379, -7.5116]]
-    # )
-    # expected_boxes = torch.tensor([[0.8693, 0.2289, 0.2492], [0.3150, 0.5489, 0.5845], [0.5563, 0.7580, 0.8518]])
+    expected_logits = torch.tensor(
+        [[-8.4442, -6.9143, -4.8993], [-9.2303, -7.5461, -5.7119], [-6.3788, -6.6090, -6.2570]]
+    )
+    expected_boxes = torch.tensor([[0.5486, 0.2752, 0.0554], [0.1688, 0.1989, 0.2109], [0.1688, 0.1991, 0.2110]])
 
-    # if with_box_refine and two_stage:
-    #     expected_logits = torch.tensor(
-    #         [[-6.7108, -4.3213, -6.3777], [-8.9014, -6.1799, -6.7240], [-6.9315, -4.4735, -6.2298]]
-    #     )
-    #     expected_boxes = torch.tensor([[0.2583, 0.5499, 0.4683], [0.7652, 0.9068, 0.4882], [0.5490, 0.2763, 0.0564]])
+    print("Logits:", outputs.logits[0, :3, :3])
+    print("Boxes:", outputs.pred_boxes[0, :3, :3])
 
-    # print("Logits:", outputs.logits[0, :3, :3])
-
-    # assert torch.allclose(outputs.logits[0, :3, :3], expected_logits.to(device), atol=1e-4)
-    # assert torch.allclose(outputs.pred_boxes[0, :3, :3], expected_boxes.to(device), atol=1e-4)
-
-    # print("Everything ok!")
+    assert torch.allclose(outputs.logits[0, :3, :3], expected_logits.to(device), atol=1e-4)
+    assert torch.allclose(outputs.pred_boxes[0, :3, :3], expected_boxes.to(device), atol=1e-4)
+    print("Everything ok!")
 
     if pytorch_dump_folder_path is not None:
         # Save model and image processor
-        logger.info(f"Saving PyTorch model and image processor to {pytorch_dump_folder_path}...")
+        print(f"Saving PyTorch model and image processor to {pytorch_dump_folder_path}...")
         Path(pytorch_dump_folder_path).mkdir(exist_ok=True)
         model.save_pretrained(pytorch_dump_folder_path)
         processor.save_pretrained(pytorch_dump_folder_path)
 
     if push_to_hub:
-        # Push to hub
-        model_name = "deformable-detr"
-        model_name += "-single-scale" if single_scale else ""
-        model_name += "-dc5" if dilation else ""
-        model_name += "-with-box-refine" if with_box_refine else ""
-        model_name += "-two-stage" if two_stage else ""
-        print("Pushing model to hub...")
-        model.push_to_hub(repo_path_or_name=model_name, organization="nielsr", commit_message="Add model")
+        print("Pushing model and image processor to the hub...")
+        model.push_to_hub(f"nielsr/{model_name}")
+        processor.push_to_hub(f"nielsr/{model_name}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        "--checkpoint_path",
+        "--model_name",
+        default="deformable-detr-detic",
         type=str,
-        default="/home/niels/checkpoints/deformable_detr/r50_deformable_detr-checkpoint.pth",
-        help="Path to Pytorch checkpoint (.pth file) you'd like to convert.",
+        choices=["deformable-detr-detic", "deformable-detr-box-supervised"],
+        help="Name of the model you'd like to convert.",
     )
-    parser.add_argument("--single_scale", action="store_true", help="Whether to set config.num_features_levels = 1.")
-    parser.add_argument("--dilation", action="store_true", help="Whether to set config.dilation=True.")
-    parser.add_argument("--with_box_refine", action="store_false", help="Whether to set config.with_box_refine=True.")
-    parser.add_argument("--two_stage", action="store_false", help="Whether to set config.two_stage=True.")
     parser.add_argument(
         "--pytorch_dump_folder_path",
         default=None,
@@ -349,12 +346,4 @@ if __name__ == "__main__":
         "--push_to_hub", action="store_true", help="Whether or not to push the converted model to the 🤗 hub."
     )
     args = parser.parse_args()
-    convert_deformable_detr_checkpoint(
-        args.checkpoint_path,
-        args.single_scale,
-        args.dilation,
-        args.with_box_refine,
-        args.two_stage,
-        args.pytorch_dump_folder_path,
-        args.push_to_hub,
-    )
+    convert_deformable_detr_checkpoint(args.model_name, args.pytorch_dump_folder_path, args.push_to_hub)

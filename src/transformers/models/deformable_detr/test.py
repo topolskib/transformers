@@ -1,7 +1,7 @@
 from transformers import DeformableDetrConfig, DeformableDetrForObjectDetection, ResNetConfig
 
 
-backbone_config = ResNetConfig.from_pretrained("microsoft/resnet-50")
+backbone_config = ResNetConfig.from_pretrained("microsoft/resnet-50", out_features=["stage2", "stage3", "stage4"])
 
 config = DeformableDetrConfig(
     use_timm_backbone=False,

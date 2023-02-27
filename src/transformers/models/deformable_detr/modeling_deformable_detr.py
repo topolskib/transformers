@@ -363,7 +363,6 @@ def replace_batch_norm(m, name=""):
         if isinstance(target_attr, nn.BatchNorm2d):
             frozen = DeformableDetrFrozenBatchNorm2d(target_attr.num_features)
             bn = getattr(m, attr_str)
-            print("Attribute string:", attr_str)
             frozen.weight.data.copy_(bn.weight)
             frozen.bias.data.copy_(bn.bias)
             frozen.running_mean.data.copy_(bn.running_mean)
