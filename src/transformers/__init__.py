@@ -455,7 +455,6 @@ _import_structure = {
     "models.swinv2": ["SWINV2_PRETRAINED_CONFIG_ARCHIVE_MAP", "Swinv2Config"],
     "models.switch_transformers": ["SWITCH_TRANSFORMERS_PRETRAINED_CONFIG_ARCHIVE_MAP", "SwitchTransformersConfig"],
     "models.t5": ["T5_PRETRAINED_CONFIG_ARCHIVE_MAP", "T5Config"],
-    "models.udop": ["UDOP_PRETRAINED_CONFIG_ARCHIVE_MAP", "UdopConfig"],
     "models.table_transformer": ["TABLE_TRANSFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP", "TableTransformerConfig"],
     "models.tapas": ["TAPAS_PRETRAINED_CONFIG_ARCHIVE_MAP", "TapasConfig", "TapasTokenizer"],
     "models.tapex": ["TapexTokenizer"],
@@ -484,6 +483,7 @@ _import_structure = {
         "TvltConfig",
         "TvltProcessor",
     ],
+    "models.udop": ["UDOP_PRETRAINED_CONFIG_ARCHIVE_MAP", "UdopConfig"],
     "models.unispeech": [
         "UNISPEECH_PRETRAINED_CONFIG_ARCHIVE_MAP",
         "UniSpeechConfig",
@@ -2420,16 +2420,6 @@ else:
             "load_tf_weights_in_t5",
         ]
     )
-    _import_structure["models.udop"].extend(
-        [
-            "UDOP_PRETRAINED_MODEL_ARCHIVE_LIST",
-            "UdopEncoderModel",
-            "UdopForConditionalGeneration",
-            "UdopModel",
-            "UdopPreTrainedModel",
-            "load_tf_weights_in_udop",
-        ]
-    )
     _import_structure["models.table_transformer"].extend(
         [
             "TABLE_TRANSFORMER_PRETRAINED_MODEL_ARCHIVE_LIST",
@@ -2493,6 +2483,16 @@ else:
             "TvltForPreTraining",
             "TvltModel",
             "TvltPreTrainedModel",
+        ]
+    )
+    _import_structure["models.udop"].extend(
+        [
+            "UDOP_PRETRAINED_MODEL_ARCHIVE_LIST",
+            "UdopEncoderModel",
+            "UdopForConditionalGeneration",
+            "UdopModel",
+            "UdopPreTrainedModel",
+            "load_tf_weights_in_udop",
         ]
     )
     _import_structure["models.unispeech"].extend(
@@ -4114,7 +4114,6 @@ if TYPE_CHECKING:
     from .models.swinv2 import SWINV2_PRETRAINED_CONFIG_ARCHIVE_MAP, Swinv2Config
     from .models.switch_transformers import SWITCH_TRANSFORMERS_PRETRAINED_CONFIG_ARCHIVE_MAP, SwitchTransformersConfig
     from .models.t5 import T5_PRETRAINED_CONFIG_ARCHIVE_MAP, T5Config
-    from .models.udop import UDOP_PRETRAINED_CONFIG_ARCHIVE_MAP, UdopConfig
     from .models.table_transformer import TABLE_TRANSFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP, TableTransformerConfig
     from .models.tapas import TAPAS_PRETRAINED_CONFIG_ARCHIVE_MAP, TapasConfig, TapasTokenizer
     from .models.tapex import TapexTokenizer
@@ -4135,6 +4134,7 @@ if TYPE_CHECKING:
     )
     from .models.trocr import TROCR_PRETRAINED_CONFIG_ARCHIVE_MAP, TrOCRConfig, TrOCRProcessor
     from .models.tvlt import TVLT_PRETRAINED_CONFIG_ARCHIVE_MAP, TvltConfig, TvltProcessor
+    from .models.udop import UDOP_PRETRAINED_CONFIG_ARCHIVE_MAP, UdopConfig
     from .models.unispeech import UNISPEECH_PRETRAINED_CONFIG_ARCHIVE_MAP, UniSpeechConfig
     from .models.unispeech_sat import UNISPEECH_SAT_PRETRAINED_CONFIG_ARCHIVE_MAP, UniSpeechSatConfig
     from .models.upernet import UperNetConfig
@@ -5741,14 +5741,6 @@ if TYPE_CHECKING:
             T5PreTrainedModel,
             load_tf_weights_in_t5,
         )
-        from .models.udop import (
-            UDOP_PRETRAINED_MODEL_ARCHIVE_LIST,
-            UdopEncoderModel,
-            UdopForConditionalGeneration,
-            UdopModel,
-            UdopPreTrainedModel,
-            load_tf_weights_in_udop,
-        )
         from .models.table_transformer import (
             TABLE_TRANSFORMER_PRETRAINED_MODEL_ARCHIVE_LIST,
             TableTransformerForObjectDetection,
@@ -5797,6 +5789,14 @@ if TYPE_CHECKING:
             TvltForPreTraining,
             TvltModel,
             TvltPreTrainedModel,
+        )
+        from .models.udop import (
+            UDOP_PRETRAINED_MODEL_ARCHIVE_LIST,
+            UdopEncoderModel,
+            UdopForConditionalGeneration,
+            UdopModel,
+            UdopPreTrainedModel,
+            load_tf_weights_in_udop,
         )
         from .models.unispeech import (
             UNISPEECH_PRETRAINED_MODEL_ARCHIVE_LIST,
