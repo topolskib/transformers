@@ -2488,11 +2488,8 @@ else:
     _import_structure["models.udop"].extend(
         [
             "UDOP_PRETRAINED_MODEL_ARCHIVE_LIST",
-            "UdopEncoderModel",
             "UdopForConditionalGeneration",
-            "UdopModel",
             "UdopPreTrainedModel",
-            "load_tf_weights_in_udop",
         ]
     )
     _import_structure["models.unispeech"].extend(
@@ -5792,11 +5789,8 @@ if TYPE_CHECKING:
         )
         from .models.udop import (
             UDOP_PRETRAINED_MODEL_ARCHIVE_LIST,
-            UdopEncoderModel,
             UdopForConditionalGeneration,
-            UdopModel,
             UdopPreTrainedModel,
-            load_tf_weights_in_udop,
         )
         from .models.unispeech import (
             UNISPEECH_PRETRAINED_MODEL_ARCHIVE_LIST,
