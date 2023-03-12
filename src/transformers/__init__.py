@@ -466,6 +466,7 @@ _import_structure = {
     "models.swinv2": ["SWINV2_PRETRAINED_CONFIG_ARCHIVE_MAP", "Swinv2Config"],
     "models.switch_transformers": ["SWITCH_TRANSFORMERS_PRETRAINED_CONFIG_ARCHIVE_MAP", "SwitchTransformersConfig"],
     "models.t5": ["T5_PRETRAINED_CONFIG_ARCHIVE_MAP", "T5Config"],
+    "models.udop": ["UDOP_PRETRAINED_CONFIG_ARCHIVE_MAP", "UdopConfig"],
     "models.table_transformer": ["TABLE_TRANSFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP", "TableTransformerConfig"],
     "models.tapas": ["TAPAS_PRETRAINED_CONFIG_ARCHIVE_MAP", "TapasConfig", "TapasTokenizer"],
     "models.tapex": ["TapexTokenizer"],
@@ -2471,6 +2472,16 @@ else:
             "load_tf_weights_in_t5",
         ]
     )
+    _import_structure["models.udop"].extend(
+        [
+            "UDOP_PRETRAINED_MODEL_ARCHIVE_LIST",
+            "UdopEncoderModel",
+            "UdopForConditionalGeneration",
+            "UdopModel",
+            "UdopPreTrainedModel",
+            "load_tf_weights_in_udop",
+        ]
+    )
     _import_structure["models.table_transformer"].extend(
         [
             "TABLE_TRANSFORMER_PRETRAINED_MODEL_ARCHIVE_LIST",
@@ -4181,6 +4192,7 @@ if TYPE_CHECKING:
     from .models.swinv2 import SWINV2_PRETRAINED_CONFIG_ARCHIVE_MAP, Swinv2Config
     from .models.switch_transformers import SWITCH_TRANSFORMERS_PRETRAINED_CONFIG_ARCHIVE_MAP, SwitchTransformersConfig
     from .models.t5 import T5_PRETRAINED_CONFIG_ARCHIVE_MAP, T5Config
+    from .models.udop import UDOP_PRETRAINED_CONFIG_ARCHIVE_MAP, UdopConfig
     from .models.table_transformer import TABLE_TRANSFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP, TableTransformerConfig
     from .models.tapas import TAPAS_PRETRAINED_CONFIG_ARCHIVE_MAP, TapasConfig, TapasTokenizer
     from .models.tapex import TapexTokenizer
@@ -5839,6 +5851,14 @@ if TYPE_CHECKING:
             T5Model,
             T5PreTrainedModel,
             load_tf_weights_in_t5,
+        )
+        from .models.udop import (
+            UDOP_PRETRAINED_MODEL_ARCHIVE_LIST,
+            UdopEncoderModel,
+            UdopForConditionalGeneration,
+            UdopModel,
+            UdopPreTrainedModel,
+            load_tf_weights_in_udop,
         )
         from .models.table_transformer import (
             TABLE_TRANSFORMER_PRETRAINED_MODEL_ARCHIVE_LIST,

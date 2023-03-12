@@ -175,6 +175,7 @@ from . import (
     swinv2,
     switch_transformers,
     t5,
+    udop,
     table_transformer,
     tapas,
     tapex,
