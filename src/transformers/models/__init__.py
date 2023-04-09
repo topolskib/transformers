@@ -115,6 +115,7 @@ from . import (
     markuplm,
     mask2former,
     maskformer,
+    mask_rcnn,
     mbart,
     mbart50,
     mctct,
