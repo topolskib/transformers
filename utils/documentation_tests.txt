@@ -190,6 +190,7 @@ src/transformers/models/trajectory_transformer/configuration_trajectory_transfor
 src/transformers/models/transfo_xl/configuration_transfo_xl.py
 src/transformers/models/trocr/configuration_trocr.py
 src/transformers/models/trocr/modeling_trocr.py
+src/transformers/models/udop/modeling_udop.py
 src/transformers/models/unispeech/configuration_unispeech.py
 src/transformers/models/unispeech/modeling_unispeech.py
 src/transformers/models/unispeech_sat/modeling_unispeech_sat.py
