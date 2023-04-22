@@ -378,6 +378,7 @@ exotic_models_job = CircleCIJob(
         "sudo apt install tesseract-ocr",
         "pip install pytesseract",
         "pip install natten",
+        "pip install sentencepiece",
     ],
     tests_to_run=[
         "tests/models/*layoutlmv*",
