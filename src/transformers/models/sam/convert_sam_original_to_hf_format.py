@@ -88,10 +88,17 @@ def replace_keys(state_dict):
     return model_state_dict
 
 
-def convert_sam_checkpoint(model_name, pytorch_dump_folder, push_to_hub, model_hub_id="ybelkada/segment-anything"):
-    checkpoint_path = hf_hub_download(model_hub_id, f"checkpoints/{model_name}.pth")
+def convert_sam_checkpoint(
+    model_name, checkpoint_path, pytorch_dump_folder, push_to_hub, model_hub_id="ybelkada/segment-anything"
+):
+    if model_name in ["sam_vit_b_01ec64", "sam_vit_h_4b8939", "sam_vit_l_0b3195"]:
+        checkpoint_path = hf_hub_download(model_hub_id, f"checkpoints/{model_name}.pth")
+    elif model_name == "medsam-vit-base":
+        assert checkpoint_path is not None, "You must provide a local path to the pth file"
+    else:
+        raise ValueError("Invalid model name")
 
-    if "sam_vit_b" in model_name:
+    if model_name in ["sam_vit_b", "mesam-vit-base"]:
         config = SamConfig()
     elif "sam_vit_l" in model_name:
         vision_config = SamVisionConfig(
@@ -120,12 +127,12 @@ def convert_sam_checkpoint(model_name, pytorch_dump_folder, push_to_hub, model_h
     state_dict = replace_keys(state_dict)
 
     image_processor = SamImageProcessor()
-
     processor = SamProcessor(image_processor=image_processor)
+    config = SamConfig()
     hf_model = SamModel(config)
 
     hf_model.load_state_dict(state_dict)
-    hf_model = hf_model.to("cuda")
+    hf_model = hf_model
 
     img_url = "https://huggingface.co/ybelkada/segment-anything/resolve/main/assets/car.png"
     raw_image = Image.open(requests.get(img_url, stream=True).raw).convert("RGB")
@@ -133,18 +140,18 @@ def convert_sam_checkpoint(model_name, pytorch_dump_folder, push_to_hub, model_h
     input_points = [[[400, 650]]]
     input_labels = [[1]]
 
-    inputs = processor(images=np.array(raw_image), return_tensors="pt").to("cuda")
+    inputs = processor(images=np.array(raw_image), return_tensors="pt")
 
     with torch.no_grad():
         output = hf_model(**inputs)
     scores = output.iou_scores.squeeze()
 
-    if model_name == "sam_vit_h_4b8939":
+    if model_hub_id == "sam_vit_h_4b8939":
         assert scores[-1].item() == 0.579890251159668
 
         inputs = processor(
             images=np.array(raw_image), input_points=input_points, input_labels=input_labels, return_tensors="pt"
-        ).to("cuda")
+        )
 
         with torch.no_grad():
             output = hf_model(**inputs)
@@ -154,7 +161,7 @@ def convert_sam_checkpoint(model_name, pytorch_dump_folder, push_to_hub, model_h
 
         input_boxes = ((75, 275, 1725, 850),)
 
-        inputs = processor(images=np.array(raw_image), input_boxes=input_boxes, return_tensors="pt").to("cuda")
+        inputs = processor(images=np.array(raw_image), input_boxes=input_boxes, return_tensors="pt")
 
         with torch.no_grad():
             output = hf_model(**inputs)
@@ -168,7 +175,7 @@ def convert_sam_checkpoint(model_name, pytorch_dump_folder, push_to_hub, model_h
 
         inputs = processor(
             images=np.array(raw_image), input_points=input_points, input_labels=input_labels, return_tensors="pt"
-        ).to("cuda")
+        )
 
         with torch.no_grad():
             output = hf_model(**inputs)
@@ -176,16 +183,29 @@ def convert_sam_checkpoint(model_name, pytorch_dump_folder, push_to_hub, model_h
 
         assert scores[-1].item() == 0.9936047792434692
 
+    if pytorch_dump_folder is not None:
+        hf_model.save_pretrained(pytorch_dump_folder)
+        processor.save_pretrained(pytorch_dump_folder)
+
+    if push_to_hub:
+        processor.push_to_hub(model_hub_id)
+        hf_model.push_to_hub(model_hub_id)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    choices = ["sam_vit_b_01ec64", "sam_vit_h_4b8939", "sam_vit_l_0b3195"]
+    choices = ["sam_vit_b_01ec64", "sam_vit_h_4b8939", "sam_vit_l_0b3195", "medsam-vit-base"]
     parser.add_argument(
         "--model_name",
         default="sam_vit_h_4b8939",
         choices=choices,
         type=str,
         help="Path to hf config.json of model to convert",
+    )
+    parser.add_argument(
+        "--checkpoint_path",
+        type=str,
+        help="Path to the original SAM checkpoint (.pth file)",
     )
     parser.add_argument("--pytorch_dump_folder_path", default=None, type=str, help="Path to the output PyTorch model.")
     parser.add_argument(
@@ -196,11 +216,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model_hub_id",
         default="ybelkada/segment-anything",
-        choices=choices,
         type=str,
         help="Path to hf config.json of model to convert",
     )
 
     args = parser.parse_args()
 
-    convert_sam_checkpoint(args.model_name, args.pytorch_dump_folder_path, args.push_to_hub, args.model_hub_id)
+    convert_sam_checkpoint(
+        args.model_name, args.checkpoint_path, args.pytorch_dump_folder_path, args.push_to_hub, args.model_hub_id
+    )
