@@ -89,16 +89,20 @@ def replace_keys(state_dict):
 
 
 def convert_sam_checkpoint(
-    model_name, checkpoint_path, pytorch_dump_folder, push_to_hub, model_hub_id="ybelkada/segment-anything"
+    model_name,
+    checkpoint_path,
+    pytorch_dump_folder,
+    push_to_hub,
+    model_hub_id,
 ):
     if model_name in ["sam_vit_b_01ec64", "sam_vit_h_4b8939", "sam_vit_l_0b3195"]:
-        checkpoint_path = hf_hub_download(model_hub_id, f"checkpoints/{model_name}.pth")
+        checkpoint_path = hf_hub_download("ybelkada/segment-anything", f"checkpoints/{model_name}.pth")
     elif model_name == "medsam-vit-base":
         assert checkpoint_path is not None, "You must provide a local path to the pth file"
     else:
         raise ValueError("Invalid model name")
 
-    if model_name in ["sam_vit_b", "mesam-vit-base"]:
+    if model_name in ["sam_vit_b_01ec64", "medsam-vit-base"]:
         config = SamConfig()
     elif "sam_vit_l" in model_name:
         vision_config = SamVisionConfig(
@@ -146,7 +150,7 @@ def convert_sam_checkpoint(
         output = hf_model(**inputs)
     scores = output.iou_scores.squeeze()
 
-    if model_hub_id == "sam_vit_h_4b8939":
+    if model_name == "sam_vit_h_4b8939":
         assert scores[-1].item() == 0.579890251159668
 
         inputs = processor(
@@ -215,9 +219,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--model_hub_id",
-        default="ybelkada/segment-anything",
+        default="facebook/sam-vit-base",
         type=str,
-        help="Path to hf config.json of model to convert",
+        help="Name of the repo on the hub in case --push_to_hub is passed",
     )
 
     args = parser.parse_args()
