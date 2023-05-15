@@ -30,13 +30,13 @@ from PIL import Image
 
 from transformers import (
     AutoTokenizer,
+    Blip2Processor,
+    BlipImageProcessor,
     InstructBlipConfig,
     InstructBlipForConditionalGeneration,
-    Blip2Processor,
-    InstructBlipVisionConfig,
-    BlipImageProcessor,
-    T5Config,
     InstructBlipQFormerConfig,
+    InstructBlipVisionConfig,
+    T5Config,
 )
 from transformers.utils.constants import OPENAI_CLIP_MEAN, OPENAI_CLIP_STD
 
@@ -123,7 +123,7 @@ def convert_blip2_checkpoint(model_name, pytorch_dump_folder_path=None, push_to_
     Copy/paste/tweak model's weights to Transformers design.
     """
     # TODO support vicuna (llama) tokenizer
-    tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-xl") 
+    tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-xl")
     config, image_size = get_blip2_config(model_name)
 
     hf_model = InstructBlipForConditionalGeneration(config).eval()
@@ -208,8 +208,7 @@ def convert_blip2_checkpoint(model_name, pytorch_dump_folder_path=None, push_to_
     # assert values
     if model_name == "instructblip-flan-t5-xl":
         expected_slice_logits = torch.tensor(
-            [[-54.7770,  -9.4422, -12.9475],
-        [-68.9030, -13.2345, -11.3455]], device=device
+            [[-54.7770, -9.4422, -12.9475], [-68.9030, -13.2345, -11.3455]], device=device
         )
         assert torch.allclose(logits[0, :3, :3], expected_slice_logits, atol=1e-4)
     elif model_name == "instructblip-flan-t5-xxl":

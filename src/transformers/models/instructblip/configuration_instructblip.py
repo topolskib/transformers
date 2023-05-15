@@ -31,12 +31,11 @@ INSTRUCTBLIP_PRETRAINED_CONFIG_ARCHIVE_MAP = {
 }
 
 
-
 class InstructBlipVisionConfig(PretrainedConfig):
     r"""
-    This is the configuration class to store the configuration of a [`InstructBlipVisionModel`]. It is used to instantiate a
-    InstructBLIP vision encoder according to the specified arguments, defining the model architecture. Instantiating a
-    configuration defaults will yield a similar configuration to that of the InstructBLIP
+    This is the configuration class to store the configuration of a [`InstructBlipVisionModel`]. It is used to
+    instantiate a InstructBLIP vision encoder according to the specified arguments, defining the model architecture.
+    Instantiating a configuration defaults will yield a similar configuration to that of the InstructBLIP
     [Salesforce/instruct-blip-flan-t5](https://huggingface.co/Salesforce/instruct-blip-flan-t5) architecture.
 
     Configuration objects inherit from [`PretrainedConfig`] and can be used to control the model outputs. Read the
@@ -144,12 +143,12 @@ class InstructBlipVisionConfig(PretrainedConfig):
 
 class InstructBlipQFormerConfig(PretrainedConfig):
     r"""
-    This is the configuration class to store the configuration of a [`InstructBlipQFormerModel`]. It is used to instantiate a
-    InstructBLIP Querying Transformer (Q-Former) model according to the specified arguments, defining the model architecture.
-    Instantiating a configuration with the defaults will yield a similar configuration to that of the InstructBLIP
-    [Salesforce/instruct-blip-flan-t5](https://huggingface.co/Salesforce/instruct-blip-flan-t5) architecture. Configuration objects
-    inherit from [`PretrainedConfig`] and can be used to control the model outputs. Read the documentation from
-    [`PretrainedConfig`] for more information.
+    This is the configuration class to store the configuration of a [`InstructBlipQFormerModel`]. It is used to
+    instantiate a InstructBLIP Querying Transformer (Q-Former) model according to the specified arguments, defining the
+    model architecture. Instantiating a configuration with the defaults will yield a similar configuration to that of
+    the InstructBLIP [Salesforce/instruct-blip-flan-t5](https://huggingface.co/Salesforce/instruct-blip-flan-t5)
+    architecture. Configuration objects inherit from [`PretrainedConfig`] and can be used to control the model outputs.
+    Read the documentation from [`PretrainedConfig`] for more information.
 
     Note that [`InstructBlipQFormerModel`] is very similar to [`BertLMHeadModel`] with interleaved cross-attention.
 
@@ -264,10 +263,11 @@ class InstructBlipQFormerConfig(PretrainedConfig):
 
 class InstructBlipConfig(PretrainedConfig):
     r"""
-    [`InstructBlipConfig`] is the configuration class to store the configuration of a [`InstructBlipForConditionalGeneration`]. It is
-    used to instantiate a InstructBLIP model according to the specified arguments, defining the vision model, Q-Former model
-    and language model configs. Instantiating a configuration with the defaults will yield a similar configuration to
-    that of the InstructBLIP [Salesforce/instruct-blip-flan-t5](https://huggingface.co/Salesforce/instruct-blip-flan-t5) architecture.
+    [`InstructBlipConfig`] is the configuration class to store the configuration of a
+    [`InstructBlipForConditionalGeneration`]. It is used to instantiate a InstructBLIP model according to the specified
+    arguments, defining the vision model, Q-Former model and language model configs. Instantiating a configuration with
+    the defaults will yield a similar configuration to that of the InstructBLIP
+    [Salesforce/instruct-blip-flan-t5](https://huggingface.co/Salesforce/instruct-blip-flan-t5) architecture.
 
     Configuration objects inherit from [`PretrainedConfig`] and can be used to control the model outputs. Read the
     documentation from [`PretrainedConfig`] for more information.
@@ -356,8 +356,8 @@ class InstructBlipConfig(PretrainedConfig):
         **kwargs,
     ):
         r"""
-        Instantiate a [`InstructBlipConfig`] (or a derived class) from a InstructBLIP vision model, Q-Former and language model
-        configurations.
+        Instantiate a [`InstructBlipConfig`] (or a derived class) from a InstructBLIP vision model, Q-Former and
+        language model configurations.
 
         Returns:
             [`InstructBlipConfig`]: An instance of a configuration object

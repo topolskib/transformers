@@ -53,7 +53,6 @@ INSTRUCTBLIP_PRETRAINED_MODEL_ARCHIVE_LIST = [
 ]
 
 
-
 @dataclass
 # Copied from transformers.models.blip_2.modeling_blip_2.Blip2ForConditionalGenerationModelOutput with Blip2->InstructBlip
 class InstructBlipForConditionalGenerationModelOutput(ModelOutput):
@@ -951,9 +950,6 @@ class InstructBlipQFormerEncoder(nn.Module):
 
         next_decoder_cache = () if use_cache else None
 
-        print("Shape of hidden states:", hidden_states.shape)
-        print("Shape of attention mask:", attention_mask.shape)
-
         for i in range(self.config.num_hidden_layers):
             layer_module = self.layer[i]
             if output_hidden_states:
@@ -1032,23 +1028,15 @@ class InstructBlipQFormerEmbeddings(nn.Module):
 
     def __init__(self, config):
         super().__init__()
-        self.word_embeddings = nn.Embedding(
-            config.vocab_size, config.hidden_size, padding_idx=config.pad_token_id
-        )
-        self.position_embeddings = nn.Embedding(
-            config.max_position_embeddings, config.hidden_size
-        )
+        self.word_embeddings = nn.Embedding(config.vocab_size, config.hidden_size, padding_idx=config.pad_token_id)
+        self.position_embeddings = nn.Embedding(config.max_position_embeddings, config.hidden_size)
 
         self.layernorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
         # position_ids (1, len position emb) is contiguous in memory and exported when serialized
-        self.register_buffer(
-            "position_ids", torch.arange(config.max_position_embeddings).expand((1, -1))
-        )
-        self.position_embedding_type = getattr(
-            config, "position_embedding_type", "absolute"
-        )
+        self.register_buffer("position_ids", torch.arange(config.max_position_embeddings).expand((1, -1)))
+        self.position_embedding_type = getattr(config, "position_embedding_type", "absolute")
 
         self.config = config
 
@@ -1065,9 +1053,7 @@ class InstructBlipQFormerEmbeddings(nn.Module):
             seq_length = 0
 
         if position_ids is None:
-            position_ids = self.position_ids[
-                :, past_key_values_length : seq_length + past_key_values_length
-            ].clone()
+            position_ids = self.position_ids[:, past_key_values_length : seq_length + past_key_values_length].clone()
 
         if input_ids is not None:
             embeddings = self.word_embeddings(input_ids)
@@ -1087,7 +1073,8 @@ class InstructBlipQFormerEmbeddings(nn.Module):
 
 class InstructBlipQFormerModel(InstructBlipPreTrainedModel):
     """
-    Querying Transformer (Q-Former), used in InstructBLIP. Slightly modified from BLIP-2 as it also takes the instruction as input.
+    Querying Transformer (Q-Former), used in InstructBLIP. Slightly modified from BLIP-2 as it also takes the
+    instruction as input.
     """
 
     def __init__(self, config: InstructBlipQFormerConfig):
@@ -1289,16 +1276,16 @@ class InstructBlipQFormerModel(InstructBlipPreTrainedModel):
 
 @add_start_docstrings(
     """
-    InstructBLIP Model for generating text and image features. The model consists of a vision encoder, Querying Transformer
-    (Q-Former) and a language model.
+    InstructBLIP Model for generating text and image features. The model consists of a vision encoder, Querying
+    Transformer (Q-Former) and a language model.
     """,
     INSTRUCTBLIP_START_DOCSTRING,
 )
-# Copied from transformers.models.blip_2.modeling_blip_2.Blip2Model with Blip2->InstructBlip,BLIP_2->INSTRUCTBLIP,Salesforce/blip2-opt-2.7b->Salesforce/instruct-blip-flan-t5
 class InstructBlipModel(InstructBlipPreTrainedModel):
     config_class = InstructBlipConfig
     main_input_name = "pixel_values"
 
+    # Copied from transformers.models.blip_2.modeling_blip_2.Blip2Model.__init__ with Blip2->InstructBlip,BLIP_2->INSTRUCTBLIP,Salesforce/blip2-opt-2.7b->Salesforce/instruct-blip-flan-t5
     def __init__(self, config: InstructBlipConfig):
         super().__init__(config)
 
@@ -1358,7 +1345,9 @@ class InstructBlipModel(InstructBlipPreTrainedModel):
                 The language model outputs. If `return_dict=True`, the output is a [`CausalLMOutputWithPast`] that
                 contains the language model logits, the past key values and the hidden states if
                 `output_hidden_states=True`.
+
         Examples:
+
         ```python
         >>> import torch
         >>> from transformers import AutoTokenizer, InstructBlipModel
@@ -1417,6 +1406,7 @@ class InstructBlipModel(InstructBlipPreTrainedModel):
                 The vision model outputs. If `return_dict=True`, the output is a [`BaseModelOutputWithPooling`] that
                 contains the image features, the pooled image features and the hidden states if
                 `output_hidden_states=True`.
+
         Examples:
         ```python
         >>> import torch
@@ -1514,7 +1504,9 @@ class InstructBlipModel(InstructBlipPreTrainedModel):
         return query_outputs
 
     @add_start_docstrings_to_model_forward(INSTRUCTBLIP_INPUTS_DOCSTRING)
-    @replace_return_docstrings(output_type=InstructBlipForConditionalGenerationModelOutput, config_class=InstructBlipVisionConfig)
+    @replace_return_docstrings(
+        output_type=InstructBlipForConditionalGenerationModelOutput, config_class=InstructBlipVisionConfig
+    )
     def forward(
         self,
         pixel_values: torch.FloatTensor,
@@ -1567,8 +1559,15 @@ class InstructBlipModel(InstructBlipPreTrainedModel):
         # step 2: forward the query tokens through the QFormer, using the image embeddings for cross-attention
         image_attention_mask = torch.ones(image_embeds.size()[:-1], dtype=torch.long, device=image_embeds.device)
 
+        # difference with BLIP-2 here: we also feed the instruction prompt to the Q-Former
         query_tokens = self.query_tokens.expand(image_embeds.shape[0], -1, -1)
+        query_attention_mask = torch.ones(query_tokens.size()[:-1], dtype=torch.long, device=image_embeds.device)
+        if attention_mask is None:
+            attention_mask = torch.ones_like(input_ids)
+        qformer_attention_mask = torch.cat([query_attention_mask, attention_mask], dim=1)
         query_outputs = self.qformer(
+            input_ids=input_ids,
+            attention_mask=qformer_attention_mask,
             query_embeds=query_tokens,
             encoder_hidden_states=image_embeds,
             encoder_attention_mask=image_attention_mask,
@@ -1717,7 +1716,9 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
             self.language_model._hf_hook.io_same_device = True  # For `generate` compatibility
 
     @add_start_docstrings_to_model_forward(INSTRUCTBLIP_INPUTS_DOCSTRING)
-    @replace_return_docstrings(output_type=InstructBlipForConditionalGenerationModelOutput, config_class=InstructBlipVisionConfig)
+    @replace_return_docstrings(
+        output_type=InstructBlipForConditionalGenerationModelOutput, config_class=InstructBlipVisionConfig
+    )
     def forward(
         self,
         pixel_values: torch.FloatTensor,
@@ -1779,7 +1780,7 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
         query_attention_mask = torch.ones(query_tokens.size()[:-1], dtype=torch.long, device=image_embeds.device)
         if attention_mask is None:
             attention_mask = torch.ones_like(input_ids)
-        qformer_attention_mask = torch.cat([query_attention_mask, attention_mask],dim=1)
+        qformer_attention_mask = torch.cat([query_attention_mask, attention_mask], dim=1)
         query_outputs = self.qformer(
             input_ids=input_ids,
             attention_mask=qformer_attention_mask,
@@ -1887,7 +1888,7 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
         query_attention_mask = torch.ones(query_tokens.size()[:-1], dtype=torch.long, device=image_embeds.device)
         if attention_mask is None:
             attention_mask = torch.ones_like(input_ids)
-        qformer_attention_mask = torch.cat([query_attention_mask, attention_mask],dim=1)
+        qformer_attention_mask = torch.cat([query_attention_mask, attention_mask], dim=1)
         query_outputs = self.qformer(
             input_ids=input_ids,
             attention_mask=qformer_attention_mask,
