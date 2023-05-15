@@ -35,8 +35,8 @@ from transformers import (
     Blip2Processor,
     InstructBlipVisionConfig,
     BlipImageProcessor,
-    OPTConfig,
     T5Config,
+    InstructBlipQFormerConfig,
 )
 from transformers.utils.constants import OPENAI_CLIP_MEAN, OPENAI_CLIP_STD
 
@@ -75,8 +75,8 @@ def create_rename_keys(config):
         rename_keys.append((f"visual_encoder.blocks.{i}.mlp.fc2.bias", f"vision_model.encoder.layers.{i}.mlp.fc2.bias"))
 
     # QFormer
-    rename_keys.append(("Qformer.bert.embeddings.LayerNorm.weight", "qformer.layernorm.weight"))
-    rename_keys.append(("Qformer.bert.embeddings.LayerNorm.bias", "qformer.layernorm.bias"))
+    rename_keys.append(("Qformer.bert.embeddings.LayerNorm.weight", "qformer.embeddings.layernorm.weight"))
+    rename_keys.append(("Qformer.bert.embeddings.LayerNorm.bias", "qformer.embeddings.layernorm.bias"))
 
     # fmt: on
     return rename_keys
@@ -98,22 +98,21 @@ def read_in_q_v_bias(state_dict, config):
         state_dict[f"vision_model.encoder.layers.{i}.self_attn.qkv.bias"] = qkv_bias
 
 
-def get_blip2_config(model_name, eos_token_id):
+def get_blip2_config(model_name):
     image_size = 364 if "coco" in model_name else 224
     vision_config = InstructBlipVisionConfig(image_size=image_size).to_dict()
 
     # make sure the models have proper bos_token_id and eos_token_id set (important for generation)
     # seems like flan-T5 models don't have bos_token_id properly set?
-    if "opt-2.7b" in model_name:
-        text_config = OPTConfig.from_pretrained("facebook/opt-2.7b", eos_token_id=eos_token_id).to_dict()
-    elif "opt-6.7b" in model_name:
-        text_config = OPTConfig.from_pretrained("facebook/opt-6.7b", eos_token_id=eos_token_id).to_dict()
-    elif "t5-xl" in model_name:
+    if "t5-xl" in model_name:
         text_config = T5Config.from_pretrained("google/flan-t5-xl", dense_act_fn="gelu", bos_token_id=1).to_dict()
     elif "t5-xxl" in model_name:
         text_config = T5Config.from_pretrained("google/flan-t5-xxl", dense_act_fn="gelu", bos_token_id=1).to_dict()
+    else:
+        raise NotImplementedError("To do")
 
-    config = InstructBlipConfig(vision_config=vision_config, text_config=text_config)
+    qformer_config = InstructBlipQFormerConfig(vocab_size=30523).to_dict()
+    config = InstructBlipConfig(vision_config=vision_config, text_config=text_config, qformer_config=qformer_config)
 
     return config, image_size
 
@@ -123,24 +122,17 @@ def convert_blip2_checkpoint(model_name, pytorch_dump_folder_path=None, push_to_
     """
     Copy/paste/tweak model's weights to Transformers design.
     """
-    tokenizer = (
-        AutoTokenizer.from_pretrained("facebook/opt-2.7b")
-        if "opt" in model_name
-        else AutoTokenizer.from_pretrained("google/flan-t5-xl")
-    )
-    eos_token_id = tokenizer("\n", add_special_tokens=False).input_ids[0]
-    config, image_size = get_blip2_config(model_name, eos_token_id=eos_token_id)
+    # TODO support vicuna (llama) tokenizer
+    tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-xl") 
+    config, image_size = get_blip2_config(model_name)
 
     hf_model = InstructBlipForConditionalGeneration(config).eval()
 
     model_name_to_original = {
-        "blip2-opt-2.7b": ("blip2_opt", "pretrain_opt2.7b"),
-        "blip2-opt-6.7b": ("blip2_opt", "pretrain_opt6.7b"),
-        "blip2-opt-2.7b-coco": ("blip2_opt", "caption_coco_opt2.7b"),
-        "blip2-opt-6.7b-coco": ("blip2_opt", "caption_coco_opt6.7b"),
-        "blip2-flan-t5-xl": ("blip2_t5", "pretrain_flant5xl"),
-        "blip2-flan-t5-xl-coco": ("blip2_t5", "caption_coco_flant5xl"),
-        "blip2-flan-t5-xxl": ("blip2_t5", "pretrain_flant5xxl"),
+        "instructblip-vicuna-7b": ("blip2_vicuna_instruct", "vicuna7b"),
+        "instructblip-vicuna-13b": ("blip2_vicuna_instruct", "vicuna13b"),
+        "instructblip-flan-t5-xl": ("blip2_t5_instruct", "flant5xl"),
+        "instructblip-flan-t5-xxl": ("blip2_t5_instruct", "flant5xxl"),
     }
 
     name, type = model_name_to_original[model_name]
@@ -167,12 +159,12 @@ def convert_blip2_checkpoint(model_name, pytorch_dump_folder_path=None, push_to_
             key = key.replace("Qformer.bert", "qformer")
         if "attention.self" in key:
             key = key.replace("self", "attention")
-        if "opt_proj" in key:
-            key = key.replace("opt_proj", "language_projection")
+        if "llm_proj" in key:
+            key = key.replace("llm_proj", "language_projection")
         if "t5_proj" in key:
             key = key.replace("t5_proj", "language_projection")
-        if key.startswith("opt"):
-            key = key.replace("opt", "language")
+        if key.startswith("llm_model"):
+            key = key.replace("llm_model", "language")
         if key.startswith("t5"):
             key = key.replace("t5", "language")
         state_dict[key] = val
@@ -180,9 +172,7 @@ def convert_blip2_checkpoint(model_name, pytorch_dump_folder_path=None, push_to_
     # read in qv biases
     read_in_q_v_bias(state_dict, config)
 
-    missing_keys, unexpected_keys = hf_model.load_state_dict(state_dict, strict=False)
-    assert len(missing_keys) == 0
-    assert unexpected_keys == ["qformer.embeddings.position_ids"]
+    hf_model.load_state_dict(state_dict, strict=True)
 
     image = load_demo_image()
     original_pixel_values = vis_processors["eval"](image).unsqueeze(0).to(device)
@@ -201,7 +191,7 @@ def convert_blip2_checkpoint(model_name, pytorch_dump_folder_path=None, push_to_
     original_model.to(device)
     hf_model.to(device)
     with torch.no_grad():
-        if "opt" in model_name:
+        if "vicuna" in model_name:
             original_logits = original_model({"image": original_pixel_values, "text_input": [""]}).logits
             logits = hf_model(original_pixel_values, input_ids).logits
         else:
@@ -216,15 +206,14 @@ def convert_blip2_checkpoint(model_name, pytorch_dump_folder_path=None, push_to_
     print("First values of HF logits:", logits[0, :3, :3])
 
     # assert values
-    if model_name == "blip2-flan-t5-xl":
+    if model_name == "instructblip-flan-t5-xl":
         expected_slice_logits = torch.tensor(
-            [[-41.5850, -4.4440, -8.9922], [-47.4322, -5.9143, -1.7340]], device=device
+            [[-54.7770,  -9.4422, -12.9475],
+        [-68.9030, -13.2345, -11.3455]], device=device
         )
         assert torch.allclose(logits[0, :3, :3], expected_slice_logits, atol=1e-4)
-    elif model_name == "blip2-flan-t5-xl-coco":
-        expected_slice_logits = torch.tensor(
-            [[-57.0109, -9.8967, -12.6280], [-68.6578, -12.7191, -10.5065]], device=device
-        )
+    elif model_name == "instructblip-flan-t5-xxl":
+        raise NotImplementedError("To do")
     else:
         # cast to same type
         target_dtype = logits.dtype
@@ -266,17 +255,14 @@ def convert_blip2_checkpoint(model_name, pytorch_dump_folder_path=None, push_to_
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     choices = [
-        "blip2-opt-2.7b",
-        "blip2-opt-6.7b",
-        "blip2-opt-2.7b-coco",
-        "blip2-opt-6.7b-coco",
-        "blip2-flan-t5-xl",
-        "blip2-flan-t5-xl-coco",
-        "blip2-flan-t5-xxl",
+        "instructblip-vicuna-7b",
+        "instructblip-vicuna-13b",
+        "instructblip-flan-t5-xl",
+        "instructblip-flan-t5-xxl",
     ]
     parser.add_argument(
         "--model_name",
-        default="blip2-opt-2.7b",
+        default="instructblip-flan-t5-xl",
         choices=choices,
         type=str,
         help="Path to hf config.json of model to convert",
