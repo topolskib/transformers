@@ -45,10 +45,10 @@ from .configuration_instructblip import InstructBlipConfig, InstructBlipQFormerC
 
 logger = logging.get_logger(__name__)
 
-_CHECKPOINT_FOR_DOC = "Salesforce/instruct-blip-flan-t5"
+_CHECKPOINT_FOR_DOC = "Salesforce/instructblip-flan-t5"
 
 INSTRUCTBLIP_PRETRAINED_MODEL_ARCHIVE_LIST = [
-    "Salesforce/instruct-blip-flan-t5",
+    "Salesforce/instructblip-flan-t5",
     # See all InstructBLIP models at https://huggingface.co/models?filter=instructblip
 ]
 
@@ -1285,7 +1285,7 @@ class InstructBlipModel(InstructBlipPreTrainedModel):
     config_class = InstructBlipConfig
     main_input_name = "pixel_values"
 
-    # Copied from transformers.models.blip_2.modeling_blip_2.Blip2Model.__init__ with Blip2->InstructBlip,BLIP_2->INSTRUCTBLIP,Salesforce/blip2-opt-2.7b->Salesforce/instruct-blip-flan-t5
+    # Copied from transformers.models.blip_2.modeling_blip_2.Blip2Model.__init__ with Blip2->InstructBlip,BLIP_2->INSTRUCTBLIP,Salesforce/blip2-opt-2.7b->Salesforce/instructblip-flan-t5
     def __init__(self, config: InstructBlipConfig):
         super().__init__(config)
 
@@ -1354,11 +1354,11 @@ class InstructBlipModel(InstructBlipPreTrainedModel):
 
         >>> device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        >>> model = InstructBlipModel.from_pretrained("Salesforce/instruct-blip-flan-t5", torch_dtype=torch.float16)
+        >>> model = InstructBlipModel.from_pretrained("Salesforce/instructblip-flan-t5", torch_dtype=torch.float16)
 
         >>> model.to(device)  # doctest: +IGNORE_RESULT
 
-        >>> tokenizer = AutoTokenizer.from_pretrained("Salesforce/instruct-blip-flan-t5")
+        >>> tokenizer = AutoTokenizer.from_pretrained("Salesforce/instructblip-flan-t5")
         >>> inputs = tokenizer(["a photo of a cat", "a photo of a dog"], padding=True, return_tensors="pt").to(device)
         >>> text_features = model.get_text_features(**inputs)
         ```"""
@@ -1416,11 +1416,11 @@ class InstructBlipModel(InstructBlipPreTrainedModel):
 
         >>> device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        >>> model = InstructBlipModel.from_pretrained("Salesforce/instruct-blip-flan-t5", torch_dtype=torch.float16)
+        >>> model = InstructBlipModel.from_pretrained("Salesforce/instructblip-flan-t5", torch_dtype=torch.float16)
 
         >>> model.to(device)  # doctest: +IGNORE_RESULT
 
-        >>> processor = AutoProcessor.from_pretrained("Salesforce/instruct-blip-flan-t5")
+        >>> processor = AutoProcessor.from_pretrained("Salesforce/instructblip-flan-t5")
         >>> url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         >>> image = Image.open(requests.get(url, stream=True).raw)
         >>> inputs = processor(images=image, return_tensors="pt").to(device, torch.float16)
@@ -1464,8 +1464,8 @@ class InstructBlipModel(InstructBlipPreTrainedModel):
 
         >>> device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        >>> processor = Blip2Processor.from_pretrained("Salesforce/instruct-blip-flan-t5")
-        >>> model = InstructBlipModel.from_pretrained("Salesforce/instruct-blip-flan-t5", torch_dtype=torch.float16)
+        >>> processor = Blip2Processor.from_pretrained("Salesforce/instructblip-flan-t5")
+        >>> model = InstructBlipModel.from_pretrained("Salesforce/instructblip-flan-t5", torch_dtype=torch.float16)
         >>> model.to(device)  # doctest: +IGNORE_RESULT
 
         >>> url = "http://images.cocodataset.org/val2017/000000039769.jpg"
@@ -1510,7 +1510,9 @@ class InstructBlipModel(InstructBlipPreTrainedModel):
     def forward(
         self,
         pixel_values: torch.FloatTensor,
-        input_ids: torch.FloatTensor,
+        qformer_input_ids: torch.FloatTensor,
+        qformer_attention_mask: Optional[torch.LongTensor] = None,
+        input_ids: Optional[torch.FloatTensor] = None,
         attention_mask: Optional[torch.LongTensor] = None,
         decoder_input_ids: Optional[torch.LongTensor] = None,
         decoder_attention_mask: Optional[torch.LongTensor] = None,
@@ -1532,8 +1534,8 @@ class InstructBlipModel(InstructBlipPreTrainedModel):
 
         >>> device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        >>> processor = Blip2Processor.from_pretrained("Salesforce/instruct-blip-flan-t5")
-        >>> model = InstructBlipModel.from_pretrained("Salesforce/instruct-blip-flan-t5", torch_dtype=torch.float16)
+        >>> processor = Blip2Processor.from_pretrained("Salesforce/instructblip-flan-t5")
+        >>> model = InstructBlipModel.from_pretrained("Salesforce/instructblip-flan-t5", torch_dtype=torch.float16)
         >>> model.to(device)  # doctest: +IGNORE_RESULT
 
         >>> url = "http://images.cocodataset.org/val2017/000000039769.jpg"
@@ -1562,11 +1564,11 @@ class InstructBlipModel(InstructBlipPreTrainedModel):
         # difference with BLIP-2 here: we also feed the instruction prompt to the Q-Former
         query_tokens = self.query_tokens.expand(image_embeds.shape[0], -1, -1)
         query_attention_mask = torch.ones(query_tokens.size()[:-1], dtype=torch.long, device=image_embeds.device)
-        if attention_mask is None:
-            attention_mask = torch.ones_like(input_ids)
-        qformer_attention_mask = torch.cat([query_attention_mask, attention_mask], dim=1)
+        if qformer_attention_mask is None:
+            qformer_attention_mask = torch.ones_like(qformer_input_ids)
+        qformer_attention_mask = torch.cat([query_attention_mask, qformer_attention_mask], dim=1)
         query_outputs = self.qformer(
-            input_ids=input_ids,
+            input_ids=qformer_input_ids,
             attention_mask=qformer_attention_mask,
             query_embeds=query_tokens,
             encoder_hidden_states=image_embeds,
@@ -1575,7 +1577,7 @@ class InstructBlipModel(InstructBlipPreTrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
-        query_output = query_outputs[0]
+        query_output = query_outputs[0][:,:query_tokens.size(1),:]
 
         # step 3: use the language model, conditioned on the query outputs and the prompt
         language_model_inputs = self.language_projection(query_output)
@@ -1653,7 +1655,7 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
     config_class = InstructBlipConfig
     main_input_name = "pixel_values"
 
-    # Copied from transformers.models.blip_2.modeling_blip_2.Blip2ForConditionalGeneration.__init__ with Blip2->InstructBlip,BLIP_2->INSTRUCTBLIP,BLIP-2->InstructBLIP,Salesforce/blip2-opt-2.7b->Salesforce/instruct-blip-flan-t5
+    # Copied from transformers.models.blip_2.modeling_blip_2.Blip2ForConditionalGeneration.__init__ with Blip2->InstructBlip,BLIP_2->INSTRUCTBLIP,BLIP-2->InstructBLIP,Salesforce/blip2-opt-2.7b->Salesforce/instructblip-flan-t5
     def __init__(self, config: InstructBlipConfig):
         super().__init__(config)
 
@@ -1722,7 +1724,9 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
     def forward(
         self,
         pixel_values: torch.FloatTensor,
-        input_ids: torch.FloatTensor,
+        qformer_input_ids: torch.FloatTensor,
+        qformer_attention_mask: Optional[torch.LongTensor] = None,
+        input_ids: Optional[torch.FloatTensor] = None,
         attention_mask: Optional[torch.LongTensor] = None,
         decoder_input_ids: Optional[torch.LongTensor] = None,
         decoder_attention_mask: Optional[torch.LongTensor] = None,
@@ -1744,9 +1748,9 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
 
         >>> device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        >>> processor = Blip2Processor.from_pretrained("Salesforce/instruct-blip-flan-t5")
+        >>> processor = Blip2Processor.from_pretrained("Salesforce/instructblip-flan-t5")
         >>> model = InstructBlipForConditionalGeneration.from_pretrained(
-        ...     "Salesforce/instruct-blip-flan-t5", torch_dtype=torch.float16
+        ...     "Salesforce/instructblip-flan-t5", torch_dtype=torch.float16
         ... )
         >>> model.to(device)  # doctest: +IGNORE_RESULT
 
@@ -1778,11 +1782,11 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
         # difference with BLIP-2 here: we also feed the instruction prompt to the Q-Former
         query_tokens = self.query_tokens.expand(image_embeds.shape[0], -1, -1)
         query_attention_mask = torch.ones(query_tokens.size()[:-1], dtype=torch.long, device=image_embeds.device)
-        if attention_mask is None:
-            attention_mask = torch.ones_like(input_ids)
-        qformer_attention_mask = torch.cat([query_attention_mask, attention_mask], dim=1)
+        if qformer_attention_mask is None:
+            qformer_attention_mask = torch.ones_like(qformer_input_ids)
+        qformer_attention_mask = torch.cat([query_attention_mask, qformer_attention_mask], dim=1)
         query_outputs = self.qformer(
-            input_ids=input_ids,
+            input_ids=qformer_input_ids,
             attention_mask=qformer_attention_mask,
             query_embeds=query_tokens,
             encoder_hidden_states=image_embeds,
@@ -1791,7 +1795,7 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
-        query_output = query_outputs[0]
+        query_output = query_outputs[0][:,:query_tokens.size(1),:]
 
         # step 3: use the language model, conditioned on the query outputs and the prompt
         language_model_inputs = self.language_projection(query_output)
@@ -1805,6 +1809,9 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
             attention_mask = torch.ones_like(input_ids)
         expected_device = language_model_attention_mask.device
         attention_mask = torch.cat([language_model_attention_mask, attention_mask.to(expected_device)], dim=1)
+
+        print("Shape of inputs_embeds:", inputs_embeds.shape)
+        print("Shape of attention mask:", attention_mask.shape)
 
         if self.config.use_decoder_only_language_model:
             outputs = self.language_model(
@@ -1858,6 +1865,8 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
     def generate(
         self,
         pixel_values: torch.FloatTensor,
+        qformer_input_ids: Optional[torch.LongTensor] = None,
+        qformer_attention_mask: Optional[torch.LongTensor] = None,
         input_ids: Optional[torch.LongTensor] = None,
         attention_mask: Optional[torch.LongTensor] = None,
         **generate_kwargs,
@@ -1868,10 +1877,14 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
         Args:
             pixel_values (`torch.FloatTensor` of shape (batch_size, num_channels, height, width)):
                 Input images to be processed.
+            qformer_input_ids (`torch.LongTensor` of shape (batch_size, sequence_length), *optional*):
+                The sequence used as a prompt to be fed to the Q-Former module.
+            qformer_attention_mask (`torch.LongTensor` of shape (batch_size, sequence_length), *optional*):
+                Mask to avoid performing attention on padding token indices.
             input_ids (`torch.LongTensor` of shape (batch_size, sequence_length), *optional*):
                 The sequence used as a prompt for the generation.
             attention_mask (`torch.LongTensor` of shape (batch_size, sequence_length), *optional*):
-                Mask to avoid performing attention on padding token indices
+                Mask to avoid performing attention on padding token indices.
 
         Returns:
             captions (list): A list of strings of length batch_size * num_captions.
@@ -1886,18 +1899,18 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
 
         query_tokens = self.query_tokens.expand(image_embeds.shape[0], -1, -1)
         query_attention_mask = torch.ones(query_tokens.size()[:-1], dtype=torch.long, device=image_embeds.device)
-        if attention_mask is None:
-            attention_mask = torch.ones_like(input_ids)
-        qformer_attention_mask = torch.cat([query_attention_mask, attention_mask], dim=1)
+        if qformer_attention_mask is None:
+            qformer_attention_mask = torch.ones_like(qformer_input_ids)
+        qformer_attention_mask = torch.cat([query_attention_mask, qformer_attention_mask], dim=1)
         query_outputs = self.qformer(
-            input_ids=input_ids,
+            input_ids=qformer_input_ids,
             attention_mask=qformer_attention_mask,
             query_embeds=query_tokens,
             encoder_hidden_states=image_embeds,
             encoder_attention_mask=image_attention_mask,
             return_dict=True,
         )
-        query_output = query_outputs.last_hidden_state
+        query_output = query_outputs.last_hidden_state[:,:query_tokens.size(1),:]
 
         language_model_inputs = self.language_projection(query_output)
         language_attention_mask = torch.ones(
@@ -1909,6 +1922,8 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
                 .repeat(batch_size, 1)
                 .to(image_embeds.device)
             )
+        if attention_mask is None:
+            attention_mask = torch.ones_like(input_ids)
         attention_mask = torch.cat([language_attention_mask, attention_mask.to(language_attention_mask.device)], dim=1)
 
         # concatenate query embeddings with prompt embeddings

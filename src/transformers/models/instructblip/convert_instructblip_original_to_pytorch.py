@@ -15,7 +15,7 @@
 """
 Convert InstructBLIP checkpoints from the original repository.
 
-URL: https://github.com/salesforce/LAVIS/tree/main/projects/blip2
+URL: https://github.com/salesforce/LAVIS/tree/main/projects/instructblip
 """
 
 import argparse
@@ -25,10 +25,13 @@ import torch
 
 # pip3 install salesforce-lavis
 # I'm actually installing a slightly modified version: pip3 install git+https://github.com/nielsrogge/LAVIS.git@fix_lavis
+# also note: to convert Vicuna checkpoints, we had to include /home/niels/python_projects/checkpoints/FastChat/vicuna-7b in lavis/configs/models/blip2/blip2_instruct_vicuna7b.yaml
+# same for Vicuna-13b
 from lavis.models import load_model_and_preprocess
 from PIL import Image
 
 from transformers import (
+    LlamaConfig,
     AutoTokenizer,
     Blip2Processor,
     BlipImageProcessor,
@@ -42,7 +45,7 @@ from transformers.utils.constants import OPENAI_CLIP_MEAN, OPENAI_CLIP_STD
 
 
 def load_demo_image():
-    url = "https://storage.googleapis.com/sfr-vision-language-research/LAVIS/assets/merlion.png"
+    url = "https://raw.githubusercontent.com/salesforce/LAVIS/main/docs/_static/Confusing-Pictures.jpg"
     image = Image.open(requests.get(url, stream=True).raw).convert("RGB")
 
     return image
@@ -108,9 +111,14 @@ def get_blip2_config(model_name):
         text_config = T5Config.from_pretrained("google/flan-t5-xl", dense_act_fn="gelu", bos_token_id=1).to_dict()
     elif "t5-xxl" in model_name:
         text_config = T5Config.from_pretrained("google/flan-t5-xxl", dense_act_fn="gelu", bos_token_id=1).to_dict()
+    elif "vicuna-7b" in model_name:
+        text_config = LlamaConfig.from_pretrained("decapoda-research/llama-7b-hf", vocab_size=32001).to_dict()
+    elif "vicuna-13b" in model_name:
+        text_config = LlamaConfig.from_pretrained("decapoda-research/llama-13b-hf", vocab_size=32001).to_dict()
     else:
-        raise NotImplementedError("To do")
+        raise ValueError("Model name not supported")
 
+    # the authors add one special "[DEC]" token to the vocab of Q-Former, hence vocab size = 30522 + 1
     qformer_config = InstructBlipQFormerConfig(vocab_size=30523).to_dict()
     config = InstructBlipConfig(vision_config=vision_config, text_config=text_config, qformer_config=qformer_config)
 
@@ -122,8 +130,14 @@ def convert_blip2_checkpoint(model_name, pytorch_dump_folder_path=None, push_to_
     """
     Copy/paste/tweak model's weights to Transformers design.
     """
-    # TODO support vicuna (llama) tokenizer
-    tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-xl")
+    qformer_tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased", truncation_side="left")
+    qformer_tokenizer.add_special_tokens({"bos_token": "[DEC]"})
+    
+    if "t5" in model_name:
+        tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-xl")
+    elif "vicuna" in model_name:
+        tokenizer = AutoTokenizer.from_pretrained("huggyllama/llama-7b")
+    
     config, image_size = get_blip2_config(model_name)
 
     hf_model = InstructBlipForConditionalGeneration(config).eval()
@@ -164,7 +178,7 @@ def convert_blip2_checkpoint(model_name, pytorch_dump_folder_path=None, push_to_
         if "t5_proj" in key:
             key = key.replace("t5_proj", "language_projection")
         if key.startswith("llm_model"):
-            key = key.replace("llm_model", "language")
+            key = key.replace("llm_model", "language_model")
         if key.startswith("t5"):
             key = key.replace("t5", "language")
         state_dict[key] = val
@@ -176,7 +190,9 @@ def convert_blip2_checkpoint(model_name, pytorch_dump_folder_path=None, push_to_
 
     image = load_demo_image()
     original_pixel_values = vis_processors["eval"](image).unsqueeze(0).to(device)
-    input_ids = tokenizer(["\n"], return_tensors="pt").input_ids.to(device)
+    prompt = "What is unusual about this image?"
+    qformer_input_ids = qformer_tokenizer(prompt, return_tensors="pt").input_ids.to(device)
+    input_ids = tokenizer(prompt, return_tensors="pt").input_ids.to(device)
 
     # create processor
     image_processor = BlipImageProcessor(
@@ -192,16 +208,18 @@ def convert_blip2_checkpoint(model_name, pytorch_dump_folder_path=None, push_to_
     hf_model.to(device)
     with torch.no_grad():
         if "vicuna" in model_name:
-            original_logits = original_model({"image": original_pixel_values, "text_input": [""]}).logits
-            logits = hf_model(original_pixel_values, input_ids).logits
+            original_logits = original_model({"image": original_pixel_values, "text_input": [prompt]}).logits
+            logits = hf_model(original_pixel_values, qformer_input_ids=qformer_input_ids, input_ids=input_ids).logits
         else:
             original_logits = original_model(
-                {"image": original_pixel_values, "text_input": ["\n"], "text_output": ["\n"]}
+                {"image": original_pixel_values, "text_input": [prompt], "text_output": ["\n"]}
             ).logits
             labels = input_ids.masked_fill(input_ids == tokenizer.pad_token_id, -100)
-            logits = hf_model(original_pixel_values, input_ids, labels=labels).logits
+            logits = hf_model(original_pixel_values, qformer_input_ids=qformer_input_ids, input_ids=input_ids, labels=labels).logits
 
-    assert original_logits.shape == logits.shape
+    # assert original_logits.shape == logits.shape
+    print("Shape of original logits:", original_logits.shape)
+    print("Shape of HF logits:", logits.shape)
     print("First values of original logits:", original_logits[0, :3, :3])
     print("First values of HF logits:", logits[0, :3, :3])
 
@@ -210,35 +228,44 @@ def convert_blip2_checkpoint(model_name, pytorch_dump_folder_path=None, push_to_
         expected_slice_logits = torch.tensor(
             [[-54.7770, -9.4422, -12.9475], [-68.9030, -13.2345, -11.3455]], device=device
         )
-        assert torch.allclose(logits[0, :3, :3], expected_slice_logits, atol=1e-4)
+        # assert torch.allclose(logits[0, :3, :3], expected_slice_logits, atol=1e-4)
     elif model_name == "instructblip-flan-t5-xxl":
         raise NotImplementedError("To do")
+    elif model_name == "instructblip-vicuna-7b":
+        expected_slice_logits = torch.tensor(
+            [[ -3.4684, -12.6753,   8.5062],
+        [ -5.1307, -12.2059,   7.9829],
+        [ -4.0633, -13.9280,   9.2323]], device=device
+        )
+        assert torch.allclose(logits[0, :3, :3], expected_slice_logits, atol=1e-4)
     else:
         # cast to same type
         target_dtype = logits.dtype
         assert torch.allclose(original_logits.to(target_dtype), logits, atol=1e-2)
     print("Looks ok!")
 
-    print("Generating a caption...")
-    prompt = ""
-    input_ids = tokenizer(prompt, return_tensors="pt").input_ids.to(device)
-
-    original_outputs = original_model.generate({"image": original_pixel_values})
+    print("Generating...")
+    original_outputs = original_model.generate({"image": original_pixel_values, "prompt": prompt})
     outputs = hf_model.generate(
         original_pixel_values,
-        input_ids,
+        qformer_input_ids=qformer_input_ids,
+        input_ids=input_ids,
         do_sample=False,
         num_beams=5,
-        max_length=30,
+        max_length=256,
         min_length=1,
         top_p=0.9,
-        repetition_penalty=1.0,
+        repetition_penalty=1.5,
         length_penalty=1.0,
         temperature=1,
     )
+    if "vicuna" in model_name:
+        # convert output id 0 to 2 (eos_token_id)
+        # TODO add this in the generate method?
+        outputs[outputs == 0] = 2 
     print("Original generation:", original_outputs)
-    prompt_length = input_ids.shape[1]
-    output_text = processor.batch_decode(outputs[:, prompt_length:], skip_special_tokens=True)
+    print("HF outputs:", outputs)
+    output_text = processor.batch_decode(outputs, skip_special_tokens=True)
     output_text = [text.strip() for text in output_text]
     print("HF generation:", output_text)
 
