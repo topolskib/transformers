@@ -1577,7 +1577,7 @@ class InstructBlipModel(InstructBlipPreTrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
-        query_output = query_outputs[0][:,:query_tokens.size(1),:]
+        query_output = query_outputs[0][:, : query_tokens.size(1), :]
 
         # step 3: use the language model, conditioned on the query outputs and the prompt
         language_model_inputs = self.language_projection(query_output)
@@ -1795,7 +1795,7 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
-        query_output = query_outputs[0][:,:query_tokens.size(1),:]
+        query_output = query_outputs[0][:, : query_tokens.size(1), :]
 
         # step 3: use the language model, conditioned on the query outputs and the prompt
         language_model_inputs = self.language_projection(query_output)
@@ -1910,7 +1910,7 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
             encoder_attention_mask=image_attention_mask,
             return_dict=True,
         )
-        query_output = query_outputs.last_hidden_state[:,:query_tokens.size(1),:]
+        query_output = query_outputs.last_hidden_state[:, : query_tokens.size(1), :]
 
         language_model_inputs = self.language_projection(query_output)
         language_attention_mask = torch.ones(
