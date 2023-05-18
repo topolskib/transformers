@@ -247,6 +247,8 @@ def convert_blip2_checkpoint(model_name, pytorch_dump_folder_path=None, push_to_
 
     print("Generating...")
     original_outputs = original_model.generate({"image": original_pixel_values, "prompt": prompt})
+
+    # important: we need to cast the weights of the HF model to the appropriate type
     outputs = hf_model.generate(
         original_pixel_values,
         qformer_input_ids=qformer_input_ids,

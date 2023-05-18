@@ -14,6 +14,7 @@
 # limitations under the License.
 """ PyTorch InstructBLIP model."""
 
+import contextlib
 import math
 from dataclasses import dataclass
 from typing import Any, Optional, Tuple, Union
@@ -1861,6 +1862,16 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
             language_model_outputs=outputs,
         )
 
+    def maybe_autocast(self, dtype=torch.float16):
+        # if on cpu, don't use autocast
+        # if on gpu, use autocast with dtype if provided, otherwise use torch.float16
+        enable_autocast = self.device != torch.device("cpu")
+
+        if enable_autocast:
+            return torch.cuda.amp.autocast(dtype=dtype)
+        else:
+            return contextlib.nullcontext()
+
     @torch.no_grad()
     def generate(
         self,
@@ -1894,7 +1905,8 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
             self._preprocess_accelerate()
 
         batch_size = pixel_values.shape[0]
-        image_embeds = self.vision_model(pixel_values, return_dict=True).last_hidden_state
+        with self.maybe_autocast():
+            image_embeds = self.vision_model(pixel_values, return_dict=True).last_hidden_state
         image_attention_mask = torch.ones(image_embeds.size()[:-1], dtype=torch.long, device=image_embeds.device)
 
         query_tokens = self.query_tokens.expand(image_embeds.shape[0], -1, -1)
@@ -1916,24 +1928,28 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
         language_attention_mask = torch.ones(
             language_model_inputs.size()[:-1], dtype=torch.long, device=language_model_inputs.device
         )
-        if input_ids is None:
-            input_ids = (
-                torch.LongTensor([[self.config.text_config.bos_token_id]])
-                .repeat(batch_size, 1)
-                .to(image_embeds.device)
+
+        with self.maybe_autocast(dtype=torch.bfloat16):
+            if input_ids is None:
+                input_ids = (
+                    torch.LongTensor([[self.config.text_config.bos_token_id]])
+                    .repeat(batch_size, 1)
+                    .to(image_embeds.device)
+                )
+            if attention_mask is None:
+                attention_mask = torch.ones_like(input_ids)
+            attention_mask = torch.cat(
+                [language_attention_mask, attention_mask.to(language_attention_mask.device)], dim=1
             )
-        if attention_mask is None:
-            attention_mask = torch.ones_like(input_ids)
-        attention_mask = torch.cat([language_attention_mask, attention_mask.to(language_attention_mask.device)], dim=1)
 
-        # concatenate query embeddings with prompt embeddings
-        inputs_embeds = self.get_input_embeddings()(input_ids)
-        inputs_embeds = torch.cat([language_model_inputs, inputs_embeds.to(language_model_inputs.device)], dim=1)
+            # concatenate query embeddings with prompt embeddings
+            inputs_embeds = self.get_input_embeddings()(input_ids)
+            inputs_embeds = torch.cat([language_model_inputs, inputs_embeds.to(language_model_inputs.device)], dim=1)
 
-        outputs = self.language_model.generate(
-            inputs_embeds=inputs_embeds,
-            attention_mask=attention_mask,
-            **generate_kwargs,
-        )
+            outputs = self.language_model.generate(
+                inputs_embeds=inputs_embeds,
+                attention_mask=attention_mask,
+                **generate_kwargs,
+            )
 
         return outputs
