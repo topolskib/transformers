@@ -31,6 +31,8 @@ from lavis.models import load_model_and_preprocess
 from PIL import Image
 
 from transformers import (
+    LlamaTokenizer,
+    T5TokenizerFast,
     AutoTokenizer,
     Blip2Processor,
     BlipImageProcessor,
@@ -134,9 +136,13 @@ def convert_blip2_checkpoint(model_name, pytorch_dump_folder_path=None, push_to_
     qformer_tokenizer.add_special_tokens({"bos_token": "[DEC]"})
 
     if "t5" in model_name:
-        tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-xl")
+        tokenizer = T5TokenizerFast.from_pretrained("google/flan-t5-xl", truncation_side='left')
     elif "vicuna" in model_name:
-        tokenizer = AutoTokenizer.from_pretrained("huggyllama/llama-7b")
+        tokenizer = LlamaTokenizer.from_pretrained("huggyllama/llama-7b", use_fast=False, truncation_side="left")
+        tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+        tokenizer.add_special_tokens({'bos_token': '</s>'})
+        tokenizer.add_special_tokens({'eos_token': '</s>'})
+        tokenizer.add_special_tokens({'unk_token': '</s>'})
 
     config, image_size = get_blip2_config(model_name)
 
@@ -186,6 +192,7 @@ def convert_blip2_checkpoint(model_name, pytorch_dump_folder_path=None, push_to_
     # read in qv biases
     read_in_q_v_bias(state_dict, config)
 
+    # note: weights get loaded in torch.float32 by default
     hf_model.load_state_dict(state_dict, strict=True)
 
     image = load_demo_image()
@@ -225,30 +232,35 @@ def convert_blip2_checkpoint(model_name, pytorch_dump_folder_path=None, push_to_
     print("Shape of HF logits:", logits.shape)
     print("First values of original logits:", original_logits[0, :3, :3])
     print("First values of HF logits:", logits[0, :3, :3])
+    print("Dtype of HF logits:", logits.dtype)
 
     # assert values
     if model_name == "instructblip-flan-t5-xl":
         expected_slice_logits = torch.tensor(
-            [[-54.7770, -9.4422, -12.9475], [-68.9030, -13.2345, -11.3455]], device=device
+            [[-61.7500,  -7.2500, -12.4375],
+        [-44.0000,  -5.2188,   1.0078]], device=device, dtype=torch.bfloat16,
         )
-        # assert torch.allclose(logits[0, :3, :3], expected_slice_logits, atol=1e-4)
+        assert torch.allclose(logits[0, :3, :3], expected_slice_logits, atol=1e-4)
     elif model_name == "instructblip-flan-t5-xxl":
         raise NotImplementedError("To do")
     elif model_name == "instructblip-vicuna-7b":
         expected_slice_logits = torch.tensor(
-            [[-3.4684, -12.6753, 8.5062], [-5.1307, -12.2059, 7.9829], [-4.0633, -13.9280, 9.2323]], device=device
+            [[ -3.4707, -12.6719,   8.5000],
+        [ -5.1328, -12.2109,   7.9727],
+        [ -4.0664, -13.9219,   9.2266]], device=device, dtype=torch.float16,
         )
         assert torch.allclose(logits[0, :3, :3], expected_slice_logits, atol=1e-4)
+    elif model_name == "instructblip-vicuna-13b":
+        raise NotImplementedError("To do")
     else:
-        # cast to same type
-        target_dtype = logits.dtype
-        assert torch.allclose(original_logits.to(target_dtype), logits, atol=1e-2)
+        raise ValueError("Model name not supported")
     print("Looks ok!")
 
-    print("Generating...")
+    print("Generating with original model...")
     original_outputs = original_model.generate({"image": original_pixel_values, "prompt": prompt})
 
     # important: we need to cast the weights of the HF model to the appropriate type
+    print("Generating with HF model...")
     outputs = hf_model.generate(
         original_pixel_values,
         qformer_input_ids=qformer_input_ids,

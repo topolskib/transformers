@@ -1769,13 +1769,15 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
 
         # step 1: forward the images through the vision encoder,
         # to get image embeddings of shape (batch_size, seq_len, hidden_size)
-        vision_outputs = self.vision_model(
-            pixel_values=pixel_values,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
-        )
-        image_embeds = vision_outputs[0]
+        # TODO remove this hack
+        with self.maybe_autocast():
+            vision_outputs = self.vision_model(
+                pixel_values=pixel_values,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+            )
+            image_embeds = vision_outputs[0]
 
         # step 2: forward the query tokens through the QFormer, using the image embeddings for cross-attention
         image_attention_mask = torch.ones(image_embeds.size()[:-1], dtype=torch.long, device=image_embeds.device)
@@ -1803,52 +1805,56 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
         language_model_attention_mask = torch.ones(
             language_model_inputs.size()[:-1], dtype=torch.long, device=language_model_inputs.device
         )
-        inputs_embeds = self.language_model.get_input_embeddings()(input_ids)
-        inputs_embeds = torch.cat([language_model_inputs, inputs_embeds.to(language_model_inputs.device)], dim=1)
 
-        if attention_mask is None:
-            attention_mask = torch.ones_like(input_ids)
-        expected_device = language_model_attention_mask.device
-        attention_mask = torch.cat([language_model_attention_mask, attention_mask.to(expected_device)], dim=1)
+        # TODO remove this hack
+        dtype = torch.bfloat16 if self.config.text_config.model_type == "t5" else torch.float16
+        with self.maybe_autocast(dtype=dtype):
+            inputs_embeds = self.language_model.get_input_embeddings()(input_ids)
+            inputs_embeds = torch.cat([language_model_inputs, inputs_embeds.to(language_model_inputs.device)], dim=1)
 
-        print("Shape of inputs_embeds:", inputs_embeds.shape)
-        print("Shape of attention mask:", attention_mask.shape)
+            if attention_mask is None:
+                attention_mask = torch.ones_like(input_ids)
+            expected_device = language_model_attention_mask.device
+            attention_mask = torch.cat([language_model_attention_mask, attention_mask.to(expected_device)], dim=1)
 
-        if self.config.use_decoder_only_language_model:
-            outputs = self.language_model(
-                inputs_embeds=inputs_embeds,
-                attention_mask=attention_mask,
-                output_attentions=output_attentions,
-                output_hidden_states=output_hidden_states,
-                return_dict=return_dict,
-            )
-            logits = outputs.logits if return_dict else outputs[0]
-            loss = None
-            # we compute the loss here since we need to take into account the sequence length of the query embeds
-            if labels is not None:
-                labels = labels.to(logits.device)
-                logits = logits[:, -labels.size(1) :, :]
-                # Shift so that tokens < n predict n
-                shift_logits = logits[..., :-1, :].contiguous()
-                shift_labels = labels[..., 1:].contiguous().to(logits.device)
+            print("Shape of inputs_embeds:", inputs_embeds.shape)
+            print("Shape of attention mask:", attention_mask.shape)
 
-                # Flatten the tokens
-                loss_fct = CrossEntropyLoss(reduction="mean")
+            if self.config.use_decoder_only_language_model:
+                outputs = self.language_model(
+                    inputs_embeds=inputs_embeds,
+                    attention_mask=attention_mask,
+                    output_attentions=output_attentions,
+                    output_hidden_states=output_hidden_states,
+                    return_dict=return_dict,
+                )
+                logits = outputs.logits if return_dict else outputs[0]
+                loss = None
+                # we compute the loss here since we need to take into account the sequence length of the query embeds
+                if labels is not None:
+                    labels = labels.to(logits.device)
+                    logits = logits[:, -labels.size(1) :, :]
+                    # Shift so that tokens < n predict n
+                    shift_logits = logits[..., :-1, :].contiguous()
+                    shift_labels = labels[..., 1:].contiguous().to(logits.device)
 
-                loss = loss_fct(shift_logits.view(-1, self.config.text_config.vocab_size), shift_labels.view(-1))
-        else:
-            outputs = self.language_model(
-                inputs_embeds=inputs_embeds,
-                attention_mask=attention_mask,
-                decoder_input_ids=decoder_input_ids,
-                decoder_attention_mask=decoder_attention_mask,
-                output_attentions=output_attentions,
-                output_hidden_states=output_hidden_states,
-                return_dict=return_dict,
-                labels=labels,
-            )
-            loss = outputs.loss if return_dict else outputs[0]
-            logits = outputs.logits if return_dict else outputs[1]
+                    # Flatten the tokens
+                    loss_fct = CrossEntropyLoss(reduction="mean")
+
+                    loss = loss_fct(shift_logits.view(-1, self.config.text_config.vocab_size), shift_labels.view(-1))
+            else:
+                outputs = self.language_model(
+                    inputs_embeds=inputs_embeds,
+                    attention_mask=attention_mask,
+                    decoder_input_ids=decoder_input_ids,
+                    decoder_attention_mask=decoder_attention_mask,
+                    output_attentions=output_attentions,
+                    output_hidden_states=output_hidden_states,
+                    return_dict=return_dict,
+                    labels=labels,
+                )
+                loss = outputs.loss if return_dict else outputs[0]
+                logits = outputs.logits if return_dict else outputs[1]
 
         if not return_dict:
             output = (logits, vision_outputs, query_outputs, outputs)
@@ -1905,6 +1911,7 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
             self._preprocess_accelerate()
 
         batch_size = pixel_values.shape[0]
+        # TODO remove this hack
         with self.maybe_autocast():
             image_embeds = self.vision_model(pixel_values, return_dict=True).last_hidden_state
         image_attention_mask = torch.ones(image_embeds.size()[:-1], dtype=torch.long, device=image_embeds.device)
@@ -1929,19 +1936,21 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
             language_model_inputs.size()[:-1], dtype=torch.long, device=language_model_inputs.device
         )
 
-        with self.maybe_autocast(dtype=torch.bfloat16):
-            if input_ids is None:
+        if input_ids is None:
                 input_ids = (
                     torch.LongTensor([[self.config.text_config.bos_token_id]])
                     .repeat(batch_size, 1)
                     .to(image_embeds.device)
                 )
-            if attention_mask is None:
-                attention_mask = torch.ones_like(input_ids)
-            attention_mask = torch.cat(
-                [language_attention_mask, attention_mask.to(language_attention_mask.device)], dim=1
-            )
+        if attention_mask is None:
+            attention_mask = torch.ones_like(input_ids)
+        attention_mask = torch.cat(
+            [language_attention_mask, attention_mask.to(language_attention_mask.device)], dim=1
+        )
 
+        # TODO remove this hack
+        dtype = torch.bfloat16 if self.config.text_config.model_type == "t5" else torch.float16
+        with self.maybe_autocast(dtype=dtype):
             # concatenate query embeddings with prompt embeddings
             inputs_embeds = self.get_input_embeddings()(input_ids)
             inputs_embeds = torch.cat([language_model_inputs, inputs_embeds.to(language_model_inputs.device)], dim=1)
