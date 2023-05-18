@@ -31,8 +31,6 @@ from lavis.models import load_model_and_preprocess
 from PIL import Image
 
 from transformers import (
-    LlamaTokenizer,
-    T5TokenizerFast,
     AutoTokenizer,
     Blip2Processor,
     BlipImageProcessor,
@@ -41,7 +39,9 @@ from transformers import (
     InstructBlipQFormerConfig,
     InstructBlipVisionConfig,
     LlamaConfig,
+    LlamaTokenizer,
     T5Config,
+    T5TokenizerFast,
 )
 from transformers.utils.constants import OPENAI_CLIP_MEAN, OPENAI_CLIP_STD
 
@@ -136,13 +136,13 @@ def convert_blip2_checkpoint(model_name, pytorch_dump_folder_path=None, push_to_
     qformer_tokenizer.add_special_tokens({"bos_token": "[DEC]"})
 
     if "t5" in model_name:
-        tokenizer = T5TokenizerFast.from_pretrained("google/flan-t5-xl", truncation_side='left')
+        tokenizer = T5TokenizerFast.from_pretrained("google/flan-t5-xl", truncation_side="left")
     elif "vicuna" in model_name:
         tokenizer = LlamaTokenizer.from_pretrained("huggyllama/llama-7b", use_fast=False, truncation_side="left")
-        tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-        tokenizer.add_special_tokens({'bos_token': '</s>'})
-        tokenizer.add_special_tokens({'eos_token': '</s>'})
-        tokenizer.add_special_tokens({'unk_token': '</s>'})
+        tokenizer.add_special_tokens({"pad_token": "[PAD]"})
+        tokenizer.add_special_tokens({"bos_token": "</s>"})
+        tokenizer.add_special_tokens({"eos_token": "</s>"})
+        tokenizer.add_special_tokens({"unk_token": "</s>"})
 
     config, image_size = get_blip2_config(model_name)
 
@@ -237,17 +237,18 @@ def convert_blip2_checkpoint(model_name, pytorch_dump_folder_path=None, push_to_
     # assert values
     if model_name == "instructblip-flan-t5-xl":
         expected_slice_logits = torch.tensor(
-            [[-61.7500,  -7.2500, -12.4375],
-        [-44.0000,  -5.2188,   1.0078]], device=device, dtype=torch.bfloat16,
+            [[-61.7500, -7.2500, -12.4375], [-44.0000, -5.2188, 1.0078]],
+            device=device,
+            dtype=torch.bfloat16,
         )
         assert torch.allclose(logits[0, :3, :3], expected_slice_logits, atol=1e-4)
     elif model_name == "instructblip-flan-t5-xxl":
         raise NotImplementedError("To do")
     elif model_name == "instructblip-vicuna-7b":
         expected_slice_logits = torch.tensor(
-            [[ -3.4707, -12.6719,   8.5000],
-        [ -5.1328, -12.2109,   7.9727],
-        [ -4.0664, -13.9219,   9.2266]], device=device, dtype=torch.float16,
+            [[-3.4707, -12.6719, 8.5000], [-5.1328, -12.2109, 7.9727], [-4.0664, -13.9219, 9.2266]],
+            device=device,
+            dtype=torch.float16,
         )
         assert torch.allclose(logits[0, :3, :3], expected_slice_logits, atol=1e-4)
     elif model_name == "instructblip-vicuna-13b":
@@ -257,7 +258,7 @@ def convert_blip2_checkpoint(model_name, pytorch_dump_folder_path=None, push_to_
     print("Looks ok!")
 
     print("Generating with original model...")
-    original_outputs = original_model.generate({"image": original_pixel_values, "prompt": prompt})
+    original_outputs = original_model.generate({"image": original_pixel_values, "prompt": prompt}, num_beams=1)
 
     # important: we need to cast the weights of the HF model to the appropriate type
     print("Generating with HF model...")
@@ -266,7 +267,7 @@ def convert_blip2_checkpoint(model_name, pytorch_dump_folder_path=None, push_to_
         qformer_input_ids=qformer_input_ids,
         input_ids=input_ids,
         do_sample=False,
-        num_beams=5,
+        num_beams=1,
         max_length=256,
         min_length=1,
         top_p=0.9,

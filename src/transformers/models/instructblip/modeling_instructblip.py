@@ -273,7 +273,6 @@ class InstructBlipEncoderLayer(nn.Module):
         return outputs
 
 
-# Copied from transformers.models.blip_2.modeling_blip_2.Blip2PreTrainedModel with Blip2->InstructBlip
 class InstructBlipPreTrainedModel(PreTrainedModel):
     """
     An abstract class to handle weights initialization and a simple interface for downloading and loading pretrained
@@ -289,9 +288,8 @@ class InstructBlipPreTrainedModel(PreTrainedModel):
         r"language_model.decoder.embed_tokens.weight",
         r"language_model.lm_head.weight",
     ]
-    _no_split_modules = ["InstructBlipAttention", "T5Block", "OPTDecoderLayer"]
-    _keep_in_fp32_modules = ["wo"]
 
+    # Copied from transformers.models.blip_2.modeling_blip_2.Blip2PreTrainedModel._init_weights with Blip2->InstructBlip
     def _init_weights(self, module):
         """Initialize the weights"""
         factor = self.config.initializer_range
@@ -1446,6 +1444,8 @@ class InstructBlipModel(InstructBlipPreTrainedModel):
     def get_qformer_features(
         self,
         pixel_values: Optional[torch.FloatTensor] = None,
+        qformer_input_ids: torch.FloatTensor = None,
+        qformer_attention_mask: Optional[torch.LongTensor] = None,
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
@@ -1456,7 +1456,9 @@ class InstructBlipModel(InstructBlipPreTrainedModel):
                 The vision model outputs. If `return_dict=True`, the output is a [`BaseModelOutputWithPooling`] that
                 contains the image features, the pooled image features and the hidden states if
                 `output_hidden_states=True`.
+
         Examples:
+
         ```python
         >>> import torch
         >>> from PIL import Image
@@ -1492,8 +1494,15 @@ class InstructBlipModel(InstructBlipPreTrainedModel):
         # step 2: forward the query tokens through the QFormer, using the image embeddings for cross-attention
         image_attention_mask = torch.ones(image_embeds.size()[:-1], dtype=torch.long, device=image_embeds.device)
 
+        # difference with BLIP-2 here: we also feed the instruction prompt to the Q-Former
         query_tokens = self.query_tokens.expand(image_embeds.shape[0], -1, -1)
+        query_attention_mask = torch.ones(query_tokens.size()[:-1], dtype=torch.long, device=image_embeds.device)
+        if qformer_attention_mask is None:
+            qformer_attention_mask = torch.ones_like(qformer_input_ids)
+        qformer_attention_mask = torch.cat([query_attention_mask, qformer_attention_mask], dim=1)
         query_outputs = self.qformer(
+            input_ids=qformer_input_ids,
+            attention_mask=qformer_attention_mask,
             query_embeds=query_tokens,
             encoder_hidden_states=image_embeds,
             encoder_attention_mask=image_attention_mask,
@@ -1817,9 +1826,6 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
             expected_device = language_model_attention_mask.device
             attention_mask = torch.cat([language_model_attention_mask, attention_mask.to(expected_device)], dim=1)
 
-            print("Shape of inputs_embeds:", inputs_embeds.shape)
-            print("Shape of attention mask:", attention_mask.shape)
-
             if self.config.use_decoder_only_language_model:
                 outputs = self.language_model(
                     inputs_embeds=inputs_embeds,
@@ -1937,16 +1943,14 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
         )
 
         if input_ids is None:
-                input_ids = (
-                    torch.LongTensor([[self.config.text_config.bos_token_id]])
-                    .repeat(batch_size, 1)
-                    .to(image_embeds.device)
-                )
+            input_ids = (
+                torch.LongTensor([[self.config.text_config.bos_token_id]])
+                .repeat(batch_size, 1)
+                .to(image_embeds.device)
+            )
         if attention_mask is None:
             attention_mask = torch.ones_like(input_ids)
-        attention_mask = torch.cat(
-            [language_attention_mask, attention_mask.to(language_attention_mask.device)], dim=1
-        )
+        attention_mask = torch.cat([language_attention_mask, attention_mask.to(language_attention_mask.device)], dim=1)
 
         # TODO remove this hack
         dtype = torch.bfloat16 if self.config.text_config.model_type == "t5" else torch.float16

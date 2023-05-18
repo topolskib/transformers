@@ -34,7 +34,6 @@ from ...test_modeling_common import (
     ids_tensor,
     random_attention_mask,
 )
-from ...test_pipeline_mixin import PipelineTesterMixin
 
 
 if is_torch_available():
@@ -246,10 +245,12 @@ class InstructBlipQFormerModelTester:
 
     def prepare_config_and_inputs(self):
         input_ids = ids_tensor([self.batch_size, self.seq_length], self.vocab_size)
+        qformer_input_ids = ids_tensor([self.batch_size, self.seq_length], self.vocab_size)
 
         input_mask = None
         if self.use_input_mask:
             input_mask = random_attention_mask([self.batch_size, self.seq_length])
+            qformer_attention_mask = ids_tensor([self.batch_size, self.seq_length], vocab_size=2)
 
         if input_mask is not None:
             batch_size, seq_length = input_mask.shape
@@ -260,7 +261,7 @@ class InstructBlipQFormerModelTester:
 
         config = self.get_config()
 
-        return config, input_ids, input_mask
+        return config, input_ids, input_mask, qformer_input_ids, qformer_attention_mask
 
     def get_config(self):
         return InstructBlipQFormerConfig(
@@ -379,11 +380,12 @@ class InstructBlipForConditionalGenerationDecoderOnlyModelTester:
 
     def prepare_config_and_inputs(self):
         _, pixel_values = self.vision_model_tester.prepare_config_and_inputs()
+        _, _, _, qformer_input_ids, qformer_attention_mask = self.qformer_model_tester.prepare_config_and_inputs()
         _, input_ids, attention_mask = self.text_model_tester.prepare_config_and_inputs()
 
         config = self.get_config()
 
-        return config, input_ids, attention_mask, pixel_values
+        return config, input_ids, attention_mask, qformer_input_ids, qformer_attention_mask, pixel_values
 
     def get_config(self):
         return InstructBlipConfig.from_vision_qformer_text_configs(
@@ -393,10 +395,10 @@ class InstructBlipForConditionalGenerationDecoderOnlyModelTester:
             num_query_tokens=self.num_query_tokens,
         )
 
-    def create_and_check_for_conditional_generation(self, config, input_ids, attention_mask, pixel_values):
+    def create_and_check_for_conditional_generation(self, config, input_ids, attention_mask, qformer_input_ids, qformer_attention_mask, pixel_values):
         model = InstructBlipForConditionalGeneration(config).to(torch_device).eval()
         with torch.no_grad():
-            result = model(pixel_values, input_ids, attention_mask)
+            result = model(pixel_values, input_ids=input_ids, attention_mask=attention_mask, qformer_input_ids=qformer_input_ids, qformer_attention_mask=qformer_attention_mask)
 
         expected_seq_length = self.num_query_tokens + self.text_model_tester.seq_length
         self.parent.assertEqual(
@@ -406,11 +408,13 @@ class InstructBlipForConditionalGenerationDecoderOnlyModelTester:
 
     def prepare_config_and_inputs_for_common(self):
         config_and_inputs = self.prepare_config_and_inputs()
-        config, input_ids, attention_mask, pixel_values = config_and_inputs
+        config, input_ids, attention_mask, qformer_input_ids, qformer_attention_mask, pixel_values = config_and_inputs
         inputs_dict = {
             "pixel_values": pixel_values,
             "input_ids": input_ids,
             "attention_mask": attention_mask,
+            "qformer_input_ids": qformer_input_ids,
+            "qformer_attention_mask": qformer_attention_mask,
             "labels": input_ids,
         }
         return config, inputs_dict
@@ -605,6 +609,7 @@ class InstructBlipModelTester:
 
     def prepare_config_and_inputs(self):
         _, pixel_values = self.vision_model_tester.prepare_config_and_inputs()
+        _, _, _, qformer_input_ids, qformer_attention_mask = self.qformer_model_tester.prepare_config_and_inputs()
         (
             _,
             input_ids,
@@ -616,7 +621,17 @@ class InstructBlipModelTester:
 
         config = self.get_config()
 
-        return config, input_ids, attention_mask, pixel_values, decoder_input_ids, decoder_attention_mask, lm_labels
+        return (
+            config,
+            input_ids,
+            attention_mask,
+            qformer_input_ids,
+            qformer_attention_mask,
+            pixel_values,
+            decoder_input_ids,
+            decoder_attention_mask,
+            lm_labels,
+        )
 
     def get_config(self):
         return InstructBlipConfig.from_vision_qformer_text_configs(
@@ -627,11 +642,28 @@ class InstructBlipModelTester:
         )
 
     def create_and_check_for_conditional_generation(
-        self, config, input_ids, attention_mask, pixel_values, decoder_input_ids, decoder_attention_mask, labels
+        self,
+        config,
+        input_ids,
+        attention_mask,
+        qformer_input_ids,
+        qformer_attention_mask,
+        pixel_values,
+        decoder_input_ids,
+        decoder_attention_mask,
+        labels,
     ):
         model = InstructBlipForConditionalGeneration(config).to(torch_device).eval()
         with torch.no_grad():
-            result = model(pixel_values, input_ids, attention_mask, decoder_input_ids, decoder_attention_mask)
+            result = model(
+                pixel_values,
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                qformer_input_ids=qformer_input_ids,
+                qformer_attention_mask=qformer_attention_mask,
+                decoder_input_ids=decoder_input_ids,
+                decoder_attention_mask=decoder_attention_mask,
+            )
 
         self.parent.assertEqual(
             result.logits.shape,
@@ -648,6 +680,8 @@ class InstructBlipModelTester:
             config,
             input_ids,
             attention_mask,
+            qformer_input_ids,
+            qformer_attention_mask,
             pixel_values,
             decoder_input_ids,
             decoder_attention_mask,
@@ -657,6 +691,8 @@ class InstructBlipModelTester:
             "pixel_values": pixel_values,
             "input_ids": input_ids,
             "attention_mask": attention_mask,
+            "qformer_input_ids": qformer_input_ids,
+            "qformer_attention_mask": qformer_attention_mask,
             "decoder_input_ids": decoder_input_ids,
             "decoder_attention_mask": decoder_attention_mask,
             "labels": labels,
@@ -665,7 +701,7 @@ class InstructBlipModelTester:
 
 
 @require_torch
-class InstructBlipModelTest(ModelTesterMixin, PipelineTesterMixin, unittest.TestCase):
+class InstructBlipModelTest(ModelTesterMixin, unittest.TestCase):
     all_model_classes = (InstructBlipForConditionalGeneration, InstructBlipModel) if is_torch_available() else ()
     fx_compatible = False
     test_head_masking = False
@@ -754,12 +790,20 @@ class InstructBlipModelTest(ModelTesterMixin, PipelineTesterMixin, unittest.Test
         model = InstructBlipModel(config).to(torch_device)
         model.eval()
         text_features = model.get_text_features(**inputs_dict)
-        self.assertEqual(text_features[0].shape, (1, 10, config.text_config.vocab_size))
+        self.assertEqual(text_features[0].shape, (1, self.model_tester.num_query_tokens, config.text_config.vocab_size))
 
     def test_get_image_features(self):
         config, inputs_dict = self.model_tester.prepare_config_and_inputs_for_common()
 
-        keys_to_pop = ["input_ids", "attention_mask", "decoder_input_ids", "decoder_attention_mask", "labels"]
+        keys_to_pop = [
+            "input_ids",
+            "attention_mask",
+            "qformer_input_ids",
+            "qformer_attention_mask",
+            "decoder_input_ids",
+            "decoder_attention_mask",
+            "labels",
+        ]
 
         for key in keys_to_pop:
             inputs_dict.pop(key)
@@ -787,9 +831,10 @@ class InstructBlipModelTest(ModelTesterMixin, PipelineTesterMixin, unittest.Test
         model = InstructBlipModel(config).to(torch_device)
         model.eval()
         qformer_features = model.get_qformer_features(**inputs_dict)
+        expected_seq_length = inputs_dict["qformer_input_ids"].shape[1] + 10
         self.assertEqual(
             qformer_features[0].shape,
-            (self.model_tester.vision_model_tester.batch_size, 10, config.vision_config.hidden_size),
+            (self.model_tester.vision_model_tester.batch_size, expected_seq_length, config.vision_config.hidden_size),
         )
 
     # override from common to deal with nested configurations (`vision_config`, `text_config` and `qformer_config`)
@@ -808,6 +853,10 @@ class InstructBlipModelTest(ModelTesterMixin, PipelineTesterMixin, unittest.Test
                         [0.0, 1.0],
                         msg=f"Parameter {name} of model {model_class} seems not properly initialized",
                     )
+
+    @unittest.skip(reason="InstructBlipForConditionalGeneration doesn't support feedforward chunking")
+    def test_feed_forward_chunking(self):
+        pass
 
 
 # We will verify our results on an image of cute cats
