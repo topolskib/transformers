@@ -48,7 +48,6 @@ if is_vision_available():
     from PIL import Image
 
 
-
 class InstructBlipVisionModelTester:
     def __init__(
         self,
