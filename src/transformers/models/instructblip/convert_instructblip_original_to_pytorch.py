@@ -36,6 +36,7 @@ from transformers import (
     BlipImageProcessor,
     InstructBlipConfig,
     InstructBlipForConditionalGeneration,
+    InstructBlipProcessor,
     InstructBlipQFormerConfig,
     InstructBlipVisionConfig,
     LlamaConfig,
@@ -283,6 +284,27 @@ def convert_blip2_checkpoint(model_name, pytorch_dump_folder_path=None, push_to_
     output_text = processor.batch_decode(outputs, skip_special_tokens=True)
     output_text = [text.strip() for text in output_text]
     print("HF generation:", output_text)
+
+    # test end-to-end with processor
+    print("Testing with processor...")
+    processor = InstructBlipProcessor(image_processor=image_processor, tokenizer=tokenizer)
+
+    inputs = processor(images=image, text=prompt, return_tensors="pt").to(device)
+
+    outputs = hf_model.generate(
+        **inputs,
+        do_sample=False,
+        num_beams=1,
+        max_length=256,
+        min_length=1,
+        top_p=0.9,
+        repetition_penalty=1.5,
+        length_penalty=1.0,
+        temperature=1,
+    )
+    output_text = processor.batch_decode(outputs, skip_special_tokens=True)
+    output_text = [text.strip() for text in output_text]
+    print("Generation:", output_text)
 
     if pytorch_dump_folder_path is not None:
         processor.save_pretrained(pytorch_dump_folder_path)

@@ -23,6 +23,7 @@ _import_structure = {
         "InstructBlipQFormerConfig",
         "InstructBlipVisionConfig",
     ],
+    "processing_instructblip": ["InstructBlipProcessor"],
 }
 
 try:
@@ -47,6 +48,7 @@ if TYPE_CHECKING:
         InstructBlipQFormerConfig,
         InstructBlipVisionConfig,
     )
+    from .processing_instructblip import InstructBlipProcessor
 
     try:
         if not is_torch_available():

@@ -326,6 +326,7 @@ _import_structure = {
     "models.instructblip": [
         "INSTRUCTBLIP_PRETRAINED_CONFIG_ARCHIVE_MAP",
         "InstructBlipConfig",
+        "InstructBlipProcessor",
         "InstructBlipQFormerConfig",
         "InstructBlipVisionConfig",
     ],
@@ -4123,6 +4124,7 @@ if TYPE_CHECKING:
     from .models.instructblip import (
         INSTRUCTBLIP_PRETRAINED_CONFIG_ARCHIVE_MAP,
         InstructBlipConfig,
+        InstructBlipProcessor,
         InstructBlipQFormerConfig,
         InstructBlipVisionConfig,
     )
