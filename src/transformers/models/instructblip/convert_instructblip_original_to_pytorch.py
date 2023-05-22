@@ -302,6 +302,10 @@ def convert_blip2_checkpoint(model_name, pytorch_dump_folder_path=None, push_to_
         length_penalty=1.0,
         temperature=1,
     )
+    if "vicuna" in model_name:
+        # convert output id 0 to 2 (eos_token_id)
+        # TODO add this in the generate method?
+        outputs[outputs == 0] = 2
     output_text = processor.batch_decode(outputs, skip_special_tokens=True)
     output_text = [text.strip() for text in output_text]
     print("Generation:", output_text)
