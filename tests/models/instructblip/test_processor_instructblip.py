@@ -25,7 +25,13 @@ from transformers.utils import is_vision_available
 if is_vision_available():
     from PIL import Image
 
-    from transformers import AutoProcessor, InstructBlipProcessor, BlipImageProcessor, GPT2Tokenizer, PreTrainedTokenizerFast
+    from transformers import (
+        AutoProcessor,
+        BlipImageProcessor,
+        GPT2Tokenizer,
+        InstructBlipProcessor,
+        PreTrainedTokenizerFast,
+    )
 
 
 @require_vision
@@ -117,7 +123,10 @@ class InstructBlipProcessorTest(unittest.TestCase):
 
         inputs = processor(text=input_str, images=image_input)
 
-        self.assertListEqual(list(inputs.keys()), ["pixel_values", "input_ids", "attention_mask", "qformer_input_ids", "qformer_attention_mask"])
+        self.assertListEqual(
+            list(inputs.keys()),
+            ["pixel_values", "input_ids", "attention_mask", "qformer_input_ids", "qformer_attention_mask"],
+        )
 
         # test if it raises when no input is passed
         with pytest.raises(ValueError):
@@ -147,4 +156,7 @@ class InstructBlipProcessorTest(unittest.TestCase):
 
         inputs = processor(text=input_str, images=image_input)
 
-        self.assertListEqual(list(inputs.keys()), ["pixel_values", "input_ids", "attention_mask", "qformer_input_ids", "qformer_attention_mask"])
+        self.assertListEqual(
+            list(inputs.keys()),
+            ["pixel_values", "input_ids", "attention_mask", "qformer_input_ids", "qformer_attention_mask"],
+        )

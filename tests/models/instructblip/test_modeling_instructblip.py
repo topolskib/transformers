@@ -22,7 +22,13 @@ import unittest
 import numpy as np
 import requests
 
-from transformers import CONFIG_MAPPING, InstructBlipConfig, InstructBlipQFormerConfig, InstructBlipVisionConfig
+from transformers import (
+    CONFIG_MAPPING,
+    InstructBlipConfig,
+    InstructBlipProcessor,
+    InstructBlipQFormerConfig,
+    InstructBlipVisionConfig,
+)
 from transformers.testing_utils import require_torch, require_vision, slow, torch_device
 from transformers.utils import is_torch_available, is_vision_available
 
@@ -878,5 +884,128 @@ def prepare_img():
 @require_torch
 @slow
 class InstructBlipModelIntegrationTest(unittest.TestCase):
-    def test_inference_flan_t5(self):
-        raise NotImplementedError("To do")
+    def test_inference_vicuna_7b(self):
+        # TODO update organization
+        processor = InstructBlipProcessor.from_pretrained("nielsr/instructblip-vicuna-7b")
+        model = InstructBlipForConditionalGeneration.from_pretrained("nielsr/instructblip-vicuna-7b").to(torch_device)
+
+        url = "https://raw.githubusercontent.com/salesforce/LAVIS/main/docs/_static/Confusing-Pictures.jpg"
+        image = Image.open(requests.get(url, stream=True).raw).convert("RGB")
+        prompt = "What is unusual about this image?"
+        inputs = processor(images=image, text=prompt, return_tensors="pt").to(torch_device)
+
+        outputs = model.generate(
+            **inputs,
+            do_sample=False,
+            num_beams=1,
+            max_length=256,
+            min_length=1,
+            top_p=0.9,
+            repetition_penalty=1.5,
+            length_penalty=1.0,
+            temperature=1,
+        )
+        generated_text = processor.batch_decode(outputs, skip_special_tokens=True)[0].strip()
+
+        expected_outputs = [
+            0,
+            450,
+            22910,
+            9565,
+            310,
+            445,
+            1967,
+            338,
+            393,
+            263,
+            767,
+            297,
+            13328,
+            528,
+            2728,
+            322,
+            3273,
+            29879,
+            29892,
+            1058,
+            5692,
+            304,
+            367,
+            13977,
+            292,
+            22095,
+            373,
+            278,
+            1250,
+            12949,
+            470,
+            17526,
+            1153,
+            384,
+            4038,
+            310,
+            670,
+            1559,
+            1550,
+            19500,
+            1623,
+            385,
+            17164,
+            11952,
+            29889,
+            910,
+            6434,
+            1033,
+            19998,
+            18593,
+            15332,
+            5161,
+            2039,
+            363,
+            1716,
+            1075,
+            408,
+            1532,
+            408,
+            916,
+            6520,
+            4160,
+            2861,
+            304,
+            1320,
+            336,
+            1953,
+            8581,
+            491,
+            11415,
+            425,
+            870,
+            719,
+            2645,
+            9850,
+            931,
+            2012,
+            12789,
+            4746,
+            14419,
+            368,
+            373,
+            9109,
+            19716,
+            5858,
+            5544,
+            747,
+            9770,
+            763,
+            12469,
+            14243,
+            752,
+            13036,
+            2,
+            1,
+        ]
+        self.assertEqual(outputs[0].tolist(), expected_outputs)
+        self.assertEqual(
+            generated_text,
+            "The unusual aspect of this image is that a man in yellow shirt and shorts, who appears to be ironing clothes on the back seat or roof rack area of his car while driving down an urban street. This situation could potentially pose safety risks for both him as well as other road users due to distractions caused by handling laundry during travel time instead focusing solely on safe vehicle operation responsibilities like traffic laws compliance",
+        )
