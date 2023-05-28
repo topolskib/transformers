@@ -266,7 +266,9 @@ def convert_blip2_checkpoint(model_name, pytorch_dump_folder_path=None, push_to_
 
     # test end-to-end with processor
     print("Testing with processor...")
-    processor = InstructBlipProcessor(image_processor=image_processor, tokenizer=tokenizer)
+    processor = InstructBlipProcessor(
+        image_processor=image_processor, qformer_tokenizer=qformer_tokenizer, tokenizer=tokenizer
+    )
 
     inputs = processor(images=image, text=prompt, return_tensors="pt").to(device)
 

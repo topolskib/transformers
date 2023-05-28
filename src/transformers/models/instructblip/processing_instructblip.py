@@ -16,6 +16,7 @@
 Processor class for InstructBLIP. Largely copy of Blip2Processor with addition of a tokenizer for the Q-Former.
 """
 
+import os
 from typing import List, Optional, Union
 
 from ...processing_utils import ProcessorMixin
@@ -42,13 +43,12 @@ class InstructBlipProcessor(ProcessorMixin):
     image_processor_class = "BlipImageProcessor"
     tokenizer_class = "AutoTokenizer"
 
-    def __init__(self, image_processor, tokenizer):
+    def __init__(self, image_processor, qformer_tokenizer, tokenizer):
         super().__init__(image_processor, tokenizer)
         self.current_processor = self.image_processor
 
         # add QFormer tokenizer
-        self.qformer_tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased", truncation_side="left")
-        self.qformer_tokenizer.add_special_tokens({"bos_token": "[DEC]"})
+        self.qformer_tokenizer = qformer_tokenizer
 
     def __call__(
         self,
@@ -175,3 +175,20 @@ class InstructBlipProcessor(ProcessorMixin):
         tokenizer_input_names = self.tokenizer.model_input_names
         image_processor_input_names = self.image_processor.model_input_names
         return list(dict.fromkeys(tokenizer_input_names + image_processor_input_names))
+
+    # overwrite to save the Q-Former tokenizer in a separate folder
+    def save_pretrained(self, save_directory, **kwargs):
+        if os.path.isfile(save_directory):
+            raise ValueError(f"Provided path ({save_directory}) should be a directory, not a file")
+        os.makedirs(save_directory, exist_ok=True)
+        qformer_tokenizer_path = os.path.join(save_directory, "qformer_tokenizer")
+        self.qformer_tokenizer.save_pretrained(qformer_tokenizer_path)
+        return super().save_pretrained(save_directory, **kwargs)
+
+    # overwrite to load the Q-Former tokenizer from a separate folder
+    @classmethod
+    def from_pretrained(cls, pretrained_model_name_or_path, **kwargs):
+        qformer_tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name_or_path, subfolder="qformer_tokenizer")
+        args = cls._get_arguments_from_pretrained(pretrained_model_name_or_path, **kwargs)
+        args.append(qformer_tokenizer)
+        return cls(*args)
