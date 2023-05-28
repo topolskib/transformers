@@ -332,8 +332,8 @@ INSTRUCTBLIP_START_DOCSTRING = r"""
 INSTRUCTBLIP_VISION_INPUTS_DOCSTRING = r"""
     Args:
         pixel_values (`torch.FloatTensor` of shape `(batch_size, num_channels, height, width)`):
-            Pixel values. Pixel values can be obtained using [`Blip2Processor`]. See [`Blip2Processor.__call__`] for
-            details.
+            Pixel values. Pixel values can be obtained using [`InstructBlipProcessor`]. See
+            [`InstructBlipProcessor.__call__`] for details.
         output_attentions (`bool`, *optional*):
             Whether or not to return the attentions tensors of all attention layers. See `attentions` under returned
             tensors for more detail.
@@ -384,14 +384,15 @@ INSTRUCTBLIP_TEXT_INPUTS_DOCSTRING = r"""
 INSTRUCTBLIP_INPUTS_DOCSTRING = r"""
     Args:
         pixel_values (`torch.FloatTensor` of shape `(batch_size, num_channels, height, width)`):
-            Pixel values. Pixel values can be obtained using [`Blip2Processor`]. See [`Blip2Processor.__call__`] for
-            details.
+            Pixel values. Pixel values can be obtained using [`InstructBlipProcessor`]. See
+            [`InstructBlipProcessor.__call__`] for details.
 
         input_ids (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
             Indices of input sequence tokens in the vocabulary of the language model. Input tokens can optionally be
             provided to serve as text prompt, which the language model can continue.
 
-            Indices can be obtained using [`Blip2Processor`]. See [`Blip2Processor.__call__`] for details.
+            Indices can be obtained using [`InstructBlipProcessor`]. See [`InstructBlipProcessor.__call__`] for
+            details.
 
             [What are input IDs?](../glossary#input-ids)
         attention_mask (`torch.Tensor` of shape `(batch_size, sequence_length)`, *optional*):
@@ -1352,7 +1353,7 @@ class InstructBlipModel(InstructBlipPreTrainedModel):
 
         >>> device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        >>> model = InstructBlipModel.from_pretrained("Salesforce/instructblip-flan-t5", torch_dtype=torch.float16)
+        >>> model = InstructBlipModel.from_pretrained("Salesforce/instructblip-flan-t5")
 
         >>> model.to(device)  # doctest: +IGNORE_RESULT
 
@@ -1414,14 +1415,14 @@ class InstructBlipModel(InstructBlipPreTrainedModel):
 
         >>> device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        >>> model = InstructBlipModel.from_pretrained("Salesforce/instructblip-flan-t5", torch_dtype=torch.float16)
+        >>> model = InstructBlipModel.from_pretrained("Salesforce/instructblip-flan-t5")
 
         >>> model.to(device)  # doctest: +IGNORE_RESULT
 
         >>> processor = AutoProcessor.from_pretrained("Salesforce/instructblip-flan-t5")
         >>> url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         >>> image = Image.open(requests.get(url, stream=True).raw)
-        >>> inputs = processor(images=image, return_tensors="pt").to(device, torch.float16)
+        >>> inputs = processor(images=image, return_tensors="pt").to(device)
         >>> image_outputs = model.get_image_features(**inputs)
         ```"""
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
@@ -1462,17 +1463,17 @@ class InstructBlipModel(InstructBlipPreTrainedModel):
         >>> import torch
         >>> from PIL import Image
         >>> import requests
-        >>> from transformers import Blip2Processor, InstructBlipModel
+        >>> from transformers import InstructBlipProcessor, InstructBlipModel
 
         >>> device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        >>> processor = Blip2Processor.from_pretrained("Salesforce/instructblip-flan-t5")
-        >>> model = InstructBlipModel.from_pretrained("Salesforce/instructblip-flan-t5", torch_dtype=torch.float16)
+        >>> processor = InstructBlipProcessor.from_pretrained("Salesforce/instructblip-flan-t5")
+        >>> model = InstructBlipModel.from_pretrained("Salesforce/instructblip-flan-t5")
         >>> model.to(device)  # doctest: +IGNORE_RESULT
 
         >>> url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         >>> image = Image.open(requests.get(url, stream=True).raw)
-        >>> inputs = processor(images=image, return_tensors="pt").to(device, torch.float16)
+        >>> inputs = processor(images=image, return_tensors="pt").to(device)
         >>> qformer_outputs = model.get_qformer_features(**inputs)
         ```"""
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
@@ -1538,20 +1539,20 @@ class InstructBlipModel(InstructBlipPreTrainedModel):
         ```python
         >>> from PIL import Image
         >>> import requests
-        >>> from transformers import Blip2Processor, InstructBlipModel
+        >>> from transformers import InstructBlipProcessor, InstructBlipModel
         >>> import torch
 
         >>> device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        >>> processor = Blip2Processor.from_pretrained("Salesforce/instructblip-flan-t5")
-        >>> model = InstructBlipModel.from_pretrained("Salesforce/instructblip-flan-t5", torch_dtype=torch.float16)
+        >>> processor = InstructBlipProcessor.from_pretrained("Salesforce/instructblip-flan-t5")
+        >>> model = InstructBlipModel.from_pretrained("Salesforce/instructblip-flan-t5")
         >>> model.to(device)  # doctest: +IGNORE_RESULT
 
         >>> url = "http://images.cocodataset.org/val2017/000000039769.jpg"
         >>> image = Image.open(requests.get(url, stream=True).raw)
 
         >>> prompt = "Question: how many cats are there? Answer:"
-        >>> inputs = processor(images=image, text=prompt, return_tensors="pt").to(device, torch.float16)
+        >>> inputs = processor(images=image, text=prompt, return_tensors="pt").to(device)
 
         >>> outputs = model(**inputs)
         ```"""
@@ -1752,21 +1753,19 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
         ```python
         >>> from PIL import Image
         >>> import requests
-        >>> from transformers import Blip2Processor, InstructBlipForConditionalGeneration
+        >>> from transformers import InstructBlipProcessor, InstructBlipForConditionalGeneration
         >>> import torch
 
         >>> device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        >>> processor = Blip2Processor.from_pretrained("Salesforce/instructblip-flan-t5")
-        >>> model = InstructBlipForConditionalGeneration.from_pretrained(
-        ...     "Salesforce/instructblip-flan-t5", torch_dtype=torch.float16
-        ... )
+        >>> processor = InstructBlipProcessor.from_pretrained("Salesforce/instructblip-vicuna-7b")
+        >>> model = InstructBlipForConditionalGeneration.from_pretrained("Salesforce/instructblip-vicuna-7b")
         >>> model.to(device)  # doctest: +IGNORE_RESULT
 
-        >>> url = "http://images.cocodataset.org/val2017/000000039769.jpg"
-        >>> image = Image.open(requests.get(url, stream=True).raw)
-
-        >>> inputs = processor(images=image, return_tensors="pt").to(device, torch.float16)
+        >>> url = "https://raw.githubusercontent.com/salesforce/LAVIS/main/docs/_static/Confusing-Pictures.jpg"
+        >>> image = Image.open(requests.get(url, stream=True).raw).convert("RGB")
+        >>> prompt = "What is unusual about this image?"
+        >>> inputs = processor(images=image, text=prompt, return_tensors="pt").to(torch_device)
 
         >>> generated_ids = model.generate(**inputs)
         >>> generated_text = processor.batch_decode(generated_ids, skip_special_tokens=True)[0].strip()
