@@ -1668,7 +1668,7 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
     def __init__(self, config: InstructBlipConfig):
         super().__init__(config)
 
-        self.vision_model = self.create_vision_model(config)
+        self.vision_model = InstructBlipVisionModel(config.vision_config)
 
         self.query_tokens = nn.Parameter(torch.zeros(1, config.num_query_tokens, config.qformer_config.hidden_size))
         self.qformer = InstructBlipQFormerModel(config.qformer_config)
@@ -1679,30 +1679,11 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
         else:
             language_model = AutoModelForSeq2SeqLM.from_config(config.text_config)
 
-            for name, param in language_model.named_parameters():
-                param.requires_grad = False
-                param.data = param.data.bfloat16()
-
         self.language_model = language_model
 
         # Initialize weights and apply final processing
         self.post_init()
 
-    def create_vision_model(self, config):
-        """Create vision model and convert applicable model parameters to fp16"""
-
-        model = InstructBlipVisionModel(config.vision_config)
-
-        def _convert_weights_to_fp16(l):
-            if isinstance(l, (nn.Conv1d, nn.Conv2d, nn.Linear)):
-                l.weight.data = l.weight.data.half()
-                if l.bias is not None:
-                    l.bias.data = l.bias.data.half()
-
-        model.apply(_convert_weights_to_fp16)
-
-        return model
-    
     def get_input_embeddings(self):
         return self.language_model.get_input_embeddings()
 
@@ -1796,26 +1777,27 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         print("-------------------HF implementation--------------")
-        print("First values of pixel values:", pixel_values[0,:3,:3,:3])
+        print("First values of pixel values:", pixel_values[0, :3, :3, :3])
         print("Mean value of pixel values:", pixel_values.mean())
 
         # step 1: forward the images through the vision encoder,
         # to get image embeddings of shape (batch_size, seq_len, hidden_size)
-        # TODO remove this hack
-        with self.maybe_autocast():
-            vision_outputs = self.vision_model(
-                pixel_values=pixel_values,
-                output_attentions=output_attentions,
-                output_hidden_states=output_hidden_states,
-                return_dict=return_dict,
-            )
-            image_embeds = vision_outputs[0]
+        vision_outputs = self.vision_model(
+            pixel_values=pixel_values,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+        image_embeds = vision_outputs[0]
 
-        from huggingface_hub import hf_hub_download
-        filepath = hf_hub_download(repo_id="nielsr/instructblip-image-embeds", repo_type="dataset", filename="image_embeds.pt")
-        image_embeds = torch.load(filepath)
-        
-        print("First values of image_embeds:", image_embeds[0,:3,:3])
+        # from huggingface_hub import hf_hub_download
+
+        # filepath = hf_hub_download(
+        #     repo_id="nielsr/instructblip-image-embeds", repo_type="dataset", filename="image_embeds.pt"
+        # )
+        # image_embeds = torch.load(filepath)
+
+        print("First values of image_embeds:", image_embeds[0, :3, :3])
         print("Mean of image_embeds:", image_embeds.mean())
         print("Dtype of image_embeds:", image_embeds.dtype)
 
@@ -1841,8 +1823,6 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
         print("First values of query_output:", query_outputs.last_hidden_state[0, :3, :3])
         print("Mean value of query_output:", query_outputs.last_hidden_state.mean())
         print("Dtype of query_output:", query_outputs.last_hidden_state.dtype)
-        filepath = hf_hub_download(repo_id="nielsr/instructblip-image-embeds", repo_type="dataset", filename="query_output.pt")
-        query_outputs = torch.load(filepath)
         query_output = query_outputs[0][:, : query_tokens.size(1), :]
 
         # step 3: use the language model, conditioned on the query outputs and the prompt
@@ -1851,74 +1831,58 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
             language_model_inputs.size()[:-1], dtype=torch.long, device=language_model_inputs.device
         )
 
-        # TODO remove this hack
-        dtype = torch.bfloat16 if self.config.text_config.model_type == "t5" else torch.float16
-        with self.maybe_autocast(dtype=dtype):
-            from transformers import T5TokenizerFast
+        inputs_embeds = self.language_model.get_input_embeddings()(input_ids)
 
-            tokenizer = T5TokenizerFast.from_pretrained("google/flan-t5-xl", truncation_side='left')
-            
-            input_tokens = tokenizer(
-                "What is unusual about this image?",
-                padding="longest",
-                truncation=True,
-                max_length=128,
-                return_tensors="pt",
-            ).to(pixel_values.device)
+        print("Mean of inputs_embeds before concatenating:", inputs_embeds.mean())
 
-            inputs_embeds = self.language_model.get_input_embeddings()(input_tokens.input_ids)
+        inputs_embeds = torch.cat([language_model_inputs, inputs_embeds.to(language_model_inputs.device)], dim=1)
 
-            print("Mean of inputs_embeds before concatenating:", inputs_embeds.mean())
+        print("Mean of inputs_embeds after concatenating:", inputs_embeds.mean())
 
-            inputs_embeds = torch.cat([language_model_inputs, inputs_embeds.to(language_model_inputs.device)], dim=1)
+        if attention_mask is None:
+            attention_mask = torch.ones_like(input_ids)
+        attention_mask = torch.cat([language_model_attention_mask, attention_mask], dim=1)
 
-            print("Mean of inputs_embeds after concatenating:", inputs_embeds.mean())
+        if self.config.use_decoder_only_language_model:
+            outputs = self.language_model(
+                inputs_embeds=inputs_embeds,
+                attention_mask=attention_mask,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+            )
+            logits = outputs.logits if return_dict else outputs[0]
+            loss = None
+            # we compute the loss here since we need to take into account the sequence length of the query embeds
+            if labels is not None:
+                labels = labels.to(logits.device)
+                logits = logits[:, -labels.size(1) :, :]
+                # Shift so that tokens < n predict n
+                shift_logits = logits[..., :-1, :].contiguous()
+                shift_labels = labels[..., 1:].contiguous().to(logits.device)
 
-            if attention_mask is None:
-                attention_mask = torch.ones_like(input_ids)
-            expected_device = language_model_attention_mask.device
-            attention_mask = torch.cat([language_model_attention_mask, input_tokens.attention_mask], dim=1)
+                # Flatten the tokens
+                loss_fct = CrossEntropyLoss(reduction="mean")
 
-            if self.config.use_decoder_only_language_model:
-                outputs = self.language_model(
-                    inputs_embeds=inputs_embeds,
-                    attention_mask=attention_mask,
-                    output_attentions=output_attentions,
-                    output_hidden_states=output_hidden_states,
-                    return_dict=return_dict,
-                )
-                logits = outputs.logits if return_dict else outputs[0]
-                loss = None
-                # we compute the loss here since we need to take into account the sequence length of the query embeds
-                if labels is not None:
-                    labels = labels.to(logits.device)
-                    logits = logits[:, -labels.size(1) :, :]
-                    # Shift so that tokens < n predict n
-                    shift_logits = logits[..., :-1, :].contiguous()
-                    shift_labels = labels[..., 1:].contiguous().to(logits.device)
+                loss = loss_fct(shift_logits.view(-1, self.config.text_config.vocab_size), shift_labels.view(-1))
+        else:
+            print("First values of inputs_embeds:", inputs_embeds[0, :3, :3])
+            print("Mean value of inputs_embeds:", inputs_embeds.mean())
+            print("Mean value of encoder_atts:", attention_mask.float().mean())
+            # print("Mean value of decoder attention_mask:", decoder_attention_mask.float().mean())
 
-                    # Flatten the tokens
-                    loss_fct = CrossEntropyLoss(reduction="mean")
-
-                    loss = loss_fct(shift_logits.view(-1, self.config.text_config.vocab_size), shift_labels.view(-1))
-            else:
-                print("First values of inputs_embeds:", inputs_embeds[0, :3, :3])
-                print("Mean value of inputs_embeds:", inputs_embeds.mean())
-                print("Mean value of encoder_atts:", attention_mask.float().mean())
-                # print("Mean value of decoder attention_mask:", decoder_attention_mask.float().mean())
-
-                outputs = self.language_model(
-                    inputs_embeds=inputs_embeds,
-                    attention_mask=attention_mask,
-                    decoder_input_ids=decoder_input_ids,
-                    decoder_attention_mask=decoder_attention_mask,
-                    output_attentions=output_attentions,
-                    output_hidden_states=output_hidden_states,
-                    return_dict=return_dict,
-                    labels=labels,
-                )
-                loss = outputs.loss if return_dict else outputs[0]
-                logits = outputs.logits if return_dict else outputs[1]
+            outputs = self.language_model(
+                inputs_embeds=inputs_embeds,
+                attention_mask=attention_mask,
+                decoder_input_ids=decoder_input_ids,
+                decoder_attention_mask=decoder_attention_mask,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+                labels=labels,
+            )
+            loss = outputs.loss if return_dict else outputs[0]
+            logits = outputs.logits if return_dict else outputs[1]
 
         if not return_dict:
             output = (logits, vision_outputs, query_outputs, outputs)
@@ -1975,14 +1939,8 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
             self._preprocess_accelerate()
 
         batch_size = pixel_values.shape[0]
-        # TODO remove this hack
-        with self.maybe_autocast():
-            image_embeds = self.vision_model(pixel_values, return_dict=True).last_hidden_state
+        image_embeds = self.vision_model(pixel_values, return_dict=True).last_hidden_state
 
-        from huggingface_hub import hf_hub_download
-        filepath = hf_hub_download(repo_id="nielsr/instructblip-image-embeds", repo_type="dataset", filename="image_embeds.pt")
-        image_embeds = torch.load(filepath)
-        
         image_attention_mask = torch.ones(image_embeds.size()[:-1], dtype=torch.long, device=image_embeds.device)
 
         query_tokens = self.query_tokens.expand(image_embeds.shape[0], -1, -1)
@@ -1998,8 +1956,6 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
             encoder_attention_mask=image_attention_mask,
             return_dict=True,
         )
-        filepath = hf_hub_download(repo_id="nielsr/instructblip-image-embeds", repo_type="dataset", filename="query_output.pt")
-        query_outputs = torch.load(filepath)
         query_output = query_outputs.last_hidden_state[:, : query_tokens.size(1), :]
 
         language_model_inputs = self.language_projection(query_output)
@@ -2017,17 +1973,14 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
             attention_mask = torch.ones_like(input_ids)
         attention_mask = torch.cat([language_attention_mask, attention_mask.to(language_attention_mask.device)], dim=1)
 
-        # TODO remove this hack
-        dtype = torch.bfloat16 if self.config.text_config.model_type == "t5" else torch.float16
-        with self.maybe_autocast(dtype=dtype):
-            # concatenate query embeddings with prompt embeddings
-            inputs_embeds = self.get_input_embeddings()(input_ids)
-            inputs_embeds = torch.cat([language_model_inputs, inputs_embeds.to(language_model_inputs.device)], dim=1)
+        # concatenate query embeddings with prompt embeddings
+        inputs_embeds = self.get_input_embeddings()(input_ids)
+        inputs_embeds = torch.cat([language_model_inputs, inputs_embeds.to(language_model_inputs.device)], dim=1)
 
-            outputs = self.language_model.generate(
-                inputs_embeds=inputs_embeds,
-                attention_mask=attention_mask,
-                **generate_kwargs,
-            )
+        outputs = self.language_model.generate(
+            inputs_embeds=inputs_embeds,
+            attention_mask=attention_mask,
+            **generate_kwargs,
+        )
 
         return outputs

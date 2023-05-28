@@ -228,7 +228,6 @@ def convert_blip2_checkpoint(model_name, pytorch_dump_folder_path=None, push_to_
                 original_pixel_values, qformer_input_ids=qformer_input_ids, input_ids=input_ids, labels=labels
             ).logits
 
-    # assert original_logits.shape == logits.shape
     print("Shape of original logits:", original_logits.shape)
     print("Shape of HF logits:", logits.shape)
     print("First values of original logits:", original_logits[0, :3, :3])
@@ -236,27 +235,9 @@ def convert_blip2_checkpoint(model_name, pytorch_dump_folder_path=None, push_to_
     print("Dtype of HF logits:", logits.dtype)
 
     # assert values
-    if model_name == "instructblip-flan-t5-xl":
-        expected_slice_logits = torch.tensor(
-            [[-62.0000,  -7.3125, -12.4375], [-44.0000,  -5.2500,   0.9844]],
-            device=device,
-            dtype=torch.bfloat16,
-        )
-        assert torch.allclose(logits[0, :3, :3], expected_slice_logits, atol=1e-4)
-    elif model_name == "instructblip-flan-t5-xxl":
-        raise NotImplementedError("To do")
-    elif model_name == "instructblip-vicuna-7b":
-        # expected_slice_logits = torch.tensor(
-        #     [[-3.4707, -12.6719, 8.5000], [-5.1328, -12.2109, 7.9727], [-4.0664, -13.9219, 9.2266]],
-        #     device=device,
-        #     dtype=torch.float16,
-        # )
-        # assert torch.allclose(logits[0, :3, :3], expected_slice_logits, atol=1e-4)
-        pass
-    elif model_name == "instructblip-vicuna-13b":
-        raise NotImplementedError("To do")
-    else:
-        raise ValueError("Model name not supported")
+    assert original_logits.shape == logits.shape
+    atol = 1e-1 if "vicuna" in model_name else 1e-2
+    assert torch.allclose(original_logits, logits, atol=atol)
     print("Looks ok!")
 
     print("Generating with original model...")
