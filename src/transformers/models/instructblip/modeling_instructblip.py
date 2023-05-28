@@ -14,7 +14,6 @@
 # limitations under the License.
 """ PyTorch InstructBLIP model."""
 
-import contextlib
 import math
 from dataclasses import dataclass
 from typing import Any, Optional, Tuple, Union
@@ -1776,10 +1775,6 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
         ```"""
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
-        print("-------------------HF implementation--------------")
-        print("First values of pixel values:", pixel_values[0, :3, :3, :3])
-        print("Mean value of pixel values:", pixel_values.mean())
-
         # step 1: forward the images through the vision encoder,
         # to get image embeddings of shape (batch_size, seq_len, hidden_size)
         vision_outputs = self.vision_model(
@@ -1789,17 +1784,6 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
             return_dict=return_dict,
         )
         image_embeds = vision_outputs[0]
-
-        # from huggingface_hub import hf_hub_download
-
-        # filepath = hf_hub_download(
-        #     repo_id="nielsr/instructblip-image-embeds", repo_type="dataset", filename="image_embeds.pt"
-        # )
-        # image_embeds = torch.load(filepath)
-
-        print("First values of image_embeds:", image_embeds[0, :3, :3])
-        print("Mean of image_embeds:", image_embeds.mean())
-        print("Dtype of image_embeds:", image_embeds.dtype)
 
         # step 2: forward the query tokens through the QFormer, using the image embeddings for cross-attention
         image_attention_mask = torch.ones(image_embeds.size()[:-1], dtype=torch.long, device=image_embeds.device)
@@ -1820,9 +1804,6 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
-        print("First values of query_output:", query_outputs.last_hidden_state[0, :3, :3])
-        print("Mean value of query_output:", query_outputs.last_hidden_state.mean())
-        print("Dtype of query_output:", query_outputs.last_hidden_state.dtype)
         query_output = query_outputs[0][:, : query_tokens.size(1), :]
 
         # step 3: use the language model, conditioned on the query outputs and the prompt
@@ -1833,11 +1814,7 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
 
         inputs_embeds = self.language_model.get_input_embeddings()(input_ids)
 
-        print("Mean of inputs_embeds before concatenating:", inputs_embeds.mean())
-
         inputs_embeds = torch.cat([language_model_inputs, inputs_embeds.to(language_model_inputs.device)], dim=1)
-
-        print("Mean of inputs_embeds after concatenating:", inputs_embeds.mean())
 
         if attention_mask is None:
             attention_mask = torch.ones_like(input_ids)
@@ -1866,11 +1843,6 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
 
                 loss = loss_fct(shift_logits.view(-1, self.config.text_config.vocab_size), shift_labels.view(-1))
         else:
-            print("First values of inputs_embeds:", inputs_embeds[0, :3, :3])
-            print("Mean value of inputs_embeds:", inputs_embeds.mean())
-            print("Mean value of encoder_atts:", attention_mask.float().mean())
-            # print("Mean value of decoder attention_mask:", decoder_attention_mask.float().mean())
-
             outputs = self.language_model(
                 inputs_embeds=inputs_embeds,
                 attention_mask=attention_mask,
@@ -1895,16 +1867,6 @@ class InstructBlipForConditionalGeneration(InstructBlipPreTrainedModel):
             qformer_outputs=query_outputs,
             language_model_outputs=outputs,
         )
-
-    def maybe_autocast(self, dtype=torch.float16):
-        # if on cpu, don't use autocast
-        # if on gpu, use autocast with dtype if provided, otherwise use torch.float16
-        enable_autocast = self.device != torch.device("cpu")
-
-        if enable_autocast:
-            return torch.cuda.amp.autocast(dtype=dtype)
-        else:
-            return contextlib.nullcontext()
 
     @torch.no_grad()
     def generate(

@@ -228,11 +228,8 @@ def convert_blip2_checkpoint(model_name, pytorch_dump_folder_path=None, push_to_
                 original_pixel_values, qformer_input_ids=qformer_input_ids, input_ids=input_ids, labels=labels
             ).logits
 
-    print("Shape of original logits:", original_logits.shape)
-    print("Shape of HF logits:", logits.shape)
     print("First values of original logits:", original_logits[0, :3, :3])
     print("First values of HF logits:", logits[0, :3, :3])
-    print("Dtype of HF logits:", logits.dtype)
 
     # assert values
     assert original_logits.shape == logits.shape
