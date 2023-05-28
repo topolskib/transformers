@@ -43,7 +43,7 @@ class InstructBlipProcessor(ProcessorMixin):
     image_processor_class = "BlipImageProcessor"
     tokenizer_class = "AutoTokenizer"
 
-    def __init__(self, image_processor, qformer_tokenizer, tokenizer):
+    def __init__(self, image_processor, tokenizer, qformer_tokenizer):
         super().__init__(image_processor, tokenizer)
         self.current_processor = self.image_processor
 
