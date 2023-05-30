@@ -52,7 +52,6 @@ FEATURE_EXTRACTOR_MAPPING_NAMES = OrderedDict(
         ("deit", "DeiTFeatureExtractor"),
         ("detr", "DetrFeatureExtractor"),
         ("dinat", "ViTFeatureExtractor"),
-        ("dinov2", "Dinov2FeatureExtractor"),
         ("donut-swin", "DonutFeatureExtractor"),
         ("dpt", "DPTFeatureExtractor"),
         ("flava", "FlavaFeatureExtractor"),
@@ -327,4 +326,41 @@ class AutoFeatureExtractor:
                 feature_extractor_auto_map = config.auto_map["AutoFeatureExtractor"]
 
         if feature_extractor_class is not None:
-            # If we have custom code for a feature ex
+            # If we have custom code for a feature extractor, we get the proper class.
+            if feature_extractor_auto_map is not None:
+                if not trust_remote_code:
+                    raise ValueError(
+                        f"Loading {pretrained_model_name_or_path} requires you to execute the feature extractor file "
+                        "in that repo on your local machine. Make sure you have read the code there to avoid "
+                        "malicious use, then set the option `trust_remote_code=True` to remove this error."
+                    )
+                feature_extractor_class = get_class_from_dynamic_module(
+                    feature_extractor_auto_map, pretrained_model_name_or_path, **kwargs
+                )
+                _ = kwargs.pop("code_revision", None)
+            else:
+                feature_extractor_class = feature_extractor_class_from_name(feature_extractor_class)
+
+            return feature_extractor_class.from_dict(config_dict, **kwargs)
+        # Last try: we use the FEATURE_EXTRACTOR_MAPPING.
+        elif type(config) in FEATURE_EXTRACTOR_MAPPING:
+            feature_extractor_class = FEATURE_EXTRACTOR_MAPPING[type(config)]
+            return feature_extractor_class.from_dict(config_dict, **kwargs)
+
+        raise ValueError(
+            f"Unrecognized feature extractor in {pretrained_model_name_or_path}. Should have a "
+            f"`feature_extractor_type` key in its {FEATURE_EXTRACTOR_NAME} of {CONFIG_NAME}, or one of the following "
+            f"`model_type` keys in its {CONFIG_NAME}: {', '.join(c for c in FEATURE_EXTRACTOR_MAPPING_NAMES.keys())}"
+        )
+
+    @staticmethod
+    def register(config_class, feature_extractor_class):
+        """
+        Register a new feature extractor for this class.
+
+        Args:
+            config_class ([`PretrainedConfig`]):
+                The configuration corresponding to the model to register.
+            feature_extractor_class ([`FeatureExtractorMixin`]): The feature extractor to register.
+        """
+        FEATURE_EXTRACTOR_MAPPING.register(config_class, feature_extractor_class)
