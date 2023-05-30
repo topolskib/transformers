@@ -200,6 +200,7 @@ from . import (
     vision_text_dual_encoder,
     visual_bert,
     vit,
+    dinov2,
     vit_hybrid,
     vit_mae,
     vit_msn,
