@@ -99,6 +99,7 @@ from . import (
     ibert,
     imagegpt,
     informer,
+    instructblip,
     jukebox,
     layoutlm,
     layoutlmv2,
