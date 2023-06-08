@@ -270,30 +270,6 @@ def convert_blip2_checkpoint(model_name, pytorch_dump_folder_path=None, push_to_
         processor.push_to_hub("nielsr/instructblip-test")
         hf_model.push_to_hub("nielsr/instructblip-test")
 
-    print("Reloading model from the HF hub...")
-    reloaded_model = InstructBlipForConditionalGeneration.from_pretrained("nielsr/instructblip-test")
-    reloaded_model.to("cuda:2")
-
-    inputs = inputs.to("cuda:2")
-    reloaded_outputs = reloaded_model.generate(
-        **inputs,
-        do_sample=False,
-        num_beams=5,
-        max_length=256,
-        min_length=1,
-        top_p=0.9,
-        repetition_penalty=1.5,
-        length_penalty=1.0,
-        temperature=1,
-    )
-    if "vicuna" in model_name:
-        # convert output id 0 to 2 (eos_token_id)
-        # TODO add this in the generate method?
-        reloaded_outputs[reloaded_outputs == 0] = 2
-    reloaded_text = processor.batch_decode(reloaded_outputs, skip_special_tokens=True)
-    reloaded_text = [text.strip() for text in reloaded_text]
-    print("HF reloaded generation:", reloaded_text)
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

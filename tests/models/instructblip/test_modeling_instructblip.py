@@ -885,7 +885,25 @@ class InstructBlipModelIntegrationTest(unittest.TestCase):
     def test_inference_vicuna_7b(self):
         torch_device = "cuda:1"
 
-        processor = InstructBlipProcessor.from_pretrained("nielsr/instructblip-test")
+        from transformers import BertTokenizerFast, BlipImageProcessor, LlamaTokenizer
+        from transformers.utils.constants import OPENAI_CLIP_MEAN, OPENAI_CLIP_STD
+
+        image_size = 224
+        image_processor = BlipImageProcessor(
+            size={"height": image_size, "width": image_size}, image_mean=OPENAI_CLIP_MEAN, image_std=OPENAI_CLIP_STD
+        )
+        tokenizer = LlamaTokenizer.from_pretrained("huggyllama/llama-7b", use_fast=False, truncation_side="left")
+        tokenizer.add_special_tokens({"pad_token": "[PAD]"})
+        tokenizer.add_special_tokens({"bos_token": "</s>"})
+        tokenizer.add_special_tokens({"eos_token": "</s>"})
+        tokenizer.add_special_tokens({"unk_token": "</s>"})
+        qformer_tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased", truncation_side="left")
+        qformer_tokenizer.add_special_tokens({"bos_token": "[DEC]"})
+        processor = InstructBlipProcessor(
+            image_processor=image_processor, tokenizer=tokenizer, qformer_tokenizer=qformer_tokenizer
+        )
+
+        # processor = InstructBlipProcessor.from_pretrained("...")
         model = InstructBlipForConditionalGeneration.from_pretrained("nielsr/instructblip-test").to(torch_device)
 
         url = "https://raw.githubusercontent.com/salesforce/LAVIS/main/docs/_static/Confusing-Pictures.jpg"
@@ -896,8 +914,6 @@ class InstructBlipModelIntegrationTest(unittest.TestCase):
         # verify logits
         with torch.no_grad():
             logits = model(**inputs).logits
-
-        print("Logits:", logits[0, :3, :3])
 
         expected_slice = torch.tensor(
             [[-3.4684, -12.6759, 8.5067], [-5.1305, -12.2058, 7.9834], [-4.0632, -13.9285, 9.2327]],
@@ -920,15 +936,13 @@ class InstructBlipModelIntegrationTest(unittest.TestCase):
         outputs[outputs == 0] = 2
         generated_text = processor.batch_decode(outputs, skip_special_tokens=True)[0].strip()
 
-        print(generated_text)
-
         # fmt: off
-        expected_outputs = [0, 13, 1576, 1967, 3697, 263, 2022, 13407, 373, 2246, 310, 278, 13378, 4306, 17166, 29892, 607, 338, 385, 22910, 4423, 363, 4856, 304, 367, 29889, 450, 5214, 29915, 29879, 3171, 322, 2504, 262, 663, 1207, 372, 697, 2, 1]
+        expected_outputs = [2, 450, 22910,  9565,   310,   445,  1967,   338,   393,   263, 767,   338, 13977,   292, 22095,   373,   278,  1250,   310,   263, 13328, 20134, 29963, 29892,   607,   338, 14089,   287,   297,   278, 7256,   310,   263, 19587,  4272, 11952, 29889,   910,   338,   385, 443,   535,   794,  1848,  2948,   304, 13977,   292, 22095, 29892, 408,   372,  6858,   278,   767,   304, 17346,  3654,   322,   670, 13977,   292, 21083,   373,  2246,   310,   278, 19716,  1550, 12402, 1218,  1549, 12469, 29889, 19814, 29892,   278, 10122,   310,  8818, 275,   322,   916, 24413,   297,   278,  9088,  4340, 19310,  7093, 278, 22910,  5469,   310,   445,  6434, 29889,     2,     1]
         # fmt: on
         self.assertEqual(outputs[0].tolist(), expected_outputs)
         self.assertEqual(
             generated_text,
-            "The image shows a person standing on top of the Empire State Building, which is an unusual location for someone to be. The building's height and prominence make it one",
+            "The unusual aspect of this image is that a man is ironing clothes on the back of a yellow SUV, which is parked in the middle of a busy city street. This is an unconventional approach to ironing clothes, as it requires the man to balance himself and his ironing equipment on top of the vehicle while navigating through traffic. Additionally, the presence of taxis and other vehicles in the scene further emphasizes the unusual nature of this situation.",
         )
 
     def test_inference_flant5_xl(self):
