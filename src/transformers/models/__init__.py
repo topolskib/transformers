@@ -205,6 +205,7 @@ from . import (
     vit_mae,
     vit_msn,
     vitdet,
+    vitmatte,
     wav2vec2,
     wav2vec2_conformer,
     wav2vec2_phoneme,
