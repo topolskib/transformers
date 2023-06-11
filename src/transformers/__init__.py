@@ -2722,6 +2722,7 @@ else:
     _import_structure["models.vitdet"].extend(
         [
             "VITDET_PRETRAINED_MODEL_ARCHIVE_LIST",
+            "VitDetBackbone",
             "VitDetModel",
             "VitDetPreTrainedModel",
         ]
@@ -6145,6 +6146,7 @@ if TYPE_CHECKING:
         )
         from .models.vitdet import (
             VITDET_PRETRAINED_MODEL_ARCHIVE_LIST,
+            VitDetBackbone,
             VitDetModel,
             VitDetPreTrainedModel,
         )

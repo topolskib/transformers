@@ -849,6 +849,7 @@ SHOULD_HAVE_THEIR_OWN_PAGE = [
     "SwinBackbone",
     "TimmBackbone",
     "TimmBackboneConfig",
+    "VitDetBackbone",
 ]
 
 

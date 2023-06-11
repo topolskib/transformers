@@ -1002,6 +1002,7 @@ MODEL_FOR_BACKBONE_MAPPING_NAMES = OrderedDict(
         ("resnet", "ResNetBackbone"),
         ("swin", "SwinBackbone"),
         ("timm_backbone", "TimmBackbone"),
+        ("vitdet", "VitDetBackbone"),
     ]
 )
 
