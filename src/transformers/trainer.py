@@ -338,7 +338,6 @@ class Trainer:
         # Seed must be set before instantiating the model when using model
         enable_full_determinism(self.args.seed) if self.args.full_determinism else set_seed(self.args.seed)
         self.hp_name = None
-        self.deepspeed = None
         self.is_in_train = False
 
         self.create_accelerator_and_postprocess()
