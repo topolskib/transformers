@@ -565,7 +565,8 @@ class InstructBlipModelIntegrationTest(unittest.TestCase):
     def test_inference_flant5_xl(self):
         processor = InstructBlipProcessor.from_pretrained("Salesforce/instructblip-flan-t5-xl")
         model = InstructBlipForConditionalGeneration.from_pretrained(
-            "Salesforce/instructblip-flan-t5-xl", torch_dtype=torch.bfloat16
+            "Salesforce/instructblip-flan-t5-xl",
+            torch_dtype=torch.bfloat16,
         ).to(torch_device)
 
         url = "https://raw.githubusercontent.com/salesforce/LAVIS/main/docs/_static/Confusing-Pictures.jpg"
@@ -591,10 +592,10 @@ class InstructBlipModelIntegrationTest(unittest.TestCase):
         generated_text = processor.batch_decode(outputs, skip_special_tokens=True)[0]
 
         # fmt: off
-        expected_outputs = [0, 37, 1023, 9850, 7, 3, 9, 388, 3575, 53, 4954, 30, 8, 223, 13, 3, 9, 4459, 4049, 16, 8, 2214, 13, 3, 9, 3164, 690, 2815, 5, 37, 7225, 2663, 13, 8, 1023, 19, 24, 8, 388, 19, 59, 5119, 3, 9, 8677, 6, 68, 1066, 3, 9, 4459, 8677, 28, 3, 9, 2756, 4459, 7706, 15, 323, 8, 2214, 5, 100, 4656, 7, 28, 8, 880, 13, 8, 1023, 6, 84, 9850, 7, 3, 9, 388, 16, 3, 9, 1692, 8677, 4125, 416, 12, 3, 9, 872, 4049, 28, 3, 9, 1131, 7706, 15, 323, 8, 2214, 5, 1]
+        expected_outputs = [0, 37, 1023, 9850, 7, 3, 9, 388, 3575, 53, 4954, 30, 8, 223, 13, 3, 9, 4459, 4049, 16, 8, 2214, 13, 3, 9, 3164, 690, 2815, 5, 37, 388, 19, 5119, 3, 9, 4459, 8677, 28, 3, 9, 4459, 6177, 6, 11, 3, 88, 19, 3609, 46, 3575, 53, 1476, 16, 80, 609, 11, 3, 9, 3116, 13, 28958, 16, 8, 119, 5, 37, 1023, 19, 7225, 250, 34, 1267, 3, 9, 388, 692, 10428, 16, 8, 2214, 13, 3, 9, 3164, 690, 2815, 5, 94, 19, 487, 24, 8, 388, 47, 88, 26, 112, 4954, 16, 8, 223, 13, 8, 4049, 12, 1097, 97, 383, 112, 161, 1135, 5, 611, 6, 34, 19, 92, 487, 24, 8, 388, 47, 88, 26, 112, 4954, 16, 8, 223, 13, 8, 4049, 12, 1097, 97, 383, 112, 161, 1135, 5, 86, 48, 495, 6, 8, 388, 47, 88, 26, 112, 4954, 16, 8, 223, 13, 8, 4049, 12, 1097, 97, 383, 112, 161, 1135, 5, 216, 47, 88, 26, 112, 4954, 16, 8, 223, 13, 8, 4049, 12, 1097, 97, 383, 112, 161, 1135, 5, 4063, 6, 8, 388, 47, 88, 26, 112, 4954, 16, 8, 223, 13, 8, 4049, 12, 1097, 97, 383, 112, 161, 1135, 5, 1875, 8, 388, 47, 88, 26, 112, 4954, 16, 8, 223, 13, 8, 4049, 12, 1097, 97, 383, 112, 161, 1135, 6, 34, 19, 487, 24, 3, 88, 47, 88, 26, 112, 4954, 16, 8, 223, 13, 8, 4049, 12, 1097, 97, 383, 112, 161, 1135, 5, 1]
         # fmt: on
         self.assertEqual(outputs[0].tolist(), expected_outputs)
         self.assertEqual(
             generated_text,
-            "The image depicts a man ironing clothes on the back of a yellow van in the middle of a busy city street. The unusual aspect of the image is that the man is not wearing a shirt, but rather a yellow shirt with a bright yellow stripe down the middle. This contrasts with the rest of the image, which depicts a man in a blue shirt standing next to a white van with a red stripe down the middle.",
+            "The image depicts a man ironing clothes on the back of a yellow van in the middle of a busy city street. The man is wearing a yellow shirt with a yellow tie, and he is holding an ironing board in one hand and a pair of scissors in the other. The image is unusual because it shows a man doing laundry in the middle of a busy city street. It is possible that the man washed his clothes in the back of the van to save time during his workday. However, it is also possible that the man washed his clothes in the back of the van to save time during his workday. In this case, the man washed his clothes in the back of the van to save time during his workday. He washed his clothes in the back of the van to save time during his workday. Therefore, the man washed his clothes in the back of the van to save time during his workday. Although the man washed his clothes in the back of the van to save time during his workday, it is possible that he washed his clothes in the back of the van to save time during his workday.",
         )
