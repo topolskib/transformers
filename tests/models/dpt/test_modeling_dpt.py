@@ -116,6 +116,8 @@ class DPTModelTester:
             initializer_range=self.initializer_range,
             is_hybrid=self.is_hybrid,
         )
+    
+        
 
     def create_and_check_model(self, config, pixel_values, labels):
         model = DPTModel(config=config)
@@ -126,6 +128,7 @@ class DPTModelTester:
 
     def create_and_check_for_depth_estimation(self, config, pixel_values, labels):
         config.num_labels = self.num_labels
+        print("Config:", config)
         model = DPTForDepthEstimation(config)
         model.to(torch_device)
         model.eval()
