@@ -116,8 +116,6 @@ class DPTModelTester:
             initializer_range=self.initializer_range,
             is_hybrid=self.is_hybrid,
         )
-    
-        
 
     def create_and_check_model(self, config, pixel_values, labels):
         model = DPTModel(config=config)
