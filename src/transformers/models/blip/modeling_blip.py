@@ -222,9 +222,7 @@ class BlipVisionEmbeddings(nn.Module):
         self.image_size = config.image_size
         self.patch_size = config.patch_size
 
-        self.class_embedding = nn.Parameter(
-            torch.randn(1, 1, self.embed_dim),
-        )
+        self.class_embedding = nn.Parameter(torch.randn(1, 1, self.embed_dim))
 
         self.patch_embedding = nn.Conv2d(
             in_channels=3, out_channels=self.embed_dim, kernel_size=self.patch_size, stride=self.patch_size
@@ -930,6 +928,7 @@ class BlipModel(BlipPreTrainedModel):
 class BlipForConditionalGeneration(BlipPreTrainedModel):
     config_class = BlipConfig
     _keys_to_ignore_on_load_missing = [r"text_decoder.cls.predictions.decoder.bias"]
+    _tied_weights_keys = ["text_decoder.cls.predictions.decoder.bias"]
     main_input_name = "pixel_values"
 
     def __init__(self, config: BlipConfig):
@@ -1102,6 +1101,7 @@ class BlipForConditionalGeneration(BlipPreTrainedModel):
 class BlipForQuestionAnswering(BlipPreTrainedModel):
     config_class = BlipConfig
     _keys_to_ignore_on_load_missing = [r"text_decoder.cls.predictions.decoder.bias"]
+    _tied_weights_keys = ["text_decoder.cls.predictions.decoder.bias"]
 
     def __init__(self, config: BlipConfig):
         super().__init__(config)
